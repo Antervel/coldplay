@@ -17,7 +17,7 @@ services:
       retries: 5
 
   migrate:
-    image: ghcr.io/dvadell/kantox-cara:latest
+    image: ghcr.io/antervel/coldplay:latest
     command: /app/bin/migrate
     environment:
       DATABASE_URL: postgres://cara:${DB_PASSWORD:-cara_password}@db:5432/cara_prod
@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   web:
-    image: ghcr.io/dvadell/kantox-cara:latest
+    image: ghcr.io/antervel/coldplay:latest
     ports:
       - "4000:4000"
     environment:
