@@ -5,6 +5,7 @@
   },
   "skip_files": [
     "lib/cara/application.ex",
+    "lib/cara/release.ex",
     "lib/cara_web/components/core_components.ex",
     "lib/cara_web/components/layouts.ex",
     "test"
