@@ -90,15 +90,18 @@ defmodule Cara.AI.Chat do
         updated_context = Context.append(context, user(user_message))
 
         # Get AI response
-        case call_llm(model, updated_context, fallback_models) do
-          {:ok, response} ->
-            response_text = ReqLLM.Response.text(response)
+        with {:ok, response} <- call_llm(model, updated_context, fallback_models),
+             response_text <- ReqLLM.Response.text(response),
+             false <- is_nil(response_text) do
             IO.puts("Assistant: #{response_text}\n")
 
             # Add assistant response to context and continue
             new_context = Context.append(updated_context, response.message)
             chat_loop(new_context, model, fallback_models)
 
+        else
+          true -> 
+            IO.puts(">> Error: Openrouter returned empty\n")
           {:error, reason} ->
             IO.puts(">> Error: #{inspect(reason)}\n")
             # Continue with same context
