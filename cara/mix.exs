@@ -73,7 +73,8 @@ defmodule Cara.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14.1", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
-      {:req_llm, "~> 1.0.0"}
+      {:req_llm, "~> 1.0.0"},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 
