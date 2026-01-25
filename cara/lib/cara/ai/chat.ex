@@ -1,14 +1,14 @@
 defmodule Cara.AI.Chat do
   @moduledoc """
   Interactive chat module using ReqLLM with OpenRouter (accessing HuggingFace models) and streaming support.
-  
+
   Setup:
   1. Get an OpenRouter API key from https://openrouter.ai/keys
   2. Set environment variable: `export OPENROUTER_API_KEY=your_key_here`
   3. Start chatting: `Cara.AI.Chat.start()`
-  
+
   Usage from iex:
-  
+
       iex> Cara.AI.Chat.start()
       >> Starting chat session...
       >> Type your message (or 'quit' to exit)
@@ -16,9 +16,9 @@ defmodule Cara.AI.Chat do
       Assistant: Hi there! How can I help you today?
       You: quit
       >> Chat ended.
-  
+
   For web interfaces, use the streaming version:
-  
+
       iex> context = Cara.AI.Chat.new_context()
       iex> {:ok, stream, new_context} = Cara.AI.Chat.send_message_stream("Hello!", context)
       iex> Enum.each(stream, fn chunk -> IO.write(chunk) end)
@@ -51,10 +51,10 @@ defmodule Cara.AI.Chat do
 
       key ->
         IO.puts("✓ OPENROUTER_API_KEY found: #{String.slice(key, 0..15)}...")
-        
+
         # Try a simple request
         IO.puts("Testing API key with simple request...")
-        
+
         # Use a simple OpenRouter-compatible model for testing.
         case ReqLLM.generate_text(@default_model, "Say 'test successful'") do
           {:ok, response} ->
