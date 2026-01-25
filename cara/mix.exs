@@ -74,7 +74,8 @@ defmodule Cara.MixProject do
       {:sobelow, "~> 0.14.1", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:req_llm, "~> 1.0.0"},
-      {:mox, "~> 1.0", only: :test}
+      {:mox, "~> 1.0", only: :test},
+      {:mdex, "~> 0.11"}
     ]
   end
 

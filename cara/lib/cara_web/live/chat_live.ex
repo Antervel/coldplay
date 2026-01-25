@@ -2,6 +2,7 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
 
   alias Cara.AI.Chat
+  alias MDEx
 
 
   @impl true
@@ -76,7 +77,14 @@ defmodule CaraWeb.ChatLive do
         <%= for message <- @chat_messages do %>
           <div classs={ "flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}" }>
             <div class={ "max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}" }>
-              <%= message.content %>
+              <%= if message.sender == :assistant do %>
+                <%= case MDEx.to_html(message.content, sanitize: MDEx.Document.default_sanitize_options()) do
+                      {:ok, html_string} -> Phoenix.HTML.raw(html_string)
+                      {:error, _} -> "Error rendering Markdown." # Fallback for error
+                    end %>
+              <% else %>
+                <%= message.content %>
+              <% end %>
             </div>
           </div>
         <% end %>
