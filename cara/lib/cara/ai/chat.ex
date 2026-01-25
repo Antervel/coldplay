@@ -133,16 +133,7 @@ defmodule Cara.AI.Chat do
     # Generate response with streaming
     case call_llm_stream(model, updated_context, fallback_models) do
       {:ok, stream_response} ->
-        # Consume the stream and accumulate text
-        final_text =
-          stream_response.stream
-          |> Enum.reduce("", fn chunk, acc ->
-            if chunk.type == :content do
-              acc <> chunk.text
-            else
-              acc
-            end
-          end)
+        final_text = consume_stream_to_text(stream_response.stream)
 
         # Add assistant response to context
         final_context = Context.append(updated_context, assistant(final_text))
@@ -212,61 +203,64 @@ defmodule Cara.AI.Chat do
         :ok
 
       {:ok, user_message} ->
-        # Add user message to context
-        updated_context = Context.append(context, user(user_message))
+        process_user_input(user_message, context, model, fallback_models, stream?)
+    end
+  end
 
-        # Get AI response with streaming
-        case call_llm_stream(model, updated_context, fallback_models) do
-          {:ok, stream_response} ->
-            IO.write("Assistant: ")
+  defp process_user_input(user_message, context, model, fallback_models, stream?) do
+    updated_context = Context.append(context, user(user_message))
 
-            # Consume the stream and print chunks - handle errors during streaming
-            result =
-              try do
-                final_text =
-                  stream_response.stream
-                  |> Enum.reduce("", fn chunk, acc ->
-                    if chunk.type == :content do
-                      if stream? do
-                        IO.write(chunk.text)
-                      end
+    case call_llm_stream(model, updated_context, fallback_models) do
+      {:ok, stream_response} ->
+        handle_stream_result(stream_response, updated_context, model, fallback_models, stream?)
 
-                      acc <> chunk.text
-                    else
-                      acc
-                    end
-                  end)
+      {:error, reason} ->
+        IO.puts(">> Error: #{inspect(reason)}\n")
+        # Continue with same context
+        chat_loop(context, model, fallback_models, stream?)
+    end
+  end
 
-                {:ok, final_text}
-              rescue
-                e ->
-                  IO.puts("\n>> Stream error: #{inspect(e)}")
-                  {:error, e}
+  defp handle_stream_result(stream_response, updated_context, model, fallback_models, stream?) do
+    IO.write("Assistant: ")
+
+    result =
+      try do
+        final_text =
+          stream_response.stream
+          |> Enum.reduce("", fn chunk, acc ->
+            if chunk.type == :content do
+              if stream? do
+                IO.write(chunk.text)
               end
 
-            case result do
-              {:ok, final_text} ->
-                if !stream? do
-                  IO.write(final_text)
-                end
-
-                IO.write("\n\n")
-
-                # Add assistant response to context and continue
-                new_context = Context.append(updated_context, assistant(final_text))
-                chat_loop(new_context, model, fallback_models, stream?)
-
-              {:error, _reason} ->
-                # Stream failed, don't update context
-                IO.puts(">> Continuing with previous context...\n")
-                chat_loop(context, model, fallback_models, stream?)
+              acc <> chunk.text
+            else
+              acc
             end
+          end)
 
-          {:error, reason} ->
-            IO.puts(">> Error: #{inspect(reason)}\n")
-            # Continue with same context
-            chat_loop(context, model, fallback_models, stream?)
+        {:ok, final_text}
+      rescue
+        e ->
+          IO.puts("\n>> Stream error: #{inspect(e)}")
+          {:error, e}
+      end
+
+    case result do
+      {:ok, final_text} ->
+        if !stream? do
+          IO.write(final_text)
         end
+
+        IO.write("\n\n")
+
+        new_context = Context.append(updated_context, assistant(final_text))
+        chat_loop(new_context, model, fallback_models, stream?)
+
+      {:error, _reason} ->
+        IO.puts(">> Continuing with previous context...\n")
+        chat_loop(updated_context, model, fallback_models, stream?)
     end
   end
 
@@ -290,6 +284,17 @@ defmodule Cara.AI.Chat do
     all_models = [model | fallback_models]
 
     try_models(all_models, context)
+  end
+
+  defp consume_stream_to_text(stream) do
+    stream
+    |> Enum.reduce("", fn chunk, acc ->
+      if chunk.type == :content do
+        acc <> chunk.text
+      else
+        acc
+      end
+    end)
   end
 
   defp try_models([], _context) do

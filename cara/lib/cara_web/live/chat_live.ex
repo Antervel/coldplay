@@ -146,46 +146,56 @@ defmodule CaraWeb.ChatLive do
     Task.start(fn ->
       case Chat.send_message_stream(message, socket.assigns.llm_context) do
         {:ok, stream, llm_context_builder} ->
-          sent_any_chunks =
-            Enum.reduce_while(stream, false, fn chunk, _acc ->
-              send(live_view_pid, {:llm_chunk, chunk})
-              # Continue and set flag to true
-              {:cont, true}
-            end)
-
-          if sent_any_chunks do
-            send(live_view_pid, {:llm_end, llm_context_builder})
-          else
-            # Stream returned {:ok, ...} but sent no chunks (silent failure, likely rate limit)
-            # We assume it's a rate limit error based on observed behavior.
-            user_message = "The AI is busy. Wait a moment and try again later."
-            send(live_view_pid, {:llm_chunk, user_message})
-            send(live_view_pid, {:llm_end, fn _ -> socket.assigns.llm_context end})
-          end
+          handle_llm_stream_success(stream, llm_context_builder, live_view_pid, socket)
 
         {:error, %ReqLLM.Error.API.Request{status: 429, response_body: response_body}} ->
-          retry_delay_message =
-            case Enum.find(response_body["details"] || [], fn detail ->
-                   Map.get(detail, "@type") == "type.googleapis.com/google.rpc.RetryInfo"
-                 end) do
-              %{"retryDelay" => delay} when is_binary(delay) ->
-                " Please retry in #{delay}."
-
-              _ ->
-                ""
-            end
-
-          user_message = "The AI is busy. Wait a moment and try again later." <> retry_delay_message
-          send(live_view_pid, {:llm_chunk, user_message})
-          send(live_view_pid, {:llm_end, fn _ -> socket.assigns.llm_context end})
+          handle_llm_rate_limit_error(response_body, live_view_pid, socket)
 
         {:error, reason} ->
-          send(live_view_pid, {:llm_chunk, "Error: #{inspect(reason)}"})
-          send(live_view_pid, {:llm_end, fn _ -> socket.assigns.llm_context end})
+          handle_llm_stream_error(reason, live_view_pid, socket)
       end
     end)
 
     # Return the socket
     socket
+  end
+
+  defp handle_llm_stream_success(stream, llm_context_builder, live_view_pid, socket) do
+    sent_any_chunks =
+      Enum.reduce_while(stream, false, fn chunk, _acc ->
+        send(live_view_pid, {:llm_chunk, chunk})
+        {:cont, true}
+      end)
+
+    if sent_any_chunks do
+      send(live_view_pid, {:llm_end, llm_context_builder})
+    else
+      send_llm_chunk_and_end("The AI is busy. Wait a moment and try again later.", live_view_pid, socket)
+    end
+  end
+
+  defp handle_llm_rate_limit_error(response_body, live_view_pid, socket) do
+    retry_delay_message =
+      case Enum.find(response_body["details"] || [], fn detail ->
+             Map.get(detail, "@type") == "type.googleapis.com/google.rpc.RetryInfo"
+           end) do
+        %{"retryDelay" => delay} when is_binary(delay) ->
+          " Please retry in #{delay}."
+
+        _ ->
+          ""
+      end
+
+    user_message = "The AI is busy. Wait a moment and try again later." <> retry_delay_message
+    send_llm_chunk_and_end(user_message, live_view_pid, socket)
+  end
+
+  defp handle_llm_stream_error(reason, live_view_pid, socket) do
+    send_llm_chunk_and_end("Error: #{inspect(reason)}", live_view_pid, socket)
+  end
+
+  defp send_llm_chunk_and_end(message, live_view_pid, socket) do
+    send(live_view_pid, {:llm_chunk, message})
+    send(live_view_pid, {:llm_end, fn _ -> socket.assigns.llm_context end})
   end
 end
