@@ -39,6 +39,32 @@ Hooks.ChatScroll = {
   }
 }
 
+Hooks.ChatInput = {
+  mounted() {
+    this.el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.ctrlKey) {
+        // Enter pressed without Ctrl: submit form
+        this.pushEvent("submit_message", { message: this.el.value });
+        this.el.value = ""; // Clear input immediately
+        e.preventDefault(); // Prevent default Enter behavior (newline)
+      } else if (e.key === "Enter" && e.ctrlKey) {
+        // Ctrl+Enter pressed: insert new line
+        e.preventDefault(); // Prevent default form submission
+
+        // Manually insert newline
+        const start = this.el.selectionStart;
+        const end = this.el.selectionEnd;
+        this.el.value = this.el.value.substring(0, start) + "\n" + this.el.value.substring(end);
+        this.el.selectionStart = this.el.selectionEnd = start + 1;
+
+        // Also update LiveView's internal state for `message_data`
+        // Push a validate event with the updated value
+        this.pushEvent("validate", { chat: { message: this.el.value } });
+      }
+    });
+  },
+};
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},

@@ -1,10 +1,10 @@
 defmodule Cara.AI.Chat do
   @moduledoc """
-  Interactive chat module using ReqLLM with OpenRouter and streaming support.
+  Interactive chat module using ReqLLM with OpenRouter (accessing HuggingFace models) and streaming support.
   
   Setup:
-  1. Get a free Google Gemini API key from https://ai.google.dev/
-  2. Set environment variable: `export GOOGLE_API_KEY=your_key_here`
+  1. Get an OpenRouter API key from https://openrouter.ai/keys
+  2. Set environment variable: `export OPENROUTER_API_KEY=your_key_here`
   3. Start chatting: `Cara.AI.Chat.start()`
   
   Usage from iex:
@@ -23,16 +23,16 @@ defmodule Cara.AI.Chat do
       iex> {:ok, stream, new_context} = Cara.AI.Chat.send_message_stream("Hello!", context)
       iex> Enum.each(stream, fn chunk -> IO.write(chunk) end)
   """
-
   import ReqLLM.Context
   alias ReqLLM.Context
 
-  # Google Gemini is the best free option
-  # https://ai.google.dev/gemini-api/docs/pricing
-  @default_model "google:gemini-2.5-flash"
+  # OpenRouter models, including those from HuggingFace
+  # https://openrouter.ai/docs#models
+  @default_model "openrouter:mistralai/mistral-7b-instruct-v0.2"
   @fallback_models [
-    "google:gemini-1.5-flash-8b",
-    "google:gemini-1.5-pro"
+    "openrouter:microsoft/phi-2",
+    "openrouter:nousresearch/hermes-2-theta-llama-3-8b-gguf",
+    "openrouter:qwen/qwen2-7b-instruct"
   ]
 
   @system_prompt """
@@ -41,34 +41,34 @@ defmodule Cara.AI.Chat do
   """
 
   @doc """
-  Test if the Google API key is working properly.
+  Test if the OpenRouter API key is working properly.
   """
   def test_api_key do
-    case System.get_env("GOOGLE_API_KEY") do
+    case System.get_env("OPENROUTER_API_KEY") do
       nil ->
-        IO.puts("❌ GOOGLE_API_KEY not set")
+        IO.puts("❌ OPENROUTER_API_KEY not set")
         {:error, :missing_key}
 
       key ->
-        IO.puts("✓ GOOGLE_API_KEY found: #{String.slice(key, 0..15)}...")
+        IO.puts("✓ OPENROUTER_API_KEY found: #{String.slice(key, 0..15)}...")
         
         # Try a simple request
         IO.puts("Testing API key with simple request...")
         
+        # Use a simple OpenRouter-compatible model for testing.
         case ReqLLM.generate_text(@default_model, "Say 'test successful'") do
           {:ok, response} ->
             IO.puts("✓ API key is valid!")
             IO.puts("Response: #{ReqLLM.Response.text(response)}")
             {:ok, :valid}
 
-          {:error, %{status: 400, response_body: %{"details" => details}}} ->
-            IO.puts("❌ API key invalid")
-            IO.puts("Error details: #{inspect(details)}")
+          {:error, %{status: status, response_body: body}} when status in [401, 403] ->
+            IO.puts("❌ API key invalid or unauthorized")
+            IO.puts("Error details: #{inspect(body)}")
             IO.puts("\nTroubleshooting:")
-            IO.puts("1. Go to https://aistudio.google.com/apikey")
-            IO.puts("2. Create a NEW API key (not Google Cloud key)")
-            IO.puts("3. Make sure 'Generative Language API' is enabled")
-            IO.puts("4. Check if key has any restrictions (IP/referrer)")
+            IO.puts("1. Go to https://openrouter.ai/keys")
+            IO.puts("2. Create a NEW API key (ensure it has access to the models you want to use)")
+            IO.puts("3. Check if the key has any restrictions (IP/referrer)")
             {:error, :invalid_key}
 
           {:error, reason} ->
@@ -80,7 +80,7 @@ defmodule Cara.AI.Chat do
 
   @doc """
   Starts an interactive chat session in the IEx console with streaming responses.
-  
+
   Options:
     * `:model` - The model to use (default: #{@default_model})
     * `:system_prompt` - Custom system prompt (default: built-in)
@@ -89,10 +89,10 @@ defmodule Cara.AI.Chat do
   """
   def start(opts \\ []) do
     # Check if API key is set
-    unless System.get_env("GOOGLE_API_KEY") do
-      IO.puts("\n>> ERROR: GOOGLE_API_KEY environment variable not set!")
-      IO.puts(">> Get your free API key at: https://aistudio.google.com/apikey")
-      IO.puts(">> Then run: export GOOGLE_API_KEY=your_key_here")
+    unless System.get_env("OPENROUTER_API_KEY") do
+      IO.puts("\n>> ERROR: OPENROUTER_API_KEY environment variable not set!")
+      IO.puts(">> Get your OpenRouter API key at: https://openrouter.ai/keys")
+      IO.puts(">> Then run: export OPENROUTER_API_KEY=your_key_here")
       IO.puts(">> Or test your key with: Cara.AI.Chat.test_api_key()\n")
       {:error, :missing_api_key}
     end
@@ -117,9 +117,9 @@ defmodule Cara.AI.Chat do
   Sends a single message and returns the response without entering a loop.
   Uses streaming internally but returns the complete text.
   Useful for programmatic usage.
-  
+
   ## Example
-  
+
       iex> context = ReqLLM.Context.new([])
       iex> {:ok, response, new_context} = Cara.AI.Chat.send_message("Hello!", context)
   """
@@ -156,9 +156,9 @@ defmodule Cara.AI.Chat do
   @doc """
   Sends a message and returns a stream of text chunks plus the updated context.
   Perfect for web interfaces that need to stream responses to users.
-  
+
   ## Example
-  
+
       iex> context = Cara.AI.Chat.new_context()
       iex> {:ok, stream, new_context_fn} = Cara.AI.Chat.send_message_stream("Hello!", context)
       iex> text = Enum.reduce(stream, "", fn chunk, acc -> 
@@ -166,11 +166,11 @@ defmodule Cara.AI.Chat do
       ...>   acc <> chunk
       ...> end)
       iex> final_context = new_context_fn.(text)
-  
+
   Returns:
     * `{:ok, stream, context_builder_fn}` - Stream of text chunks and a function to build final context
     * `{:error, reason}` - Error tuple
-  
+
   The context_builder_fn takes the accumulated text and returns the updated context.
   This allows you to build the context after consuming the stream.
   """
@@ -230,6 +230,7 @@ defmodule Cara.AI.Chat do
                       if stream? do
                         IO.write(chunk.text)
                       end
+
                       acc <> chunk.text
                     else
                       acc
@@ -287,7 +288,7 @@ defmodule Cara.AI.Chat do
   defp call_llm_stream(model, context, fallback_models) do
     # Try primary model first
     all_models = [model | fallback_models]
-    
+
     try_models(all_models, context)
   end
 
@@ -297,20 +298,29 @@ defmodule Cara.AI.Chat do
 
   defp try_models([model | rest], context) do
     # Extract just the model name if it has a provider prefix
-    model_to_try = 
-      if String.contains?(model, ":") do
-        model
-      else
-        "openrouter:#{model}"
+    model_to_try =
+      cond do
+        String.starts_with?(model, "huggingface:") -> model
+        String.contains?(model, ":") -> model
+        true -> "openrouter:#{model}"
       end
 
-    case ReqLLM.stream_text(model_to_try, context.messages) do
+    result =
+      try do
+        ReqLLM.stream_text(model_to_try, context.messages)
+      rescue
+        # Catch the exception raised by ReqLLM.stream_text
+        e ->
+          {:error, e}
+      end
+
+    case result do
       {:ok, response} ->
         {:ok, response}
 
       {:error, reason} ->
         IO.puts(">> Model #{model_to_try} failed: #{inspect(reason)}")
-        
+
         if rest != [] do
           IO.puts(">> Trying fallback model...")
           try_models(rest, context)
