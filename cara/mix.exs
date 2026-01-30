@@ -10,16 +10,9 @@ defmodule Cara.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      test_coverage: test_coverage(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader],
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.post": :test,
-        "coveralls.html": :test,
-        "coveralls.cobertura": :test
-      ]
+      listeners: [Phoenix.CodeReloader]
     ]
   end
 
@@ -72,11 +65,10 @@ defmodule Cara.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14.1", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.18", only: :test},
       {:req_llm, "~> 1.0.0"},
       {:mox, "~> 1.0", only: :test},
       {:mdex, "~> 0.11"},
-      {:bypass, "~> 2.1", only: :test},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 
@@ -100,6 +92,14 @@ defmodule Cara.MixProject do
         "phx.digest"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+    ]
+  end
+
+  def test_coverage do
+    [
+      summary: [threshold: 95],
+      output: "cover",
+      ignore_modules: []
     ]
   end
 end
