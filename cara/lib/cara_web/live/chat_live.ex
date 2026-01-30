@@ -22,6 +22,11 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
+  def handle_event("submit_message", %{"message" => message}, socket) do
+    do_send_message(message, socket)
+  end
+
+  @impl true
   def handle_event("validate", %{"chat" => params}, socket) do
     updated_message_data = Map.merge(socket.assigns.message_data, params)
     {:noreply, assign(socket, message_data: updated_message_data)}
@@ -61,7 +66,7 @@ defmodule CaraWeb.ChatLive do
         <%= for message <- @chat_messages do %>
           <div class={"flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
             <div class={"max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}"}>
-              <%= render_markdown(message.content) %>
+              {render_markdown(message.content)}
             </div>
           </div>
         <% end %>
@@ -145,7 +150,7 @@ defmodule CaraWeb.ChatLive do
   defp process_llm_request(message, llm_context, live_view_pid) do
     try do
       {:ok, stream, llm_context_builder} = Chat.send_message_stream(message, llm_context)
-      
+
       sent_any_chunks =
         Enum.reduce_while(stream, false, fn chunk, _acc ->
           send(live_view_pid, {:llm_chunk, chunk})
@@ -171,7 +176,7 @@ defmodule CaraWeb.ChatLive do
   defp format_exception_message(%{__struct__: ReqLLM.Error.API.Request, status: 429, response_body: response_body}) do
     retry_delay = extract_retry_delay(response_body)
     base_message = "The AI is busy. Wait a moment and try again later."
-    
+
     case retry_delay do
       nil -> base_message
       delay -> base_message <> " Please retry in #{delay}."
@@ -189,7 +194,7 @@ defmodule CaraWeb.ChatLive do
   @spec extract_retry_delay(map()) :: String.t() | nil
   defp extract_retry_delay(response_body) do
     details = Map.get(response_body, "details", [])
-    
+
     case Enum.find(details, &retry_info?/1) do
       %{"retryDelay" => delay} when is_binary(delay) -> delay
       _ -> nil

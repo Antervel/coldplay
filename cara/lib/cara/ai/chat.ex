@@ -69,7 +69,7 @@ defmodule Cara.AI.Chat do
     {:ok, stream_response} = call_llm(config.model, updated_context)
     final_text = consume_stream_to_text(stream_response.stream)
     final_context = add_assistant_message(updated_context, final_text)
-    
+
     {:ok, final_text, final_context}
   end
 
@@ -223,7 +223,7 @@ defmodule Cara.AI.Chat do
 
     final_text = consume_and_display_stream(stream_response.stream, config.stream)
     IO.write("\n\n")
-    
+
     new_context = add_assistant_message(context, final_text)
     chat_loop(new_context, config)
   end
