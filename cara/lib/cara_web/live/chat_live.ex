@@ -4,6 +4,9 @@ defmodule CaraWeb.ChatLive do
   alias Cara.AI.Chat
   alias MDEx
 
+  @type chat_message :: %{sender: :user | :assistant, content: String.t()}
+  @type message_data :: %{String.t() => String.t()}
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
@@ -20,11 +23,6 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
-  def handle_event("submit_message", %{"message" => message}, socket) do
-    do_send_message(message, socket)
-  end
-
-  @impl true
   def handle_event("validate", %{"chat" => params}, socket) do
     updated_message_data = Map.merge(socket.assigns.message_data, params)
     {:noreply, assign(socket, message_data: updated_message_data)}
@@ -32,37 +30,16 @@ defmodule CaraWeb.ChatLive do
 
   # Handle streamed chunks from the LLM
   @impl true
-  def handle_info({:llm_chunk, chunk}, socket) do
-    # Append chunk to the last message, or start a new assistant message
-    updated_messages =
-      case Enum.reverse(socket.assigns.chat_messages) do
-        [%{sender: :assistant, content: existing_content} | rest] ->
-          Enum.reverse([%{sender: :assistant, content: existing_content <> chunk} | rest])
-
-        # ONLY CREATE NEW MESSAGE IF CHUNK IS NOT EMPTY
-        _ when chunk != "" ->
-          socket.assigns.chat_messages ++ [%{sender: :assistant, content: chunk}]
-
-        # If chunk is empty and no assistant message to append to, do nothing
-        _ ->
-          socket.assigns.chat_messages
-      end
-
+  def handle_info({:llm_chunk, chunk}, socket) when is_binary(chunk) do
+    updated_messages = append_chunk_to_messages(chunk, socket.assigns.chat_messages)
     {:noreply, assign(socket, chat_messages: updated_messages)}
   end
 
   # Handle end of LLM stream
   @impl true
-  def handle_info({:llm_end, llm_context_builder}, socket) do
-    # Get the final assistant message content to pass to the context builder
-    final_assistant_message_content =
-      case Enum.reverse(socket.assigns.chat_messages) do
-        [%{sender: :assistant, content: final_content} | _rest] -> final_content
-        # Should not happen if chunks were received
-        _ -> ""
-      end
-
-    updated_llm_context = llm_context_builder.(final_assistant_message_content)
+  def handle_info({:llm_end, llm_context_builder}, socket) when is_function(llm_context_builder, 1) do
+    final_content = get_final_assistant_content(socket.assigns.chat_messages)
+    updated_llm_context = llm_context_builder.(final_content)
     {:noreply, assign(socket, llm_context: updated_llm_context)}
   end
 
@@ -76,13 +53,9 @@ defmodule CaraWeb.ChatLive do
 
       <main id="chat-messages" phx-hook="ChatScroll" class="flex-1 overflow-y-auto p-4 space-y-4">
         <%= for message <- @chat_messages do %>
-          <div classs={ "flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}" }>
-            <div class={ "max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}" }>
-              {case MDEx.to_html(message.content, sanitize: MDEx.Document.default_sanitize_options()) do
-                {:ok, html_string} -> Phoenix.HTML.raw(html_string)
-                # Fallback for error
-                {:error, _} -> "Error rendering Markdown."
-              end}
+          <div class={"flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
+            <div class={"max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}"}>
+              {render_markdown(message.content)}
             </div>
           </div>
         <% end %>
@@ -120,47 +93,64 @@ defmodule CaraWeb.ChatLive do
     """
   end
 
+  ## Private Functions
+
+  @spec do_send_message(String.t(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
   defp do_send_message(message, socket) do
     if String.trim(message) != "" do
-      # Add user message to chat history immediately
-      updated_chat_messages = socket.assigns.chat_messages ++ [%{sender: :user, content: message}]
-
-      # Assign the updated chat messages to the socket and pass this new socket to send_message_to_llm
-      socket = assign(socket, chat_messages: updated_chat_messages)
-
-      # Call LLM logic and get the updated socket
-      new_socket = send_message_to_llm(message, socket)
-
-      # Reset the form by updating message_data in the returned socket
-      {:noreply, assign(new_socket, message_data: %{"message" => ""})}
+      socket
+      |> add_user_message_to_chat(message)
+      |> start_llm_stream(message)
+      |> reset_message_form()
+      |> then(&{:noreply, &1})
     else
-      # If message is empty, don't send
       {:noreply, socket}
     end
   end
 
-  defp send_message_to_llm(message, socket) do
-    # Call LLM in a separate task to avoid blocking the LiveView process
+  @spec add_user_message_to_chat(Phoenix.LiveView.Socket.t(), String.t()) ::
+          Phoenix.LiveView.Socket.t()
+  defp add_user_message_to_chat(socket, message) do
+    user_message = %{sender: :user, content: message}
+    updated_messages = socket.assigns.chat_messages ++ [user_message]
+    assign(socket, chat_messages: updated_messages)
+  end
+
+  @spec start_llm_stream(Phoenix.LiveView.Socket.t(), String.t()) ::
+          Phoenix.LiveView.Socket.t()
+  defp start_llm_stream(socket, message) do
     live_view_pid = self()
+    llm_context = socket.assigns.llm_context
 
     Task.start(fn ->
-      case Chat.send_message_stream(message, socket.assigns.llm_context) do
-        {:ok, stream, llm_context_builder} ->
-          handle_llm_stream_success(stream, llm_context_builder, live_view_pid, socket)
-
-        {:error, %ReqLLM.Error.API.Request{status: 429, response_body: response_body}} ->
-          handle_llm_rate_limit_error(response_body, live_view_pid, socket)
-
-        {:error, reason} ->
-          handle_llm_stream_error(reason, live_view_pid, socket)
-      end
+      process_llm_request(message, llm_context, live_view_pid)
     end)
 
-    # Return the socket
     socket
   end
 
-  defp handle_llm_stream_success(stream, llm_context_builder, live_view_pid, socket) do
+  @spec reset_message_form(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  defp reset_message_form(socket) do
+    assign(socket, message_data: %{"message" => ""})
+  end
+
+  @spec process_llm_request(String.t(), term(), pid()) :: :ok
+  defp process_llm_request(message, llm_context, live_view_pid) do
+    case Chat.send_message_stream(message, llm_context) do
+      {:ok, stream, llm_context_builder} ->
+        handle_llm_stream_success(stream, llm_context_builder, live_view_pid)
+
+      {:error, %ReqLLM.Error.API.Request{status: 429, response_body: response_body}} ->
+        handle_llm_rate_limit_error(response_body, live_view_pid, llm_context)
+
+      {:error, reason} ->
+        handle_llm_stream_error(reason, live_view_pid, llm_context)
+    end
+  end
+
+  @spec handle_llm_stream_success(Enumerable.t(), function(), pid()) :: :ok
+  defp handle_llm_stream_success(stream, llm_context_builder, live_view_pid) do
     sent_any_chunks =
       Enum.reduce_while(stream, false, fn chunk, _acc ->
         send(live_view_pid, {:llm_chunk, chunk})
@@ -170,32 +160,95 @@ defmodule CaraWeb.ChatLive do
     if sent_any_chunks do
       send(live_view_pid, {:llm_end, llm_context_builder})
     else
-      send_llm_chunk_and_end("The AI is busy. Wait a moment and try again later.", live_view_pid, socket)
+      send_error_message("The AI is busy. Wait a moment and try again later.", live_view_pid, llm_context_builder)
+    end
+
+    :ok
+  end
+
+  @spec handle_llm_rate_limit_error(map(), pid(), term()) :: :ok
+  defp handle_llm_rate_limit_error(response_body, live_view_pid, llm_context) do
+    retry_delay_message = extract_retry_delay_message(response_body)
+    user_message = "The AI is busy. Wait a moment and try again later." <> retry_delay_message
+
+    # Create a context builder that returns the unchanged context
+    context_builder = fn _ -> llm_context end
+    send_error_message(user_message, live_view_pid, context_builder)
+    :ok
+  end
+
+  @spec extract_retry_delay_message(map()) :: String.t()
+  defp extract_retry_delay_message(response_body) do
+    case find_retry_delay(response_body) do
+      nil -> ""
+      delay -> " Please retry in #{delay}."
     end
   end
 
-  defp handle_llm_rate_limit_error(response_body, live_view_pid, socket) do
-    retry_delay_message =
-      case Enum.find(response_body["details"] || [], fn detail ->
-             Map.get(detail, "@type") == "type.googleapis.com/google.rpc.RetryInfo"
-           end) do
-        %{"retryDelay" => delay} when is_binary(delay) ->
-          " Please retry in #{delay}."
+  @spec find_retry_delay(map()) :: String.t() | nil
+  defp find_retry_delay(response_body) do
+    details = Map.get(response_body, "details", [])
 
-        _ ->
-          ""
-      end
-
-    user_message = "The AI is busy. Wait a moment and try again later." <> retry_delay_message
-    send_llm_chunk_and_end(user_message, live_view_pid, socket)
+    case Enum.find(details, &retry_info?/1) do
+      %{"retryDelay" => delay} when is_binary(delay) -> delay
+      _ -> nil
+    end
   end
 
-  defp handle_llm_stream_error(reason, live_view_pid, socket) do
-    send_llm_chunk_and_end("Error: #{inspect(reason)}", live_view_pid, socket)
+  @spec retry_info?(map()) :: boolean()
+  defp retry_info?(detail) do
+    Map.get(detail, "@type") == "type.googleapis.com/google.rpc.RetryInfo"
   end
 
-  defp send_llm_chunk_and_end(message, live_view_pid, socket) do
+  @spec handle_llm_stream_error(term(), pid(), term()) :: :ok
+  defp handle_llm_stream_error(reason, live_view_pid, llm_context) do
+    context_builder = fn _ -> llm_context end
+    send_error_message("Error: #{inspect(reason)}", live_view_pid, context_builder)
+    :ok
+  end
+
+  @spec send_error_message(String.t(), pid(), function()) :: :ok
+  defp send_error_message(message, live_view_pid, context_builder) do
     send(live_view_pid, {:llm_chunk, message})
-    send(live_view_pid, {:llm_end, fn _ -> socket.assigns.llm_context end})
+    send(live_view_pid, {:llm_end, context_builder})
+    :ok
+  end
+
+  ## Message Processing Helpers
+
+  @spec append_chunk_to_messages(String.t(), [chat_message()]) :: [chat_message()]
+  defp append_chunk_to_messages(chunk, messages) do
+    case {chunk, Enum.reverse(messages)} do
+      # Empty chunk - don't modify messages
+      {"", _} ->
+        messages
+
+      # Non-empty chunk with existing assistant message - append to it
+      {chunk, [%{sender: :assistant, content: existing_content} | rest]} ->
+        updated_message = %{sender: :assistant, content: existing_content <> chunk}
+        Enum.reverse([updated_message | rest])
+
+      # Non-empty chunk without assistant message - create new one
+      {chunk, _} ->
+        messages ++ [%{sender: :assistant, content: chunk}]
+    end
+  end
+
+  @spec get_final_assistant_content([chat_message()]) :: String.t()
+  defp get_final_assistant_content(messages) do
+    case Enum.reverse(messages) do
+      [%{sender: :assistant, content: final_content} | _rest] -> final_content
+      _ -> ""
+    end
+  end
+
+  ## Rendering Helpers
+
+  @spec render_markdown(String.t()) :: Phoenix.HTML.safe()
+  defp render_markdown(content) do
+    case MDEx.to_html(content, sanitize: MDEx.Document.default_sanitize_options()) do
+      {:ok, html_string} -> Phoenix.HTML.raw(html_string)
+      {:error, _} -> Phoenix.HTML.raw("Error rendering Markdown.")
+    end
   end
 end
