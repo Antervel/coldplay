@@ -20,23 +20,16 @@ defmodule Cara.AI.Chat do
   For web interfaces, use the streaming version:
 
       iex> context = Cara.AI.Chat.new_context()
-      iex> {:ok, stream, new_context} = Cara.AI.Chat.send_message_stream("Hello!", context)
+      iex> {:ok, stream, context_builder} = Cara.AI.Chat.send_message_stream("Hello!", context)
       iex> Enum.each(stream, fn chunk -> IO.write(chunk) end)
   """
   import ReqLLM.Context
   alias ReqLLM.Context
+  alias ReqLLM.StreamResponse
 
-  @type chat_error :: :missing_api_key | :all_models_failed | {:model_error, term()}
   @type stream_chunk :: %{type: atom(), text: String.t()}
-  @type llm_stream_response :: %{stream: Enumerable.t()}
 
-  # OpenRouter models, including those from HuggingFace
   @default_model "openrouter:mistralai/mistral-7b-instruct-v0.2"
-  @fallback_models [
-    "openrouter:microsoft/phi-2",
-    "openrouter:nousresearch/hermes-2-theta-llama-3-8b-gguf",
-    "openrouter:qwen/qwen2-7b-instruct"
-  ]
 
   @system_prompt """
   You are a helpful, friendly AI assistant. Engage in natural conversation,
@@ -51,13 +44,12 @@ defmodule Cara.AI.Chat do
   Options:
     * `:model` - The model to use (default: #{@default_model})
     * `:system_prompt` - Custom system prompt (default: built-in)
-    * `:fallback_models` - List of fallback models (default: #{inspect(@fallback_models)})
     * `:stream` - Whether to stream responses (default: true)
   """
-  @spec start(keyword()) :: :ok | {:error, chat_error()}
+  @spec start(keyword()) :: :ok | {:error, :missing_api_key}
   def start(opts \\ []) do
-    with :ok <- validate_api_key(),
-         config <- build_chat_config(opts) do
+    with :ok <- validate_api_key() do
+      config = build_chat_config(opts)
       print_chat_header(config)
       initial_context = new_context(config.system_prompt)
       chat_loop(initial_context, config)
@@ -69,16 +61,16 @@ defmodule Cara.AI.Chat do
   Uses streaming internally but returns the complete text.
   """
   @spec send_message(String.t(), Context.t(), keyword()) ::
-          {:ok, String.t(), Context.t()} | {:error, chat_error()}
+          {:ok, String.t(), Context.t()}
   def send_message(message, context, opts \\ []) do
     config = build_chat_config(opts)
+    updated_context = add_user_message(context, message)
 
-    with updated_context <- add_user_message(context, message),
-         {:ok, stream_response} <- call_llm_with_fallback(config, updated_context),
-         final_text <- consume_stream_to_text(stream_response.stream),
-         final_context <- add_assistant_message(updated_context, final_text) do
-      {:ok, final_text, final_context}
-    end
+    {:ok, stream_response} = call_llm(config.model, updated_context)
+    final_text = consume_stream_to_text(stream_response.stream)
+    final_context = add_assistant_message(updated_context, final_text)
+    
+    {:ok, final_text, final_context}
   end
 
   @doc """
@@ -87,20 +79,18 @@ defmodule Cara.AI.Chat do
 
   Returns:
     * `{:ok, stream, context_builder_fn}` - Stream of text chunks and a function to build final context
-    * `{:error, reason}` - Error tuple
   """
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
-          {:ok, Enumerable.t(), (String.t() -> Context.t())} | {:error, chat_error()}
+          {:ok, Enumerable.t(), (String.t() -> Context.t())}
   def send_message_stream(message, context, opts \\ []) do
     config = build_chat_config(opts)
+    updated_context = add_user_message(context, message)
 
-    with updated_context <- add_user_message(context, message),
-         {:ok, stream_response} <- call_llm_with_fallback(config, updated_context) do
-      text_stream = extract_text_stream(stream_response.stream)
-      context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
+    {:ok, stream_response} = call_llm(config.model, updated_context)
+    text_stream = extract_text_stream(stream_response.stream)
+    context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
 
-      {:ok, text_stream, context_builder}
-    end
+    {:ok, text_stream, context_builder}
   end
 
   @doc """
@@ -134,7 +124,6 @@ defmodule Cara.AI.Chat do
     %{
       model: Keyword.get(opts, :model, @default_model),
       system_prompt: Keyword.get(opts, :system_prompt, @system_prompt),
-      fallback_models: Keyword.get(opts, :fallback_models, @fallback_models),
       stream: Keyword.get(opts, :stream, true)
     }
   end
@@ -165,43 +154,10 @@ defmodule Cara.AI.Chat do
 
   ## LLM Communication
 
-  @spec call_llm_with_fallback(map(), Context.t()) ::
-          {:ok, llm_stream_response()} | {:error, chat_error()}
-  defp call_llm_with_fallback(config, context) do
-    all_models = [config.model | config.fallback_models]
-    try_models_sequentially(all_models, context)
-  end
-
-  @spec try_models_sequentially([String.t()], Context.t()) ::
-          {:ok, llm_stream_response()} | {:error, chat_error()}
-  defp try_models_sequentially([], _context) do
-    {:error, :all_models_failed}
-  end
-
-  defp try_models_sequentially([model | remaining_models], context) do
+  @spec call_llm(String.t(), Context.t()) :: {:ok, StreamResponse.t()} | {:error, term()}
+  defp call_llm(model, context) do
     normalized_model = normalize_model_name(model)
-
-    case attempt_model_call(normalized_model, context) do
-      {:ok, response} ->
-        {:ok, response}
-
-      {:error, reason} ->
-        log_model_failure(normalized_model, reason)
-        handle_model_failure(remaining_models, context)
-    end
-  end
-
-  @spec attempt_model_call(String.t(), Context.t()) ::
-          {:ok, llm_stream_response()} | {:error, term()}
-  defp attempt_model_call(model, context) do
-    try do
-      case ReqLLM.stream_text(model, context.messages) do
-        {:ok, response} -> {:ok, response}
-        {:error, reason} -> {:error, {:model_error, reason}}
-      end
-    rescue
-      exception -> {:error, {:model_exception, exception}}
-    end
+    ReqLLM.stream_text(normalized_model, context.messages)
   end
 
   @spec normalize_model_name(String.t()) :: String.t()
@@ -211,17 +167,6 @@ defmodule Cara.AI.Chat do
       String.contains?(model, ":") -> model
       true -> "openrouter:#{model}"
     end
-  end
-
-  @spec handle_model_failure([String.t()], Context.t()) ::
-          {:ok, llm_stream_response()} | {:error, chat_error()}
-  defp handle_model_failure([], _context) do
-    {:error, :all_models_failed}
-  end
-
-  defp handle_model_failure(remaining_models, context) do
-    IO.puts(">> Trying fallback model...")
-    try_models_sequentially(remaining_models, context)
   end
 
   ## Stream Processing
@@ -253,6 +198,7 @@ defmodule Cara.AI.Chat do
 
   ## Interactive Chat Loop
 
+  @spec chat_loop(Context.t(), map()) :: :ok
   defp chat_loop(context, config) do
     case get_user_input() do
       :quit ->
@@ -264,55 +210,38 @@ defmodule Cara.AI.Chat do
     end
   end
 
+  @spec handle_user_message(String.t(), Context.t(), map()) :: :ok | no_return()
   defp handle_user_message(message, context, config) do
     updated_context = add_user_message(context, message)
-
-    case call_llm_with_fallback(config, updated_context) do
-      {:ok, stream_response} ->
-        process_and_display_response(stream_response, updated_context, config)
-
-      {:error, reason} ->
-        print_error(reason)
-        chat_loop(context, config)
-    end
+    {:ok, stream_response} = call_llm(config.model, updated_context)
+    process_and_display_response(stream_response, updated_context, config)
   end
 
+  @spec process_and_display_response(StreamResponse.t(), Context.t(), map()) :: :ok
   defp process_and_display_response(stream_response, context, config) do
     IO.write("Assistant: ")
 
-    case consume_and_display_stream(stream_response.stream, config.stream) do
-      {:ok, final_text} ->
-        IO.write("\n\n")
-        new_context = add_assistant_message(context, final_text)
-        chat_loop(new_context, config)
-
-      {:error, _reason} ->
-        IO.puts(">> Continuing with previous context...\n")
-        chat_loop(context, config)
-    end
+    final_text = consume_and_display_stream(stream_response.stream, config.stream)
+    IO.write("\n\n")
+    
+    new_context = add_assistant_message(context, final_text)
+    chat_loop(new_context, config)
   end
 
-  @spec consume_and_display_stream(Enumerable.t(), boolean()) ::
-          {:ok, String.t()} | {:error, term()}
+  @spec consume_and_display_stream(Enumerable.t(), boolean()) :: String.t()
   defp consume_and_display_stream(stream, should_stream?) do
-    try do
-      final_text =
-        Enum.reduce(stream, "", fn chunk, acc ->
-          if content_chunk?(chunk) do
-            if should_stream?, do: IO.write(chunk.text)
-            acc <> chunk.text
-          else
-            acc
-          end
-        end)
+    final_text =
+      Enum.reduce(stream, "", fn chunk, acc ->
+        if content_chunk?(chunk) do
+          if should_stream?, do: IO.write(chunk.text)
+          acc <> chunk.text
+        else
+          acc
+        end
+      end)
 
-      if !should_stream?, do: IO.write(final_text)
-      {:ok, final_text}
-    rescue
-      exception ->
-        IO.puts("\n>> Stream error: #{inspect(exception)}")
-        {:error, exception}
-    end
+    if !should_stream?, do: IO.write(final_text)
+    final_text
   end
 
   ## User Input
@@ -346,13 +275,5 @@ defmodule Cara.AI.Chat do
     IO.puts("\n>> ERROR: OPENROUTER_API_KEY environment variable not set!")
     IO.puts(">> Get your OpenRouter API key at: https://openrouter.ai/keys")
     IO.puts(">> Then run: export OPENROUTER_API_KEY=your_key_here\n")
-  end
-
-  defp print_error(reason) do
-    IO.puts(">> Error: #{inspect(reason)}\n")
-  end
-
-  defp log_model_failure(model, reason) do
-    IO.puts(">> Model #{model} failed: #{inspect(reason)}")
   end
 end

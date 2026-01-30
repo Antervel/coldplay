@@ -2,7 +2,6 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
 
   alias Cara.AI.Chat
-  alias MDEx
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
   @type message_data :: %{String.t() => String.t()}
@@ -43,6 +42,13 @@ defmodule CaraWeb.ChatLive do
     {:noreply, assign(socket, llm_context: updated_llm_context)}
   end
 
+  # Handle LLM errors
+  @impl true
+  def handle_info({:llm_error, error_message}, socket) when is_binary(error_message) do
+    error_messages = socket.assigns.chat_messages ++ [%{sender: :assistant, content: error_message}]
+    {:noreply, assign(socket, chat_messages: error_messages)}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -55,7 +61,7 @@ defmodule CaraWeb.ChatLive do
         <%= for message <- @chat_messages do %>
           <div class={"flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
             <div class={"max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}"}>
-              {render_markdown(message.content)}
+              <%= render_markdown(message.content) %>
             </div>
           </div>
         <% end %>
@@ -137,58 +143,53 @@ defmodule CaraWeb.ChatLive do
 
   @spec process_llm_request(String.t(), term(), pid()) :: :ok
   defp process_llm_request(message, llm_context, live_view_pid) do
-    case Chat.send_message_stream(message, llm_context) do
-      {:ok, stream, llm_context_builder} ->
-        handle_llm_stream_success(stream, llm_context_builder, live_view_pid)
+    try do
+      {:ok, stream, llm_context_builder} = Chat.send_message_stream(message, llm_context)
+      
+      sent_any_chunks =
+        Enum.reduce_while(stream, false, fn chunk, _acc ->
+          send(live_view_pid, {:llm_chunk, chunk})
+          {:cont, true}
+        end)
 
-      {:error, %ReqLLM.Error.API.Request{status: 429, response_body: response_body}} ->
-        handle_llm_rate_limit_error(response_body, live_view_pid, llm_context)
+      if sent_any_chunks do
+        send(live_view_pid, {:llm_end, llm_context_builder})
+      else
+        send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
+      end
 
-      {:error, reason} ->
-        handle_llm_stream_error(reason, live_view_pid, llm_context)
+      :ok
+    rescue
+      exception ->
+        error_message = format_exception_message(exception)
+        send(live_view_pid, {:llm_error, error_message})
+        :ok
     end
   end
 
-  @spec handle_llm_stream_success(Enumerable.t(), function(), pid()) :: :ok
-  defp handle_llm_stream_success(stream, llm_context_builder, live_view_pid) do
-    sent_any_chunks =
-      Enum.reduce_while(stream, false, fn chunk, _acc ->
-        send(live_view_pid, {:llm_chunk, chunk})
-        {:cont, true}
-      end)
-
-    if sent_any_chunks do
-      send(live_view_pid, {:llm_end, llm_context_builder})
-    else
-      send_error_message("The AI is busy. Wait a moment and try again later.", live_view_pid, llm_context_builder)
-    end
-
-    :ok
-  end
-
-  @spec handle_llm_rate_limit_error(map(), pid(), term()) :: :ok
-  defp handle_llm_rate_limit_error(response_body, live_view_pid, llm_context) do
-    retry_delay_message = extract_retry_delay_message(response_body)
-    user_message = "The AI is busy. Wait a moment and try again later." <> retry_delay_message
-
-    # Create a context builder that returns the unchanged context
-    context_builder = fn _ -> llm_context end
-    send_error_message(user_message, live_view_pid, context_builder)
-    :ok
-  end
-
-  @spec extract_retry_delay_message(map()) :: String.t()
-  defp extract_retry_delay_message(response_body) do
-    case find_retry_delay(response_body) do
-      nil -> ""
-      delay -> " Please retry in #{delay}."
+  @spec format_exception_message(Exception.t()) :: String.t()
+  defp format_exception_message(%{__struct__: ReqLLM.Error.API.Request, status: 429, response_body: response_body}) do
+    retry_delay = extract_retry_delay(response_body)
+    base_message = "The AI is busy. Wait a moment and try again later."
+    
+    case retry_delay do
+      nil -> base_message
+      delay -> base_message <> " Please retry in #{delay}."
     end
   end
 
-  @spec find_retry_delay(map()) :: String.t() | nil
-  defp find_retry_delay(response_body) do
+  defp format_exception_message(%{__struct__: ReqLLM.Error.API.Request, status: status}) do
+    "API error (status #{status}). Please try again."
+  end
+
+  defp format_exception_message(exception) do
+    "Error: #{Exception.message(exception)}"
+  end
+
+  @spec extract_retry_delay(map()) :: String.t() | nil
+  defp extract_retry_delay(response_body) do
     details = Map.get(response_body, "details", [])
-
+    
     case Enum.find(details, &retry_info?/1) do
       %{"retryDelay" => delay} when is_binary(delay) -> delay
       _ -> nil
@@ -200,35 +201,18 @@ defmodule CaraWeb.ChatLive do
     Map.get(detail, "@type") == "type.googleapis.com/google.rpc.RetryInfo"
   end
 
-  @spec handle_llm_stream_error(term(), pid(), term()) :: :ok
-  defp handle_llm_stream_error(reason, live_view_pid, llm_context) do
-    context_builder = fn _ -> llm_context end
-    send_error_message("Error: #{inspect(reason)}", live_view_pid, context_builder)
-    :ok
-  end
-
-  @spec send_error_message(String.t(), pid(), function()) :: :ok
-  defp send_error_message(message, live_view_pid, context_builder) do
-    send(live_view_pid, {:llm_chunk, message})
-    send(live_view_pid, {:llm_end, context_builder})
-    :ok
-  end
-
   ## Message Processing Helpers
 
   @spec append_chunk_to_messages(String.t(), [chat_message()]) :: [chat_message()]
   defp append_chunk_to_messages(chunk, messages) do
     case {chunk, Enum.reverse(messages)} do
-      # Empty chunk - don't modify messages
       {"", _} ->
         messages
 
-      # Non-empty chunk with existing assistant message - append to it
       {chunk, [%{sender: :assistant, content: existing_content} | rest]} ->
         updated_message = %{sender: :assistant, content: existing_content <> chunk}
         Enum.reverse([updated_message | rest])
 
-      # Non-empty chunk without assistant message - create new one
       {chunk, _} ->
         messages ++ [%{sender: :assistant, content: chunk}]
     end
