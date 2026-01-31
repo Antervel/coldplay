@@ -230,6 +230,37 @@ defmodule Cara.AI.ChatTest do
       assert Enum.all?(chunks, &is_binary/1)
     end
 
+    test "send_message_stream works with default options", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+        conn = Plug.Conn.send_chunked(conn, 200)
+
+        response = %{
+          "id" => "test-id",
+          "object" => "chat.completion.chunk",
+          "created" => 1_234_567_890,
+          "model" => "test-model",
+          "choices" => [
+            %{
+              "index" => 0,
+              "delta" => %{"content" => "Response"},
+              "finish_reason" => nil
+            }
+          ]
+        }
+
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: #{Jason.encode!(response)}\n\n")
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
+        conn
+      end)
+
+      # Call without passing opts to trigger the 2-arity version
+      context = Chat.new_context()
+      {:ok, stream, _context_builder} = Chat.send_message_stream("Hello", context)
+
+      chunks = Enum.to_list(stream)
+      assert is_list(chunks)
+    end
+
     test "context builder creates context with assistant message", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)

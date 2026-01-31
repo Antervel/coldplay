@@ -8,9 +8,9 @@ defmodule Cara.AI.Chat do
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
-  @type stream_chunk :: %{type: atom(), text: String.t()}
-
+  @behaviour Cara.AI.ChatBehaviour
   @default_model "openrouter:mistralai/mistral-7b-instruct-v0.2"
+  @type stream_chunk :: %{type: atom(), text: String.t()}
 
   @system_prompt """
   You are a helpful, friendly AI assistant. Engage in natural conversation,
