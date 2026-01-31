@@ -176,6 +176,38 @@ defmodule Cara.AI.ChatTest do
       assert match?([_], user_messages)
       assert hd(hd(user_messages).content).text == "Test message"
     end
+
+    test "sends a message using the default model when no options are provided", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+        conn = Plug.Conn.send_chunked(conn, 200)
+
+        response = %{
+          "id" => "test-id",
+          "object" => "chat.completion.chunk",
+          "created" => 1_234_567_890,
+          "model" => Chat.default_model(),
+          "choices" => [
+            %{
+              "index" => 0,
+              "delta" => %{"content" => "Default response"},
+              "finish_reason" => nil
+            }
+          ]
+        }
+
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: #{Jason.encode!(response)}\n\n")
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
+        conn
+      end)
+
+      context = Chat.new_context()
+      {:ok, response, new_context} = Chat.send_message("Hello", context)
+
+      assert is_binary(response)
+      assert response =~ "Default response"
+      assert %Context{} = new_context
+      assert length(new_context.messages) == 3
+    end
   end
 
   describe "send_message_stream/3" do
@@ -351,5 +383,22 @@ defmodule Cara.AI.ChatTest do
       )
 
     Plug.Conn.chunk(conn, "data: #{Jason.encode!(response)}\n\n")
+  end
+
+  describe "default_model/0" do
+    test "returns the default model string" do
+      assert Chat.default_model() == "openrouter:mistralai/mistral-7b-instruct-v0.2"
+    end
+  end
+
+  describe "default_system_prompt/0" do
+    test "returns the default system prompt" do
+      expected_prompt = """
+      You are a helpful, friendly AI assistant. Engage in natural conversation,
+      answer questions clearly, and be concise unless asked for detailed explanations.
+      """
+
+      assert Chat.default_system_prompt() == expected_prompt
+    end
   end
 end
