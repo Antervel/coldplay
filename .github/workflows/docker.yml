@@ -90,11 +90,7 @@ jobs:
       working-directory: ./cara
 
     - name: Run tests
-      run: mix test
-      working-directory: ./cara
-
-    - name: Generate coverage report
-      run: mix coveralls.html
+      run: mix test --cover
       working-directory: ./cara
 
     - name: Upload coverage report
