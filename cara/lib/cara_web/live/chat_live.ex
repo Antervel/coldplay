@@ -17,11 +17,15 @@ defmodule CaraWeb.ChatLive do
     """
   end
 
+  defp welcome_message do
+    "Hello! How can I help you today?"
+  end
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
-       chat_messages: [],
+       chat_messages: [%{sender: :assistant, content: welcome_message()}],
        llm_context: chat_module().new_context(default_system_prompt()),
        message_data: %{"message" => ""}
      )}
@@ -199,10 +203,8 @@ defmodule CaraWeb.ChatLive do
 
   @spec get_last_assistant_message_content([chat_message()]) :: String.t()
   defp get_last_assistant_message_content(messages) do
-    case List.last(messages) do
-      %{sender: :assistant, content: content} -> content
-      _ -> ""
-    end
+    %{sender: :assistant, content: content} = List.last(messages)
+    content
   end
 
   ## Rendering Helpers
