@@ -201,20 +201,14 @@ defmodule CaraWeb.ChatLive do
   ## Rendering Helpers
 
   @doc """
-  Renders markdown content as safe HTML. Returns an error message if rendering fails.
+  Renders markdown content as safe HTML.
 
   This is primarily used in templates to render chat message content.
   """
   @spec render_markdown(String.t()) :: Phoenix.HTML.safe()
   def render_markdown(content) do
-    case MDEx.to_html(content, sanitize: MDEx.Document.default_sanitize_options()) do
-      {:ok, html_string} ->
-        Phoenix.HTML.raw(html_string)
-
-      {:error, reason} ->
-        require Logger
-        Logger.warning("Failed to render markdown: #{inspect(reason)}")
-        Phoenix.HTML.raw("Error rendering Markdown.")
-    end
+    content
+    |> MDEx.to_html!(sanitize: MDEx.Document.default_sanitize_options())
+    |> Phoenix.HTML.raw()
   end
 end
