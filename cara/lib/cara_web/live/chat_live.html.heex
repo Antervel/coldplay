@@ -6,7 +6,7 @@
   <main id="chat-messages" phx-hook="ChatScroll" class="flex-1 overflow-y-auto p-4 space-y-4">
     <%= for message <- @chat_messages do %>
       <div class={"flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
-        <div class={"max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}"}>
+        <div class={"max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}"} phx-html="true">
           {render_markdown(message.content)}
         </div>
       </div>

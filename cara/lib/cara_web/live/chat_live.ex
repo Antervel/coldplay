@@ -217,7 +217,8 @@ defmodule CaraWeb.ChatLive do
   """
   @spec render_markdown(String.t()) :: Phoenix.HTML.safe()
   def render_markdown(content) do
-    content
+    MDEx.new(markdown: content)
+    |> MDExGFM.attach()
     |> MDEx.to_html!(sanitize: MDEx.Document.default_sanitize_options())
     |> Phoenix.HTML.raw()
   end
