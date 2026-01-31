@@ -51,7 +51,11 @@ defmodule Cara.AI.CLI do
   defp build_config(opts) do
     %{
       model: Keyword.get(opts, :model, Chat.default_model()),
-      system_prompt: Keyword.get(opts, :system_prompt, Chat.default_system_prompt()),
+      system_prompt:
+        Keyword.get(opts, :system_prompt, """
+        You are a helpful, friendly AI assistant. Engage in natural conversation,
+        answer questions clearly, and be concise unless asked for detailed explanations.
+        """),
       stream: Keyword.get(opts, :stream, true)
     }
   end

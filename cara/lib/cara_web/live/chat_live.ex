@@ -10,13 +10,25 @@ defmodule CaraWeb.ChatLive do
     Application.get_env(:cara, :chat_module, Cara.AI.Chat)
   end
 
+  defp default_system_prompt do
+    """
+    You are a helpful, friendly AI assistant. Engage in natural conversation,
+    answer questions clearly, and be concise unless asked for detailed explanations.
+    """
+  end
+
+  defp welcome_message do
+    "Hello! How can I help you today?"
+  end
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
-       chat_messages: [],
-       llm_context: chat_module().new_context(),
-       message_data: %{"message" => ""}
+       chat_messages: [%{sender: :assistant, content: welcome_message()}],
+       llm_context: chat_module().new_context(default_system_prompt()),
+       message_data: %{"message" => ""},
+       app_version: app_version()
      )}
   end
 
@@ -59,6 +71,28 @@ defmodule CaraWeb.ChatLive do
   end
 
   ## Private Functions
+
+  ## Message Processing Helpers
+
+  @spec append_chunk_to_messages(String.t(), [chat_message()]) :: [chat_message()]
+  defp append_chunk_to_messages("", messages), do: messages
+
+  defp append_chunk_to_messages(chunk, messages) do
+    case List.last(messages) do
+      %{sender: :assistant} ->
+        {last, rest} = List.pop_at(messages, -1)
+        rest ++ [%{last | content: last.content <> chunk}]
+
+      _ ->
+        messages ++ [%{sender: :assistant, content: chunk}]
+    end
+  end
+
+  @spec get_last_assistant_message_content([chat_message()]) :: String.t()
+  defp get_last_assistant_message_content(messages) do
+    %{sender: :assistant, content: content} = List.last(messages)
+    content
+  end
 
   @spec do_send_message(String.t(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
@@ -174,30 +208,6 @@ defmodule CaraWeb.ChatLive do
     Map.get(detail, "@type") == "type.googleapis.com/google.rpc.RetryInfo"
   end
 
-  ## Message Processing Helpers
-
-  @spec append_chunk_to_messages(String.t(), [chat_message()]) :: [chat_message()]
-  defp append_chunk_to_messages("", messages), do: messages
-
-  defp append_chunk_to_messages(chunk, messages) do
-    case List.last(messages) do
-      %{sender: :assistant} ->
-        {last, rest} = List.pop_at(messages, -1)
-        rest ++ [%{last | content: last.content <> chunk}]
-
-      _ ->
-        messages ++ [%{sender: :assistant, content: chunk}]
-    end
-  end
-
-  @spec get_last_assistant_message_content([chat_message()]) :: String.t()
-  defp get_last_assistant_message_content(messages) do
-    case List.last(messages) do
-      %{sender: :assistant, content: content} -> content
-      _ -> ""
-    end
-  end
-
   ## Rendering Helpers
 
   @doc """
@@ -210,5 +220,10 @@ defmodule CaraWeb.ChatLive do
     content
     |> MDEx.to_html!(sanitize: MDEx.Document.default_sanitize_options())
     |> Phoenix.HTML.raw()
+  end
+
+  @spec app_version() :: String.t()
+  defp app_version do
+    Application.spec(:cara, :vsn) |> to_string
   end
 end

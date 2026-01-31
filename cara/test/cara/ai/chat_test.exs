@@ -7,7 +7,7 @@ defmodule Cara.AI.ChatTest do
 
   describe "new_context/0" do
     test "creates a context with default system prompt" do
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
 
       assert %Context{} = context
       assert length(context.messages) == 1
@@ -31,7 +31,7 @@ defmodule Cara.AI.ChatTest do
 
   describe "get_history/1" do
     test "returns the list of messages from context" do
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       history = Chat.get_history(context)
 
       assert is_list(history)
@@ -40,7 +40,7 @@ defmodule Cara.AI.ChatTest do
 
     test "returns all messages including user and assistant messages" do
       context =
-        Chat.new_context()
+        Chat.new_context("Test system prompt")
         |> Context.append(ReqLLM.Context.user("Hello"))
         |> Context.append(ReqLLM.Context.assistant("Hi there!"))
 
@@ -56,7 +56,7 @@ defmodule Cara.AI.ChatTest do
   describe "reset_context/1" do
     test "keeps only system messages" do
       context =
-        Chat.new_context()
+        Chat.new_context("Test system prompt")
         |> Context.append(ReqLLM.Context.user("Hello"))
         |> Context.append(ReqLLM.Context.assistant("Hi there!"))
         |> Context.append(ReqLLM.Context.user("How are you?"))
@@ -71,7 +71,7 @@ defmodule Cara.AI.ChatTest do
 
     test "preserves multiple system messages if present" do
       context =
-        Chat.new_context()
+        Chat.new_context("Test system prompt")
         |> Context.append(ReqLLM.Context.system("Additional instruction"))
         |> Context.append(ReqLLM.Context.user("Hello"))
 
@@ -127,7 +127,7 @@ defmodule Cara.AI.ChatTest do
         conn
       end)
 
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, response, new_context} = Chat.send_message("Hello", context, model: "openrouter:test-model")
 
       assert is_binary(response)
@@ -169,7 +169,7 @@ defmodule Cara.AI.ChatTest do
         conn
       end)
 
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, _response, new_context} = Chat.send_message("Test message", context, model: "openrouter:test-model")
 
       user_messages = Enum.filter(new_context.messages, fn msg -> msg.role == :user end)
@@ -200,7 +200,7 @@ defmodule Cara.AI.ChatTest do
         conn
       end)
 
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, response, new_context} = Chat.send_message("Hello", context)
 
       assert is_binary(response)
@@ -251,7 +251,7 @@ defmodule Cara.AI.ChatTest do
         conn
       end)
 
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, stream, context_builder} = Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
 
       assert is_function(context_builder, 1)
@@ -286,7 +286,7 @@ defmodule Cara.AI.ChatTest do
       end)
 
       # Call without passing opts to trigger the 2-arity version
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, stream, _context_builder} = Chat.send_message_stream("Hello", context)
 
       chunks = Enum.to_list(stream)
@@ -316,7 +316,7 @@ defmodule Cara.AI.ChatTest do
         conn
       end)
 
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, stream, context_builder} = Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
 
       # Consume the stream
@@ -345,7 +345,7 @@ defmodule Cara.AI.ChatTest do
         conn
       end)
 
-      context = Chat.new_context()
+      context = Chat.new_context("Test system prompt")
       {:ok, stream, _context_builder} = Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
 
       chunks = Enum.to_list(stream)
@@ -388,17 +388,6 @@ defmodule Cara.AI.ChatTest do
   describe "default_model/0" do
     test "returns the default model string" do
       assert Chat.default_model() == "openrouter:mistralai/mistral-7b-instruct-v0.2"
-    end
-  end
-
-  describe "default_system_prompt/0" do
-    test "returns the default system prompt" do
-      expected_prompt = """
-      You are a helpful, friendly AI assistant. Engage in natural conversation,
-      answer questions clearly, and be concise unless asked for detailed explanations.
-      """
-
-      assert Chat.default_system_prompt() == expected_prompt
     end
   end
 end

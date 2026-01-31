@@ -10,7 +10,7 @@ defmodule CaraWeb.RouterTest do
   end
 
   test "GET /chat renders chat page", %{conn: conn} do
-    stub(Cara.AI.ChatMock, :new_context, fn -> :test_context end)
+    stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :test_context end)
     conn = get(conn, "/chat")
     assert html_response(conn, 200) =~ "Chat"
   end
