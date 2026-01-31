@@ -578,7 +578,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "get_last_assistant_message_content handles list with only user messages", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn -> :initial_context end)
 
-      # Create a scenario where we send a user message but the stream 
+      # Create a scenario where we send a user message but the stream
       # completes before any assistant message is added
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Quick", :initial_context ->
         # Stream that appears to send chunks but we'll intercept
