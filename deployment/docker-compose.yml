@@ -43,6 +43,7 @@ services:
       MIX_ENV: prod
       PHX_SERVER: true
       RELEASE_COOKIE: ${RELEASE_COOKIE}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     depends_on:
       db:
         condition: service_healthy
