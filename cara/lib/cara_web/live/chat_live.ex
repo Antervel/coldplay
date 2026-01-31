@@ -10,12 +10,19 @@ defmodule CaraWeb.ChatLive do
     Application.get_env(:cara, :chat_module, Cara.AI.Chat)
   end
 
+  defp default_system_prompt do
+    """
+    You are a helpful, friendly AI assistant. Engage in natural conversation,
+    answer questions clearly, and be concise unless asked for detailed explanations.
+    """
+  end
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
        chat_messages: [],
-       llm_context: chat_module().new_context(),
+       llm_context: chat_module().new_context(default_system_prompt()),
        message_data: %{"message" => ""}
      )}
   end

@@ -12,11 +12,6 @@ defmodule Cara.AI.Chat do
   @default_model "openrouter:mistralai/mistral-7b-instruct-v0.2"
   @type stream_chunk :: %{type: atom(), text: String.t()}
 
-  @system_prompt """
-  You are a helpful, friendly AI assistant. Engage in natural conversation,
-  answer questions clearly, and be concise unless asked for detailed explanations.
-  """
-
   ## Public API
 
   @doc """
@@ -85,7 +80,7 @@ defmodule Cara.AI.Chat do
       iex> context = Cara.AI.Chat.new_context("You are a helpful coding assistant")
   """
   @spec new_context(String.t()) :: Context.t()
-  def new_context(system_prompt \\ @system_prompt) do
+  def new_context(system_prompt) do
     Context.new([system(system_prompt)])
   end
 
@@ -123,12 +118,6 @@ defmodule Cara.AI.Chat do
   """
   @spec default_model() :: String.t()
   def default_model, do: @default_model
-
-  @doc """
-  Returns the default system prompt.
-  """
-  @spec default_system_prompt() :: String.t()
-  def default_system_prompt, do: @system_prompt
 
   ## Private Functions
 
