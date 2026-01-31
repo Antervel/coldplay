@@ -1,5 +1,6 @@
 defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
+  use Retry
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
   @type message_data :: %{String.t() => String.t()}
@@ -89,7 +90,9 @@ defmodule CaraWeb.ChatLive do
     llm_context = socket.assigns.llm_context
 
     Task.start(fn ->
-      process_llm_request(message, llm_context, live_view_pid)
+      retry with: constant_backoff(100) |> Stream.take(10) do
+        process_llm_request(message, llm_context, live_view_pid)
+      end
     end)
 
     socket
@@ -100,7 +103,7 @@ defmodule CaraWeb.ChatLive do
     assign(socket, message_data: %{"message" => ""})
   end
 
-  @spec process_llm_request(String.t(), term(), pid()) :: :ok
+  @spec process_llm_request(String.t(), term(), pid()) :: :ok | :retry
   defp process_llm_request(message, llm_context, live_view_pid) do
     chat_mod = Application.get_env(:cara, :chat_module, Cara.AI.Chat)
 
@@ -110,17 +113,17 @@ defmodule CaraWeb.ChatLive do
     else
       {:error, reason} ->
         send(live_view_pid, {:llm_error, "Error: #{inspect(reason)}"})
-        :ok
+        :error
 
       false ->
         send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
-        :ok
+        :error
     end
   rescue
     exception ->
       error_message = format_exception_message(exception)
       send(live_view_pid, {:llm_error, error_message})
-      :ok
+      :error
   end
 
   defp process_stream(stream, live_view_pid, llm_context_builder) do

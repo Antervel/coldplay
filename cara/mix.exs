@@ -68,7 +68,8 @@ defmodule Cara.MixProject do
       {:req_llm, "~> 1.0.0"},
       {:mox, "~> 1.0", only: :test},
       {:mdex, "~> 0.11"},
-      {:bypass, "~> 2.1", only: :test}
+      {:bypass, "~> 2.1", only: :test},
+      {:retry, "~> 0.18"}
     ]
   end
 
