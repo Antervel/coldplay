@@ -2,6 +2,7 @@ defmodule Cara.AI.ChatTest do
   use ExUnit.Case, async: true
 
   alias Cara.AI.Chat
+  alias Cara.AI.CLI
   alias ReqLLM.Context
 
   describe "new_context/0" do
@@ -172,7 +173,7 @@ defmodule Cara.AI.ChatTest do
       {:ok, _response, new_context} = Chat.send_message("Test message", context, model: "openrouter:test-model")
 
       user_messages = Enum.filter(new_context.messages, fn msg -> msg.role == :user end)
-      assert length(user_messages) == 1
+      assert match?([_], user_messages)
       assert hd(hd(user_messages).content).text == "Test message"
     end
   end
@@ -225,7 +226,7 @@ defmodule Cara.AI.ChatTest do
 
       # Consume the stream
       chunks = Enum.to_list(stream)
-      assert length(chunks) > 0
+      assert not Enum.empty?(chunks)
       assert Enum.all?(chunks, &is_binary/1)
     end
 
@@ -297,7 +298,7 @@ defmodule Cara.AI.ChatTest do
       System.delete_env("OPENROUTER_API_KEY")
 
       # Can't easily test interactive loop, but we can test the API key validation
-      assert {:error, :missing_api_key} = Chat.start()
+      assert {:error, :missing_api_key} = CLI.start()
 
       if original_key do
         System.put_env("OPENROUTER_API_KEY", original_key)
