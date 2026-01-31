@@ -103,13 +103,17 @@ defmodule Cara.MixProject do
       output: "cover",
       ignore_modules: [
         Cara.AI.CLI,
+        Cara.DataCase,
+        Cara.Release,
+        Cara.Repo,
         CaraWeb.CoreComponents,
         CaraWeb.ErrorHTML,
         CaraWeb.ErrorJSON,
         CaraWeb.Gettext,
         CaraWeb.Layouts,
         CaraWeb.PageController,
-        CaraWeb.PageHTML
+        CaraWeb.PageHTML,
+        CaraWeb.Telemetry
       ]
     ]
   end
