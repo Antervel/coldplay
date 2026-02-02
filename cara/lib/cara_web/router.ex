@@ -18,6 +18,8 @@ defmodule CaraWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/student", StudentController, :index
+    post "/student", StudentController, :create
     live "/chat", ChatLive, :index
   end
 

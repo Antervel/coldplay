@@ -22,13 +22,16 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
+    student_info = Map.get(session, "student_info")
+
     {:ok,
      assign(socket,
        chat_messages: [%{sender: :assistant, content: welcome_message()}],
        llm_context: chat_module().new_context(default_system_prompt()),
        message_data: %{"message" => ""},
-       app_version: app_version()
+       app_version: app_version(),
+       student_info: student_info
      )}
   end
 
