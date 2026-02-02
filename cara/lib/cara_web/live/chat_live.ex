@@ -17,8 +17,8 @@ defmodule CaraWeb.ChatLive do
     """
   end
 
-  defp welcome_message do
-    "Hello! How can I help you today?"
+  defp welcome_message_for_student(%{name: name, subject: subject}) do
+    %{sender: :assistant, content: "Hello **#{name}**! Let's learn about #{subject} together! 🎓"}
   end
 
   @impl true
@@ -27,7 +27,7 @@ defmodule CaraWeb.ChatLive do
 
     {:ok,
      assign(socket,
-       chat_messages: [%{sender: :assistant, content: welcome_message()}],
+       chat_messages: [welcome_message_for_student(student_info)],
        llm_context: chat_module().new_context(default_system_prompt()),
        message_data: %{"message" => ""},
        app_version: app_version(),
