@@ -4,6 +4,14 @@ defmodule CaraWeb.ChatLiveTest do
   import Phoenix.LiveViewTest
   import Mox
 
+  setup %{conn: conn} do
+    conn = Plug.Test.init_test_session(conn, %{}) # Initialize test session
+    conn = fetch_session(conn) # Fetch the session
+    student_info = %{name: "Test Student", age: "20", subject: "Elixir"}
+    conn = put_session(conn, :student_info, student_info)
+    {:ok, conn: conn}
+  end
+
   # Define mock
   setup :verify_on_exit!
 

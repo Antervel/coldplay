@@ -26,7 +26,7 @@ defmodule CaraWeb.ChatLive do
     student_info = Map.get(session, "student_info")
 
     case Map.get(session, "student_info") do
-      %{name: name, subject: subject} = info ->
+      %{name: _name, subject: _subject} = info ->
         {:ok,
          assign(socket,
            chat_messages: [welcome_message_for_student(info)],
