@@ -5,8 +5,10 @@ defmodule CaraWeb.ChatLiveTest do
   import Mox
 
   setup %{conn: conn} do
-    conn = Plug.Test.init_test_session(conn, %{}) # Initialize test session
-    conn = fetch_session(conn) # Fetch the session
+    # Initialize test session
+    conn = Plug.Test.init_test_session(conn, %{})
+    # Fetch the session
+    conn = fetch_session(conn)
     student_info = %{name: "Test Student", age: "20", subject: "Elixir"}
     conn = put_session(conn, :student_info, student_info)
     {:ok, conn: conn}
@@ -23,6 +25,20 @@ defmodule CaraWeb.ChatLiveTest do
 
       assert view |> has_element?("form")
       assert view |> element("form") |> render() =~ "message"
+    end
+
+    test "redirects if student_info is missing from session", %{conn: original_conn} do
+      # Remove student_info from the session
+      conn = delete_session(original_conn, :student_info)
+      {:error, {:redirect, %{to: path}}} = live(conn, ~p"/chat")
+      assert path == "/student"
+    end
+
+    test "redirects if student_info in session is invalid", %{conn: original_conn} do
+      # Put invalid student_info into session
+      conn = put_session(original_conn, :student_info, %{invalid: "data"})
+      {:error, {:redirect, %{to: path}}} = live(conn, ~p"/chat")
+      assert path == "/student"
     end
 
     test "user can send a message and receive a streamed response", %{conn: conn} do

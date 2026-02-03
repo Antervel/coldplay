@@ -116,6 +116,7 @@ defmodule Cara.MixProject do
         CaraWeb.Layouts,
         CaraWeb.PageController,
         CaraWeb.PageHTML,
+        CaraWeb.StudentHTML,
         CaraWeb.Telemetry
       ]
     ]
