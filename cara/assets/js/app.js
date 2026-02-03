@@ -136,10 +136,10 @@ Hooks.MessageContextMenu = {
         if ('speechSynthesis' in window) {
           const cleanedMessageContent = messageContent.replace(/\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?\p{Emoji}-\uFE0F\p{Emoji}?\u200D|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Emoji}\uFE0F/gu, '');
           const utterance = new SpeechSynthesisUtterance(cleanedMessageContent);
-          // Optional: Configure utterance properties
+          utterance.rate = 0.9;   // Make it speak slower (default is 1)
+          utterance.pitch = 1.5;  // Slightly higher pitch for a "sweeter" voice (default is 1, range 0-2)
+          // Optional: Configure other utterance properties or select a specific voice
           // utterance.lang = 'en-US'; // Set language
-          // utterance.pitch = 1;      // Range between 0 and 2
-          // utterance.rate = 1;       // Range between 0.1 and 10
           window.speechSynthesis.speak(utterance);
           console.log("Playing message:", cleanedMessageContent);
 
