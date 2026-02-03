@@ -2,7 +2,9 @@ defmodule CaraWeb.StudentController do
   use CaraWeb, :controller
 
   def index(conn, _params) do
-    render(conn, :index)
+    conn
+    |> delete_session(:student_info)
+    |> render(:index)
   end
 
   def create(conn, %{"student" => student_params}) do

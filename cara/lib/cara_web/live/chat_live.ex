@@ -25,14 +25,20 @@ defmodule CaraWeb.ChatLive do
   def mount(_params, session, socket) do
     student_info = Map.get(session, "student_info")
 
-    {:ok,
-     assign(socket,
-       chat_messages: [welcome_message_for_student(student_info)],
-       llm_context: chat_module().new_context(default_system_prompt()),
-       message_data: %{"message" => ""},
-       app_version: app_version(),
-       student_info: student_info
-     )}
+    case Map.get(session, "student_info") do
+      %{name: name, subject: subject} = info ->
+        {:ok,
+         assign(socket,
+           chat_messages: [welcome_message_for_student(info)],
+           llm_context: chat_module().new_context(default_system_prompt()),
+           message_data: %{"message" => ""},
+           app_version: app_version(),
+           student_info: student_info
+         )}
+
+      _incomplete ->
+        {:ok, socket |> redirect(to: "/student")}
+    end
   end
 
   @impl true
