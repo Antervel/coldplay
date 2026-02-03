@@ -118,17 +118,42 @@ Hooks.MessageContextMenu = {
       }
 
       // Attach actions to buttons
-      contextMenu.querySelector('[data-action="copy"]').onclick = (e) => {
+      contextMenu.querySelector('[data-action="copy"]').onclick = async (e) => {
         e.stopPropagation();
-        console.log("Copy action for message:", messageContent);
-        // Implement copy functionality here
+        try {
+          await navigator.clipboard.writeText(messageContent);
+          console.log("Message copied to clipboard:", messageContent);
+          // Optional: Add visual feedback for copied content
+        } catch (err) {
+          console.error("Failed to copy message:", err);
+          // Optional: Handle error, e.g., show a toast notification
+        }
         hideContextMenu();
       };
 
       contextMenu.querySelector('[data-action="play"]').onclick = (e) => {
         e.stopPropagation();
-        console.log("Play action for message:", messageContent);
-        // Implement play functionality here
+        if ('speechSynthesis' in window) {
+          const cleanedMessageContent = messageContent.replace(/\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?\p{Emoji}-\uFE0F\p{Emoji}?\u200D|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Presentation}|\p{Emoji}\uFE0F/gu, '');
+          const utterance = new SpeechSynthesisUtterance(cleanedMessageContent);
+          // Optional: Configure utterance properties
+          // utterance.lang = 'en-US'; // Set language
+          // utterance.pitch = 1;      // Range between 0 and 2
+          // utterance.rate = 1;       // Range between 0.1 and 10
+          window.speechSynthesis.speak(utterance);
+          console.log("Playing message:", cleanedMessageContent);
+
+          utterance.onend = () => {
+            console.log("Speech finished.");
+          };
+          utterance.onerror = (event) => {
+            console.error("SpeechSynthesisUtterance.onerror", event);
+          };
+
+        } else {
+          console.warn("Speech Synthesis API not supported in this browser.");
+          alert("Your browser does not support the Web Speech API for text-to-speech.");
+        }
         hideContextMenu();
       };
     };
