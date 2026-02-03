@@ -86,6 +86,85 @@ Hooks.ChatInput = {
   },
 };
 
+Hooks.MessageContextMenu = {
+  mounted() {
+    const contextMenu = document.getElementById('message-context-menu');
+    let currentMessageEl = null;
+
+    const showContextMenu = (event) => {
+      event.preventDefault();
+      event.stopPropagation(); // Stop propagation to prevent document click from closing immediately
+
+      currentMessageEl = this.el;
+      const messageContent = currentMessageEl.dataset.messageContent;
+
+      contextMenu.classList.remove('hidden'); // Ensure menu is visible to get accurate dimensions
+      // Position the context menu
+      const messageBubbleEl = currentMessageEl.firstElementChild;
+      const messageBubbleRect = messageBubbleEl.getBoundingClientRect();
+      const contextMenuRect = contextMenu.getBoundingClientRect(); // Get context menu's current dimensions
+
+      contextMenu.style.top = `${messageBubbleRect.bottom + window.scrollY + 5}px`;
+
+      // Check if the message is from the user or AI to adjust horizontal position
+      const isUserMessage = currentMessageEl.classList.contains('justify-end');
+
+      if (isUserMessage) {
+        // For user messages (justify-end), align the right of the context menu with the right of the message bubble
+        contextMenu.style.left = `${messageBubbleRect.right - contextMenuRect.width + window.scrollX}px`;
+      } else {
+        // For AI messages (justify-start), align the left of the context menu with the left of the message bubble
+        contextMenu.style.left = `${messageBubbleRect.left + window.scrollX}px`;
+      }
+
+      // Attach actions to buttons
+      contextMenu.querySelector('[data-action="copy"]').onclick = (e) => {
+        e.stopPropagation();
+        console.log("Copy action for message:", messageContent);
+        // Implement copy functionality here
+        hideContextMenu();
+      };
+
+      contextMenu.querySelector('[data-action="play"]').onclick = (e) => {
+        e.stopPropagation();
+        console.log("Play action for message:", messageContent);
+        // Implement play functionality here
+        hideContextMenu();
+      };
+    };
+
+    const hideContextMenu = () => {
+      contextMenu.classList.add('hidden');
+      currentMessageEl = null;
+    };
+
+    this.el.addEventListener('click', showContextMenu);
+    this.el.addEventListener('touchstart', showContextMenu); // For touch devices
+
+    // Close menu when clicking anywhere else on the document
+    document.addEventListener('click', (event) => {
+      if (!contextMenu.contains(event.target) && !this.el.contains(event.target)) {
+        hideContextMenu();
+      }
+    });
+    document.addEventListener('touchstart', (event) => {
+      if (!contextMenu.contains(event.target) && !this.el.contains(event.target)) {
+        hideContextMenu();
+      }
+    });
+
+    this.handleEvent("hide_context_menu", () => {
+      hideContextMenu();
+    });
+  },
+  destroyed() {
+    // Clean up event listeners if necessary, though in LiveView context,
+    // new elements/hooks might be mounted more often than destroyed.
+    // For simplicity, document listeners are typically fine to remain
+    // as they handle closing multiple menus.
+  }
+};
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},

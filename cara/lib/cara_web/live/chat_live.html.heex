@@ -9,17 +9,27 @@
   </header>
 
   <main id="chat-messages" phx-hook="ChatScroll" class="flex-1 overflow-y-auto p-4 space-y-4">
-    <%= for message <- @chat_messages do %>
-      <div class={"flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
+    <%= for {message, idx} <- Enum.with_index(@chat_messages) do %>
+      <div
+        class={"flex #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}
+        data-message-content={message.content}
+      >
         <div
           class={"max-w-xl p-3 rounded-lg shadow-md #{if message.sender == :user, do: "bg-blue-500 text-white", else: "bg-gray-300 text-gray-800"}"}
           phx-html="true"
+          id={"message-#{message.sender}-#{idx}"}
+          phx-hook="MessageContextMenu"
         >
           {render_markdown(message.content)}
         </div>
       </div>
     <% end %>
   </main>
+
+  <div id="message-context-menu" class="hidden absolute z-10 bg-white rounded-md shadow-lg p-1">
+    <button class="block w-full text-left px-3 py-1 text-gray-800 hover:bg-blue-500 hover:text-white rounded-md" data-action="copy">Copy</button>
+    <button class="block w-full text-left px-3 py-1 text-gray-800 hover:bg-blue-500 hover:text-white rounded-md" data-action="play">Play</button>
+  </div>
 
   <footer class="bg-white p-4 shadow-md">
     <.form
