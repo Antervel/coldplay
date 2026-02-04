@@ -387,7 +387,7 @@ defmodule Cara.AI.ChatTest do
 
   describe "default_model/0" do
     test "returns the default model string" do
-      assert Chat.default_model() == "openrouter:mistralai/mistral-7b-instruct-v0.2"
+      assert Chat.default_model() == "openrouter:openai/gpt-oss-20b:free"
     end
   end
 end

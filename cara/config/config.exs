@@ -11,6 +11,9 @@ config :cara,
   ecto_repos: [Cara.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Configure the default AI model
+config :cara, :ai_model, "openrouter:openai/gpt-oss-20b:free"
+
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
   url: [host: "localhost"],

@@ -9,7 +9,6 @@ defmodule Cara.AI.Chat do
   alias ReqLLM.StreamResponse
 
   @behaviour Cara.AI.ChatBehaviour
-  @default_model "openrouter:mistralai/mistral-7b-instruct-v0.2"
   @type stream_chunk :: %{type: atom(), text: String.t()}
 
   ## Public API
@@ -25,7 +24,7 @@ defmodule Cara.AI.Chat do
 
   ## Options
 
-    * `:model` - The model to use (default: #{@default_model})
+    * `:model` - The model to use (defaults to the model specified in the application config).
   """
   @spec send_message(String.t(), Context.t(), keyword()) ::
           {:ok, String.t(), Context.t()}
@@ -56,7 +55,7 @@ defmodule Cara.AI.Chat do
 
   ## Options
 
-    * `:model` - The model to use (default: #{@default_model})
+    * `:model` - The model to use (defaults to the model specified in the application config).
   """
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
           {:ok, Enumerable.t(), (String.t() -> Context.t())}
@@ -117,13 +116,15 @@ defmodule Cara.AI.Chat do
   Returns the default model string.
   """
   @spec default_model() :: String.t()
-  def default_model, do: @default_model
+  def default_model do
+    Application.get_env(:cara, :ai_model, "openrouter:mistralai/mistral-7b-instruct-v0.2")
+  end
 
   ## Private Functions
 
   defp build_config(opts) do
     %{
-      model: Keyword.get(opts, :model, @default_model)
+      model: Keyword.get(opts, :model, default_model())
     }
   end
 
