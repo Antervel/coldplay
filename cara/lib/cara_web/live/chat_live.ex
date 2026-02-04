@@ -10,11 +10,15 @@ defmodule CaraWeb.ChatLive do
     Application.get_env(:cara, :chat_module, Cara.AI.Chat)
   end
 
-  defp default_system_prompt do
-    """
-    You are a helpful, friendly AI assistant. Engage in natural conversation,
-    answer questions clearly, and be concise unless asked for detailed explanations.
-    """
+  defp render_greeting_prompt(student_info) do
+    assigns = [
+      name: student_info.name,
+      subject: student_info.subject,
+      age: student_info.age
+    ]
+
+    prompt_path = Path.join(:code.priv_dir(:cara), "prompts/greeting.eex")
+    EEx.eval_file(prompt_path, assigns)
   end
 
   defp welcome_message_for_student(%{name: name, subject: subject}) do
@@ -23,21 +27,21 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def mount(_params, session, socket) do
-    student_info = Map.get(session, "student_info")
-
     case Map.get(session, "student_info") do
-      %{name: _name, subject: _subject} = info ->
+      %{name: _name, subject: _subject, age: _age} = info ->
+        system_prompt = render_greeting_prompt(info)
+
         {:ok,
          assign(socket,
            chat_messages: [welcome_message_for_student(info)],
-           llm_context: chat_module().new_context(default_system_prompt()),
+           llm_context: chat_module().new_context(system_prompt),
            message_data: %{"message" => ""},
            app_version: app_version(),
-           student_info: student_info
+           student_info: info
          )}
 
       _incomplete ->
-        {:ok, socket |> redirect(to: "/student")}
+        {:ok, redirect(socket, to: "/student")}
     end
   end
 
