@@ -51,6 +51,12 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # MCP servers typically don't expose ports - they use stdio
+  wikipedia-mcp:
+    image: mcp/server/wikipedia-mcp:latest
+    container_name: wikipedia-mcp
+    restart: unless-stopped
+
 volumes:
   postgres_data_prod:
 

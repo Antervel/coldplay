@@ -10,6 +10,11 @@ services:
       - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  wikipedia-mcp:
+    image: mcp/wikipedia-mcp:latest
+    container_name: wikipedia-mcp
+    # MCP servers typically don't expose ports - they use stdio
+    restart: unless-stopped
 
 volumes:
   postgres_data:
