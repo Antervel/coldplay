@@ -163,6 +163,8 @@ defmodule Cara.AI.Chat do
     end
   end
 
+  # This function receives the initial response from the LLM after calling 
+  # ReqLLM.generate_text. It then checks if this response includes any tool_calls.
   defp handle_tool_check_response(response, model, context, tools) do
     tool_calls = ReqLLM.Response.tool_calls(response)
 
@@ -174,16 +176,18 @@ defmodule Cara.AI.Chat do
       end
     else
       # Tool calls found
-      dummy_stream_response = %StreamResponse{
+      {:ok, dummy_stream_response(response), tool_calls}
+    end
+  end
+
+  defp dummy_stream_response(response) do
+      %StreamResponse{
         stream: Stream.cycle([""]),
         context: response.context,
         model: response.model,
-        cancel: fn -> :ok end,
-        metadata_task: Task.async(fn -> {:ok, %{}} end)
+        cancel: :noop,
+        metadata_task: :noop
       }
-
-      {:ok, dummy_stream_response, tool_calls}
-    end
   end
 
   @spec extract_text_stream(Enumerable.t()) :: Enumerable.t()

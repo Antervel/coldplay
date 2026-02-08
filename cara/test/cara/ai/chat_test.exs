@@ -3,6 +3,7 @@ defmodule Cara.AI.ChatTest do
 
   alias Cara.AI.Chat
   alias Cara.AI.CLI
+  alias Cara.AI.Tools.Calculator
   alias ReqLLM.Context
 
   describe "new_context/0" do
@@ -220,7 +221,6 @@ defmodule Cara.AI.ChatTest do
       )
 
       System.put_env("OPENROUTER_API_KEY", "test-key")
-
       on_exit(fn ->
         Application.delete_env(:req_llm, :openrouter)
       end)
@@ -358,6 +358,191 @@ defmodule Cara.AI.ChatTest do
       full_text = Enum.join(chunks, "")
 
       assert full_text == "First Second Third"
+    end
+  end
+
+  describe "send_message_stream/3 with tools - no tool calls" do
+    setup do
+      bypass = Bypass.open()
+
+      Application.put_env(:req_llm, :openrouter,
+        base_url: "http://localhost:#{bypass.port}",
+        api_key: "test-key"
+      )
+
+      System.put_env("OPENROUTER_API_KEY", "test-key")
+
+      on_exit(fn ->
+        Application.delete_env(:req_llm, :openrouter)
+      end)
+
+      {:ok, bypass: bypass}
+    end
+
+    test "handles tools provided but no tool calls made", %{bypass: bypass} do
+      # First call to generate_text returns no tool calls
+      Bypass.expect(bypass, "POST", "/chat/completions", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        request = Jason.decode!(body)
+
+        # Check if this is a streaming request or not
+        is_streaming = Map.get(request, "stream", false)
+
+        if is_streaming do
+          # Second call - streaming response
+          conn = Plug.Conn.send_chunked(conn, 200)
+
+          response = %{
+            "id" => "test-id",
+            "object" => "chat.completion.chunk",
+            "created" => 1_234_567_890,
+            "model" => "test-model",
+            "choices" => [
+              %{
+                "index" => 0,
+                "delta" => %{"content" => "No tools needed"},
+                "finish_reason" => nil
+              }
+            ]
+          }
+
+          {:ok, conn} = Plug.Conn.chunk(conn, "data: #{Jason.encode!(response)}\n\n")
+          {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
+          conn
+        else
+          # First call - non-streaming response without tool calls
+          response = %{
+            "id" => "test-id",
+            "object" => "chat.completion",
+            "created" => 1_234_567_890,
+            "model" => "test-model",
+            "choices" => [
+              %{
+                "index" => 0,
+                "message" => %{
+                  "role" => "assistant",
+                  "content" => "No tools needed"
+                },
+                "finish_reason" => "stop"
+              }
+            ]
+          }
+
+          Plug.Conn.send_resp(conn, 200, Jason.encode!(response))
+        end
+      end)
+
+      context = Chat.new_context("Test system prompt")
+      calculator_tool = Calculator.calculator_tool()
+
+      {:ok, stream, _context_builder, tool_calls} =
+        Chat.send_message_stream("What is 2+2?", context, 
+          model: "openrouter:test-model",
+          tools: [calculator_tool]
+        )
+
+      chunks = Enum.to_list(stream)
+      assert is_list(chunks)
+      assert tool_calls == []
+    end
+  end
+
+  describe "send_message_stream/3 with tools - tool calls made" do
+    setup do
+      bypass = Bypass.open()
+
+      Application.put_env(:req_llm, :openrouter,
+        base_url: "http://localhost:#{bypass.port}",
+        api_key: "test-key"
+      )
+
+      System.put_env("OPENROUTER_API_KEY", "test-key")
+
+      on_exit(fn ->
+        Application.delete_env(:req_llm, :openrouter)
+      end)
+
+      {:ok, bypass: bypass}
+    end
+
+    test "handles tools provided and tool calls made", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+        # Non-streaming response with tool calls
+        response = %{
+          "id" => "test-id",
+          "object" => "chat.completion",
+          "created" => 1_234_567_890,
+          "model" => "test-model",
+          "choices" => [
+            %{
+              "index" => 0,
+              "message" => %{
+                "role" => "assistant",
+                "content" => nil,
+                "tool_calls" => [
+                  %{
+                    "id" => "call_123",
+                    "type" => "function",
+                    "function" => %{
+                      "name" => "calculator",
+                      "arguments" => Jason.encode!(%{"expression" => "2+2"})
+                    }
+                  }
+                ]
+              },
+              "finish_reason" => "tool_calls"
+            }
+          ]
+        }
+
+        Plug.Conn.send_resp(conn, 200, Jason.encode!(response))
+      end)
+
+      context = Chat.new_context("Test system prompt")
+      calculator_tool = Calculator.calculator_tool()
+
+      {:ok, _stream, _context_builder, tool_calls} =
+        Chat.send_message_stream("Calculate 2+2", context,
+          model: "openrouter:test-model",
+          tools: [calculator_tool]
+        )
+
+      assert length(tool_calls) > 0
+    end
+  end
+
+  describe "execute_tool/2" do
+    test "executes calculator tool successfully" do
+      calculator_tool = Calculator.calculator_tool()
+      args = %{"expression" => "2+2"}
+
+      assert {:ok, 4} = Chat.execute_tool(calculator_tool, args)
+    end
+
+    test "executes calculator tool with atom keys" do
+      calculator_tool = Calculator.calculator_tool()
+      args = %{expression: "(5*5)+10"}
+
+      assert {:ok, 35} = Chat.execute_tool(calculator_tool, args)
+    end
+
+    test "returns error for invalid expression" do
+      calculator_tool = Calculator.calculator_tool()
+      args = %{"expression" => "invalid syntax here"}
+
+      assert {:error, error} = Chat.execute_tool(calculator_tool, args)
+      # The error is a struct with an error field
+      assert is_struct(error) or is_binary(error)
+    end
+
+    test "returns error for missing expression parameter" do
+      calculator_tool = Calculator.calculator_tool()
+      args = %{}
+
+      assert {:error, error} = Chat.execute_tool(calculator_tool, args)
+      # ReqLLM returns a validation error struct, not a simple string
+      assert error.reason =~ "required :expression option not found" or 
+             error == "Missing 'expression' parameter"
     end
   end
 
