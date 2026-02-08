@@ -85,7 +85,7 @@ defmodule Cara.AI.CLI do
   @spec handle_user_message(String.t(), Context.t(), map()) :: :ok | no_return()
   defp handle_user_message(message, context, config) do
     # Use the public send_message_stream function
-    {:ok, stream, context_builder} = Chat.send_message_stream(message, context, model: config.model)
+    {:ok, stream, context_builder, _tool_calls} = Chat.send_message_stream(message, context, model: config.model)
 
     IO.write("Assistant: ")
     final_text = consume_and_display_stream(stream, config.stream)

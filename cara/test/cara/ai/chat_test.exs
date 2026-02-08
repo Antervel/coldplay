@@ -252,7 +252,9 @@ defmodule Cara.AI.ChatTest do
       end)
 
       context = Chat.new_context("Test system prompt")
-      {:ok, stream, context_builder} = Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
+
+      {:ok, stream, context_builder, _tool_calls} =
+        Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
 
       assert is_function(context_builder, 1)
 
@@ -287,7 +289,7 @@ defmodule Cara.AI.ChatTest do
 
       # Call without passing opts to trigger the 2-arity version
       context = Chat.new_context("Test system prompt")
-      {:ok, stream, _context_builder} = Chat.send_message_stream("Hello", context)
+      {:ok, stream, _context_builder, _tool_calls} = Chat.send_message_stream("Hello", context)
 
       chunks = Enum.to_list(stream)
       assert is_list(chunks)
@@ -317,7 +319,9 @@ defmodule Cara.AI.ChatTest do
       end)
 
       context = Chat.new_context("Test system prompt")
-      {:ok, stream, context_builder} = Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
+
+      {:ok, stream, context_builder, _tool_calls} =
+        Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
 
       # Consume the stream
       full_text = Enum.join(stream, "")
@@ -346,7 +350,9 @@ defmodule Cara.AI.ChatTest do
       end)
 
       context = Chat.new_context("Test system prompt")
-      {:ok, stream, _context_builder} = Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
+
+      {:ok, stream, _context_builder, _tool_calls} =
+        Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
 
       chunks = Enum.to_list(stream)
       full_text = Enum.join(chunks, "")

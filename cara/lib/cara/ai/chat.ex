@@ -32,7 +32,7 @@ defmodule Cara.AI.Chat do
     config = build_config(opts)
     updated_context = add_user_message(context, message)
 
-    {:ok, stream_response} = call_llm(config.model, updated_context)
+    {:ok, stream_response, _tool_calls} = call_llm(config.model, updated_context, config.tools)
     final_text = consume_stream_to_text(stream_response.stream)
     final_context = add_assistant_message(updated_context, final_text)
 
@@ -40,34 +40,40 @@ defmodule Cara.AI.Chat do
   end
 
   @doc """
-  Sends a message and returns a stream of text chunks plus the updated context.
-  Perfect for web interfaces that need to stream responses to users.
+  Sends a message and returns a stream of text chunks plus the updated context,
+  and any tool calls made by the LLM.
+  Perfect for web interfaces that need to stream responses to users and handle tools.
 
   ## Examples
 
       iex> context = Cara.AI.Chat.new_context()
-      iex> {:ok, stream, context_builder} = Cara.AI.Chat.send_message_stream("Hello!", context)
+      iex> {:ok, stream, context_builder, tool_calls} = Cara.AI.Chat.send_message_stream("Hello!", context, tools: [some_tool()])
       iex> Enum.each(stream, fn chunk -> IO.write(chunk) end)
 
   ## Returns
 
-    * `{:ok, stream, context_builder_fn}` - Stream of text chunks and a function to build final context
+    * `{:ok, stream, context_builder_fn, tool_calls}` - Stream of text chunks, a function to build final context, and a list of tool calls
 
   ## Options
 
     * `:model` - The model to use (defaults to the model specified in the application config).
+    * `:tools` - A list of `ReqLLM.Tool` structs to provide to the LLM.
   """
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
-          {:ok, Enumerable.t(), (String.t() -> Context.t())}
+          {:ok, Enumerable.t(), (String.t() -> Context.t()), list()}
   def send_message_stream(message, context, opts \\ []) do
     config = build_config(opts)
     updated_context = add_user_message(context, message)
 
-    {:ok, stream_response} = call_llm(config.model, updated_context)
-    text_stream = extract_text_stream(stream_response.stream)
-    context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
+    case call_llm(config.model, updated_context, config.tools) do
+      {:ok, stream_response, tool_calls} ->
+        text_stream = extract_text_stream(stream_response.stream)
+        context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
+        {:ok, text_stream, context_builder, tool_calls}
 
-    {:ok, text_stream, context_builder}
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -124,7 +130,8 @@ defmodule Cara.AI.Chat do
 
   defp build_config(opts) do
     %{
-      model: Keyword.get(opts, :model, default_model())
+      model: Keyword.get(opts, :model, default_model()),
+      tools: Keyword.get(opts, :tools, [])
     }
   end
 
@@ -138,9 +145,45 @@ defmodule Cara.AI.Chat do
     Context.append(context, assistant(message))
   end
 
-  @spec call_llm(String.t(), Context.t()) :: {:ok, StreamResponse.t()} | {:error, term()}
-  defp call_llm(model, context) do
-    ReqLLM.stream_text(model, context.messages)
+  @spec call_llm(String.t(), Context.t(), list()) ::
+          {:ok, StreamResponse.t(), list()} | {:error, term()}
+  defp call_llm(model, context, tools) do
+    if Enum.empty?(tools) do
+      # No tools provided, just stream text directly
+      case ReqLLM.stream_text(model, context.messages, tools: tools) do
+        {:ok, stream_response} -> {:ok, stream_response, []}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      # Tools are provided, first attempt to get tool calls using generate_text
+      case ReqLLM.generate_text(model, context.messages, tools: tools) do
+        {:ok, response} -> handle_tool_check_response(response, model, context, tools)
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp handle_tool_check_response(response, model, context, tools) do
+    tool_calls = ReqLLM.Response.tool_calls(response)
+
+    if Enum.empty?(tool_calls) do
+      # No tool calls, proceed with streaming the text response
+      case ReqLLM.stream_text(model, context.messages, tools: tools) do
+        {:ok, stream_response} -> {:ok, stream_response, []}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      # Tool calls found
+      dummy_stream_response = %StreamResponse{
+        stream: Stream.cycle([""]),
+        context: response.context,
+        model: response.model,
+        cancel: fn -> :ok end,
+        metadata_task: Task.async(fn -> {:ok, %{}} end)
+      }
+
+      {:ok, dummy_stream_response, tool_calls}
+    end
   end
 
   @spec extract_text_stream(Enumerable.t()) :: Enumerable.t()
@@ -167,4 +210,12 @@ defmodule Cara.AI.Chat do
 
   @spec content_chunk?(stream_chunk()) :: boolean()
   defp content_chunk?(chunk), do: chunk.type == :content
+
+  @doc """
+  Executes a given tool with the provided arguments.
+  """
+  @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
+  def execute_tool(tool, args) do
+    ReqLLM.Tool.execute(tool, args)
+  end
 end

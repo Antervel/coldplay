@@ -1,6 +1,8 @@
 defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   use Retry
+  alias Cara.AI.Tools.Calculator
+  alias ReqLLM.Context
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
   @type message_data :: %{String.t() => String.t()}
@@ -30,6 +32,7 @@ defmodule CaraWeb.ChatLive do
     case Map.get(session, "student_info") do
       %{name: _name, subject: _subject, age: _age} = info ->
         system_prompt = render_greeting_prompt(info)
+        calculator_tool = Calculator.calculator_tool()
 
         {:ok,
          assign(socket,
@@ -37,7 +40,8 @@ defmodule CaraWeb.ChatLive do
            llm_context: chat_module().new_context(system_prompt),
            message_data: %{"message" => ""},
            app_version: app_version(),
-           student_info: info
+           student_info: info,
+           llm_tools: [calculator_tool]
          )}
 
       _incomplete ->
@@ -135,10 +139,11 @@ defmodule CaraWeb.ChatLive do
   defp start_llm_stream(socket, message) do
     live_view_pid = self()
     llm_context = socket.assigns.llm_context
+    llm_tools = socket.assigns.llm_tools
 
     Task.start(fn ->
       retry with: constant_backoff(100) |> Stream.take(10) do
-        process_llm_request(message, llm_context, live_view_pid)
+        process_llm_request(message, llm_context, live_view_pid, llm_tools)
       end
     end)
 
@@ -150,20 +155,25 @@ defmodule CaraWeb.ChatLive do
     assign(socket, message_data: %{"message" => ""})
   end
 
-  @spec process_llm_request(String.t(), term(), pid()) :: :ok | :retry
-  defp process_llm_request(message, llm_context, live_view_pid) do
+  @spec process_llm_request(String.t(), term(), pid(), list()) :: :ok | :retry
+  defp process_llm_request(message, llm_context, live_view_pid, llm_tools) do
     chat_mod = Application.get_env(:cara, :chat_module, Cara.AI.Chat)
 
-    with {:ok, stream, llm_context_builder} <- chat_mod.send_message_stream(message, llm_context),
-         true <- process_stream(stream, live_view_pid, llm_context_builder) do
-      :ok
-    else
+    case chat_mod.send_message_stream(message, llm_context, tools: llm_tools) do
+      {:ok, stream, llm_context_builder, tool_calls} ->
+        handle_llm_stream_response(
+          stream,
+          llm_context,
+          llm_context_builder,
+          tool_calls,
+          message,
+          live_view_pid,
+          llm_tools,
+          chat_mod
+        )
+
       {:error, reason} ->
         send(live_view_pid, {:llm_error, "Error: #{inspect(reason)}"})
-        :error
-
-      false ->
-        send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
         :error
     end
   rescue
@@ -171,6 +181,83 @@ defmodule CaraWeb.ChatLive do
       error_message = format_exception_message(exception)
       send(live_view_pid, {:llm_error, error_message})
       :error
+  end
+
+  @spec handle_llm_stream_response(
+          Enumerable.t(),
+          ReqLLM.Context.t(),
+          (String.t() -> ReqLLM.Context.t()),
+          list(),
+          String.t(),
+          pid(),
+          list(),
+          module()
+        ) :: :ok | :retry
+  defp handle_llm_stream_response(
+         stream,
+         llm_context,
+         llm_context_builder,
+         tool_calls,
+         message,
+         live_view_pid,
+         llm_tools,
+         chat_mod
+       ) do
+    if Enum.empty?(tool_calls) do
+      # No tool calls, process the stream normally
+      if process_stream(stream, live_view_pid, llm_context_builder) do
+        :ok
+      else
+        send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
+        :error
+      end
+    else
+      # Tool calls found, add assistant message with tool_calls to context
+      llm_context_with_assistant_tool_calls = Context.append(llm_context, Context.assistant("", tool_calls: tool_calls))
+
+      # Execute tools and make another LLM call
+      updated_llm_context = handle_tool_calls(tool_calls, llm_context_with_assistant_tool_calls, llm_tools, chat_mod)
+      process_llm_request(message, updated_llm_context, live_view_pid, llm_tools)
+    end
+  end
+
+  @spec handle_tool_calls(list(), ReqLLM.Context.t(), list(), module()) :: ReqLLM.Context.t()
+  defp handle_tool_calls(tool_calls, llm_context, llm_tools, chat_mod) do
+    Enum.reduce(tool_calls, llm_context, fn tool_call, acc_context ->
+      args = ReqLLM.ToolCall.args_map(tool_call)
+      process_tool_finding(tool_call, llm_tools, args, acc_context, chat_mod)
+    end)
+  end
+
+  @spec process_tool_finding(ReqLLM.ToolCall.t(), list(), map(), ReqLLM.Context.t(), module()) :: ReqLLM.Context.t()
+  defp process_tool_finding(tool_call, llm_tools, args, acc_context, chat_mod) do
+    name = ReqLLM.ToolCall.name(tool_call)
+
+    case Enum.find(llm_tools, fn tool -> tool.name == name end) do
+      nil ->
+        Context.append(acc_context, Context.tool_result(tool_call.id, "Error: Tool #{name} not found."))
+
+      tool ->
+        process_single_tool_call_result(tool_call, tool, args, acc_context, chat_mod)
+    end
+  end
+
+  @spec process_single_tool_call_result(ReqLLM.ToolCall.t(), ReqLLM.Tool.t(), map(), ReqLLM.Context.t(), module()) ::
+          ReqLLM.Context.t()
+  defp process_single_tool_call_result(tool_call, tool, args, acc_context, chat_mod) do
+    case chat_mod.execute_tool(tool, args) do
+      {:ok, result} ->
+        Context.append(acc_context, Context.tool_result(tool_call.id, to_string(result)))
+
+      {:error, reason} ->
+        # Need name here for error message
+        name = ReqLLM.ToolCall.name(tool_call)
+
+        Context.append(
+          acc_context,
+          Context.tool_result(tool_call.id, "Error executing tool #{name}: #{inspect(reason)}")
+        )
+    end
   end
 
   defp process_stream(stream, live_view_pid, llm_context_builder) do

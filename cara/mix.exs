@@ -72,7 +72,8 @@ defmodule Cara.MixProject do
       {:mdex_mermaid, "~> 0.1"},
       {:mdex_katex, "~> 0.1"},
       {:bypass, "~> 2.1", only: :test},
-      {:retry, "~> 0.18"}
+      {:retry, "~> 0.18"},
+      {:abacus, "~> 0.3.0"}
     ]
   end
 
