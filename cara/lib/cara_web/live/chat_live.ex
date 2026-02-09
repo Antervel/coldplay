@@ -2,6 +2,7 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   use Retry
   alias Cara.AI.Tools.Calculator
+  alias Cara.AI.ToolHandler
   alias ReqLLM.Context
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
@@ -212,51 +213,22 @@ defmodule CaraWeb.ChatLive do
         :error
       end
     else
-      # Tool calls found, add assistant message with tool_calls to context
-      llm_context_with_assistant_tool_calls = Context.append(llm_context, Context.assistant("", tool_calls: tool_calls))
+      # Tool calls found - use ToolHandler to process them!
+      # This is now a pure function call - easy to test!
+      llm_context_with_assistant_tool_calls =
+        Context.append(llm_context, Context.assistant("", tool_calls: tool_calls))
 
-      # Execute tools and make another LLM call
-      updated_llm_context = handle_tool_calls(tool_calls, llm_context_with_assistant_tool_calls, llm_tools, chat_mod)
-      process_llm_request(message, updated_llm_context, live_view_pid, llm_tools)
-    end
-  end
-
-  @spec handle_tool_calls(list(), ReqLLM.Context.t(), list(), module()) :: ReqLLM.Context.t()
-  defp handle_tool_calls(tool_calls, llm_context, llm_tools, chat_mod) do
-    Enum.reduce(tool_calls, llm_context, fn tool_call, acc_context ->
-      args = ReqLLM.ToolCall.args_map(tool_call)
-      process_tool_finding(tool_call, llm_tools, args, acc_context, chat_mod)
-    end)
-  end
-
-  @spec process_tool_finding(ReqLLM.ToolCall.t(), list(), map(), ReqLLM.Context.t(), module()) :: ReqLLM.Context.t()
-  defp process_tool_finding(tool_call, llm_tools, args, acc_context, chat_mod) do
-    name = ReqLLM.ToolCall.name(tool_call)
-
-    case Enum.find(llm_tools, fn tool -> tool.name == name end) do
-      nil ->
-        Context.append(acc_context, Context.tool_result(tool_call.id, "Error: Tool #{name} not found."))
-
-      tool ->
-        process_single_tool_call_result(tool_call, tool, args, acc_context, chat_mod)
-    end
-  end
-
-  @spec process_single_tool_call_result(ReqLLM.ToolCall.t(), ReqLLM.Tool.t(), map(), ReqLLM.Context.t(), module()) ::
-          ReqLLM.Context.t()
-  defp process_single_tool_call_result(tool_call, tool, args, acc_context, chat_mod) do
-    case chat_mod.execute_tool(tool, args) do
-      {:ok, result} ->
-        Context.append(acc_context, Context.tool_result(tool_call.id, to_string(result)))
-
-      {:error, reason} ->
-        # Need name here for error message
-        name = ReqLLM.ToolCall.name(tool_call)
-
-        Context.append(
-          acc_context,
-          Context.tool_result(tool_call.id, "Error executing tool #{name}: #{inspect(reason)}")
+      # Execute tools and get updated context - all in one pure function!
+      updated_llm_context =
+        ToolHandler.handle_tool_calls(
+          tool_calls,
+          llm_context_with_assistant_tool_calls,
+          llm_tools,
+          chat_mod
         )
+
+      # Make another LLM call with the tool results
+      process_llm_request(message, updated_llm_context, live_view_pid, llm_tools)
     end
   end
 
@@ -275,7 +247,11 @@ defmodule CaraWeb.ChatLive do
   end
 
   @spec format_exception_message(Exception.t()) :: String.t()
-  defp format_exception_message(%{__struct__: ReqLLM.Error.API.Request, status: 429, response_body: response_body}) do
+  defp format_exception_message(%{
+         __struct__: ReqLLM.Error.API.Request,
+         status: 429,
+         response_body: response_body
+       }) do
     retry_delay = extract_retry_delay(response_body)
     base_message = "The AI is busy. Wait a moment and try again later."
 

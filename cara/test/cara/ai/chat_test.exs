@@ -221,6 +221,7 @@ defmodule Cara.AI.ChatTest do
       )
 
       System.put_env("OPENROUTER_API_KEY", "test-key")
+
       on_exit(fn ->
         Application.delete_env(:req_llm, :openrouter)
       end)
@@ -436,7 +437,7 @@ defmodule Cara.AI.ChatTest do
       calculator_tool = Calculator.calculator_tool()
 
       {:ok, stream, _context_builder, tool_calls} =
-        Chat.send_message_stream("What is 2+2?", context, 
+        Chat.send_message_stream("What is 2+2?", context,
           model: "openrouter:test-model",
           tools: [calculator_tool]
         )
@@ -541,8 +542,8 @@ defmodule Cara.AI.ChatTest do
 
       assert {:error, error} = Chat.execute_tool(calculator_tool, args)
       # ReqLLM returns a validation error struct, not a simple string
-      assert error.reason =~ "required :expression option not found" or 
-             error == "Missing 'expression' parameter"
+      assert error.reason =~ "required :expression option not found" or
+               error == "Missing 'expression' parameter"
     end
   end
 

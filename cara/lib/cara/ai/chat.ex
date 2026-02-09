@@ -181,13 +181,13 @@ defmodule Cara.AI.Chat do
   end
 
   defp dummy_stream_response(response) do
-      %StreamResponse{
-        stream: Stream.cycle([""]),
-        context: response.context,
-        model: response.model,
-        cancel: :noop,
-        metadata_task: :noop
-      }
+    %StreamResponse{
+      stream: Stream.cycle([""]),
+      context: response.context,
+      model: response.model,
+      cancel: :noop,
+      metadata_task: :noop
+    }
   end
 
   @spec extract_text_stream(Enumerable.t()) :: Enumerable.t()
