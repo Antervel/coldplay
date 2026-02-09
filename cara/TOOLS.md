@@ -25,12 +25,17 @@ Tool support in Cara relies on several key modules and the `req_llm` library:
     *   Defines the contract for any chat module in Cara.
     *   It includes `@callback` definitions for functions like `send_message_stream/3` (which now supports passing tools) and `execute_tool/2`, ensuring consistency across different LLM implementations or mocks.
 
+*   **`Cara.AI.ToolHandler` (`lib/cara/ai/tool_handler.ex`):**
+    *   This module contains pure functions responsible for processing tool calls and managing context updates.
+    *   It iterates through requested tool calls, finds the corresponding tool, executes it using `Cara.AI.Chat.execute_tool/2`, and appends the results (or errors) to the conversation context.
+    *   It was extracted from `CaraWeb.ChatLive` for better testability and separation of concerns.
+
 *   **`CaraWeb.ChatLive` (`lib/cara_web/live/chat_live.ex`):**
     *   This Phoenix LiveView module orchestrates the entire chat interaction, including the tool execution loop.
     *   It holds the list of available tools in its `llm_tools` assign.
     *   Its `process_llm_request` function manages the "Reason-Act-Answer" loop:
         1.  **Reason:** Calls `Cara.AI.Chat.send_message_stream` to send the user's message and available tools to the LLM. The LLM either generates a text response or requests a tool call.
-        2.  **Act:** If tool calls are requested by the LLM, `handle_llm_stream_response` first adds an `assistant` message with the tool calls to the context. Then, `handle_tool_calls` executes each requested tool using `Cara.AI.Chat.execute_tool/2`, appending the tool's result to the conversation context as a `tool` message.
+        2.  **Act:** If tool calls are requested by the LLM, `handle_llm_stream_response` first adds an `assistant` message with the tool calls to the context. Then, it delegates to `Cara.AI.ToolHandler.handle_tool_calls` to execute each requested tool, and its results are appended to the conversation context as `tool` messages.
         3.  **Answer:** With the tool results now in the conversation context, `process_llm_request` makes another call to the LLM (recursive call to `process_llm_request`) for a final, natural language answer based on the tool's output. If no tools were called, it directly processes the streamed text response.
 
 *   **Specific Tool Modules (e.g., `Cara.AI.Tools.Calculator`):**
@@ -49,11 +54,11 @@ When a user interacts with the AI and their query requires a tool, the following
     *   `Cara.AI.Chat.call_llm` detects these tool calls and returns them to `CaraWeb.ChatLive.handle_llm_stream_response`.
 4.  **Orchestration in `CaraWeb.ChatLive.handle_llm_stream_response`:**
     *   An `assistant` message containing the `tool_calls` is appended to the conversation context. This message acts as a "tool instruction" for the LLM.
-    *   The execution then moves to `CaraWeb.ChatLive.handle_tool_calls`.
-5.  **Tool Execution (`CaraWeb.ChatLive.handle_tool_calls` -> `Cara.AI.Chat.execute_tool`):**
-    *   `handle_tool_calls` iterates through each `ReqLLM.ToolCall`.
+    *   The execution then moves to `Cara.AI.ToolHandler.handle_tool_calls` which processes the tool calls.
+5.  **Tool Execution (`Cara.AI.ToolHandler.handle_tool_calls`):**
+    *   `Cara.AI.ToolHandler.handle_tool_calls` iterates through each `ReqLLM.ToolCall`.
     *   For each tool call, it finds the corresponding `ReqLLM.Tool` from the `llm_tools` list.
-    *   `Cara.AI.Chat.execute_tool/2` is invoked, which executes the `callback` function defined within the `ReqLLM.Tool`, passing the LLM-provided arguments.
+    *   `Cara.AI.Chat.execute_tool/2` is invoked (via the `chat_module` parameter passed to `ToolHandler`), which executes the `callback` function defined within the `ReqLLM.Tool`, passing the LLM-provided arguments.
     *   The result of the tool's execution (or an error message) is then appended to the conversation context as a `tool` message (`ReqLLM.Context.tool_result`).
 6.  **Second LLM Call (Recursion):**
     *   After all tools have been executed and their results added to the context, `process_llm_request` is called recursively with the updated conversation context.
@@ -143,7 +148,7 @@ If your new tool introduces a completely new interaction pattern that cannot be 
 1.  **Unit Tests for the Tool Module:**
     Create a test file (e.g., `test/cara/ai/tools/my_new_tool_test.exs`) to verify your tool's `callback` logic works correctly in isolation.
 
-2.  **Integration Tests in `CaraWeb.ChatLiveTest`:**
-    If the tool interacts with external services, consider mocking those services. Otherwise, create tests in `test/cara_web/chat_live_test.exs` that simulate a user asking a question that should trigger your tool, and assert that the tool is called and its results are processed correctly. Remember to mock `Cara.AI.ChatMock` appropriately for your tests.
+2.  **Integration Tests in `CaraWeb.ChatLiveTest` (and potentially `Cara.AI.ToolHandlerTest`):**
+    If the tool interacts with external services, consider mocking those services. Create tests in `test/cara_web/chat_live_test.exs` that simulate a user asking a question that should trigger your tool, and assert that the tool is called and its results are processed correctly. For more focused testing of tool execution logic, consider adding tests to `test/cara/ai/tool_handler_test.exs` that directly verify how `Cara.AI.ToolHandler` processes tool calls and updates the context. Remember to mock `Cara.AI.ChatMock` appropriately for your tests.
 
 By following these steps, you can effectively extend Cara's capabilities with new tools, allowing the AI companion to handle a wider range of user queries.
