@@ -131,8 +131,10 @@ defmodule Cara.AI.CLI do
   end
 
   defp print_api_key_error do
-    IO.puts("\n>> ERROR: OPENROUTER_API_KEY environment variable not set!")
-    IO.puts(">> Get your OpenRouter API key at: https://openrouter.ai/keys")
-    IO.puts(">> Then run: export OPENROUTER_API_KEY=your_key_here\n")
+    if System.get_env("MIX_ENV") !== "test" do
+      IO.puts("\n>> ERROR: OPENROUTER_API_KEY environment variable not set!")
+      IO.puts(">> Get your OpenRouter API key at: https://openrouter.ai/keys")
+      IO.puts(">> Then run: export OPENROUTER_API_KEY=your_key_here\n")
+    end
   end
 end
