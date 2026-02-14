@@ -23,7 +23,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.handle_tool_calls([tool_call], context, tools, MockChat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       assert tool_result.role == :tool
       assert tool_result.tool_call_id == "call_123"
@@ -34,20 +34,20 @@ defmodule Cara.AI.ToolHandlerTest do
     test "processes multiple tool calls in sequence" do
       tool_call_1 = ReqLLM.ToolCall.new("call_001", "calculator", Jason.encode!(%{"expression" => "10+5"}))
       tool_call_2 = ReqLLM.ToolCall.new("call_002", "calculator", Jason.encode!(%{"expression" => "15*2"}))
-      
+
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
       result = ToolHandler.handle_tool_calls([tool_call_1, tool_call_2], context, tools, MockChat)
 
-      assert length(result.messages) == 2
-      
+      assert Enum.count(result.messages) == 2
+
       [first_result, second_result] = result.messages
-      
+
       assert first_result.role == :tool
       assert first_result.tool_call_id == "call_001"
       assert hd(first_result.content).text == "15"
-      
+
       assert second_result.role == :tool
       assert second_result.tool_call_id == "call_002"
       assert hd(second_result.content).text == "30"
@@ -61,12 +61,12 @@ defmodule Cara.AI.ToolHandlerTest do
 
       # Context should be unchanged
       assert result == context
-      assert length(result.messages) == 0
+      assert Enum.empty?(result.messages)
     end
 
     test "preserves existing messages in context" do
       # Start with a context that already has messages
-      context = 
+      context =
         Context.new([])
         |> Context.append(Context.user("Hello"))
         |> Context.append(Context.assistant("Hi there!"))
@@ -77,7 +77,7 @@ defmodule Cara.AI.ToolHandlerTest do
       result = ToolHandler.handle_tool_calls([tool_call], context, tools, MockChat)
 
       # Should have 3 messages: user, assistant, tool
-      assert length(result.messages) == 3
+      assert Enum.count(result.messages) == 3
       assert Enum.at(result.messages, 0).role == :user
       assert Enum.at(result.messages, 1).role == :assistant
       assert Enum.at(result.messages, 2).role == :tool
@@ -92,7 +92,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.process_tool_call(tool_call, tools, context, MockChat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       assert tool_result.role == :tool
       assert tool_result.tool_call_id == "call_456"
@@ -106,7 +106,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.process_tool_call(tool_call, tools, context, MockChat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       assert tool_result.role == :tool
       assert tool_result.tool_call_id == "call_789"
@@ -121,7 +121,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.process_tool_call(tool_call, tools, context, MockChat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       assert tool_result.role == :tool
       assert tool_result.tool_call_id == "call_error"
@@ -137,7 +137,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.process_tool_call(tool_call, tools, context, MockChat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       assert tool_result.role == :tool
       error_text = hd(tool_result.content).text
@@ -148,11 +148,12 @@ defmodule Cara.AI.ToolHandlerTest do
     test "handles tool with empty tools list" do
       tool_call = ReqLLM.ToolCall.new("call_none", "calculator", Jason.encode!(%{"expression" => "2+2"}))
       context = Context.new([])
-      tools = []  # No tools available
+      # No tools available
+      tools = []
 
       result = ToolHandler.process_tool_call(tool_call, tools, context, MockChat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       error_text = hd(tool_result.content).text
       assert error_text =~ "Error: Tool calculator not found"
@@ -168,7 +169,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.handle_tool_calls([tool_call], context, tools, Cara.AI.Chat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       assert tool_result.role == :tool
       # (2+3)*4 = 20
@@ -182,7 +183,7 @@ defmodule Cara.AI.ToolHandlerTest do
 
       result = ToolHandler.handle_tool_calls([tool_call], context, tools, Cara.AI.Chat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       error_text = hd(tool_result.content).text
       # Should contain error message
@@ -192,17 +193,19 @@ defmodule Cara.AI.ToolHandlerTest do
 
   describe "edge cases" do
     test "handles tool calls with complex arguments" do
-      tool_call = ReqLLM.ToolCall.new(
-        "complex_call",
-        "calculator", 
-        Jason.encode!(%{"expression" => "((10 + 5) * 2) - 8"})
-      )
+      tool_call =
+        ReqLLM.ToolCall.new(
+          "complex_call",
+          "calculator",
+          Jason.encode!(%{"expression" => "((10 + 5) * 2) - 8"})
+        )
+
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
       result = ToolHandler.handle_tool_calls([tool_call], context, tools, Cara.AI.Chat)
 
-      assert length(result.messages) == 1
+      assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
       # ((10 + 5) * 2) - 8 = 22
       assert hd(tool_result.content).text == "22"
@@ -211,14 +214,14 @@ defmodule Cara.AI.ToolHandlerTest do
     test "handles multiple errors in sequence" do
       tool_call_1 = ReqLLM.ToolCall.new("err1", "nonexistent", Jason.encode!(%{}))
       tool_call_2 = ReqLLM.ToolCall.new("err2", "calculator", Jason.encode!(%{"expression" => "invalid"}))
-      
+
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
       result = ToolHandler.handle_tool_calls([tool_call_1, tool_call_2], context, tools, MockChat)
 
-      assert length(result.messages) == 2
-      
+      assert Enum.count(result.messages) == 2
+
       # Both should be error messages
       Enum.each(result.messages, fn msg ->
         assert msg.role == :tool
@@ -231,26 +234,27 @@ defmodule Cara.AI.ToolHandlerTest do
       tool_call_1 = ReqLLM.ToolCall.new("success", "calculator", Jason.encode!(%{"expression" => "2+2"}))
       tool_call_2 = ReqLLM.ToolCall.new("failure", "calculator", Jason.encode!(%{"expression" => "invalid"}))
       tool_call_3 = ReqLLM.ToolCall.new("success2", "calculator", Jason.encode!(%{"expression" => "10+5"}))
-      
+
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
-      result = ToolHandler.handle_tool_calls(
-        [tool_call_1, tool_call_2, tool_call_3], 
-        context, 
-        tools, 
-        MockChat
-      )
+      result =
+        ToolHandler.handle_tool_calls(
+          [tool_call_1, tool_call_2, tool_call_3],
+          context,
+          tools,
+          MockChat
+        )
 
-      assert length(result.messages) == 3
-      
+      assert Enum.count(result.messages) == 3
+
       # First should succeed
       assert hd(Enum.at(result.messages, 0).content).text == "4"
-      
+
       # Second should fail
       error_text = hd(Enum.at(result.messages, 1).content).text
       assert error_text =~ "Error executing tool"
-      
+
       # Third should succeed
       assert hd(Enum.at(result.messages, 2).content).text == "15"
     end

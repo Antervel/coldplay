@@ -1,8 +1,8 @@
 defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   use Retry
-  alias Cara.AI.Tools.Calculator
   alias Cara.AI.ToolHandler
+  alias Cara.AI.Tools.Calculator
   alias ReqLLM.Context
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}

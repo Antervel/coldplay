@@ -163,7 +163,7 @@ defmodule Cara.AI.Chat do
     end
   end
 
-  # This function receives the initial response from the LLM after calling 
+  # This function receives the initial response from the LLM after calling
   # ReqLLM.generate_text. It then checks if this response includes any tool_calls.
   defp handle_tool_check_response(response, model, context, tools) do
     tool_calls = ReqLLM.Response.tool_calls(response)

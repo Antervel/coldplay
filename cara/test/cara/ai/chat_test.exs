@@ -11,7 +11,7 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context("Test system prompt")
 
       assert %Context{} = context
-      assert length(context.messages) == 1
+      assert Enum.count(context.messages) == 1
       assert hd(context.messages).role == :system
     end
   end
@@ -22,7 +22,7 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context(custom_prompt)
 
       assert %Context{} = context
-      assert length(context.messages) == 1
+      assert Enum.count(context.messages) == 1
 
       message = hd(context.messages)
       assert message.role == :system
@@ -62,7 +62,7 @@ defmodule Cara.AI.ChatTest do
         |> Context.append(ReqLLM.Context.assistant("Hi there!"))
         |> Context.append(ReqLLM.Context.user("How are you?"))
 
-      assert length(context.messages) == 4
+      assert Enum.count(context.messages) == 4
 
       reset_context = Chat.reset_context(context)
 
@@ -76,7 +76,7 @@ defmodule Cara.AI.ChatTest do
         |> Context.append(ReqLLM.Context.system("Additional instruction"))
         |> Context.append(ReqLLM.Context.user("Hello"))
 
-      assert length(context.messages) == 3
+      assert Enum.count(context.messages) == 3
 
       reset_context = Chat.reset_context(context)
 
@@ -508,7 +508,7 @@ defmodule Cara.AI.ChatTest do
           tools: [calculator_tool]
         )
 
-      assert length(tool_calls) > 0
+      assert Enum.empty?(tool_calls) == false
     end
   end
 
