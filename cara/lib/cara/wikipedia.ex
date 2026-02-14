@@ -1,6 +1,12 @@
 defmodule Cara.Wikipedia do
   @moduledoc """
   A module to interface with the Wikipedia API for searching articles and retrieving full articles.
+
+  Example:
+
+  iex(1)> Cara.Wikipedia.search_articles("elixir")
+  iex(2)> Cara.Wikipedia.get_article("Elixir")
+  iex(3)> Cara.Wikipedia.get_full_article("Elixir")
   """
 
   defp http_client do
@@ -16,7 +22,7 @@ defmodule Cara.Wikipedia do
   def search_articles(query) do
     case http_client().get(
            "https://en.wikipedia.org/w/api.php",
-           query: %{
+           params: %{
              action: "opensearch",
              search: query,
              limit: 10,
@@ -122,7 +128,7 @@ defmodule Cara.Wikipedia do
   defp fetch_article_content(title) do
     case http_client().get(
            "https://en.wikipedia.org/w/api.php",
-           query: %{
+           params: %{
              action: "parse",
              page: title,
              format: "json"
