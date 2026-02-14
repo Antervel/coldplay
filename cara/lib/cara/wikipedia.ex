@@ -3,6 +3,10 @@ defmodule Cara.Wikipedia do
   A module to interface with the Wikipedia API for searching articles and retrieving full articles.
   """
 
+  defp http_client do
+    Application.get_env(:cara, :http_client, Req)
+  end
+
   @doc """
   Searches for Wikipedia articles using a query term.
 
@@ -10,7 +14,7 @@ defmodule Cara.Wikipedia do
   """
   @spec search_articles(String.t()) :: {:ok, list()} | {:error, term()}
   def search_articles(query) do
-    case Req.get(
+    case http_client().get(
            "https://en.wikipedia.org/w/api.php",
            query: %{
              action: "opensearch",
@@ -43,7 +47,7 @@ defmodule Cara.Wikipedia do
   """
   @spec get_article(String.t()) :: {:ok, map()} | {:error, term()}
   def get_article(title) do
-    case Req.get(
+    case http_client().get(
            "https://en.wikipedia.org/api/rest_v1/page/summary/#{URI.encode(title)}",
            headers: %{
              "User-Agent" => "Cara-Educational-App/1.0"
@@ -73,32 +77,18 @@ defmodule Cara.Wikipedia do
   """
   @spec get_full_article(String.t()) :: {:ok, map()} | {:error, term()}
   def get_full_article(title) do
-    case fetch_article_summary(title) do
-      {:ok, summary_response} ->
-        case extract_article_url(summary_response) do
-          {:ok, article_url} ->
-            case fetch_article_content(article_url) do
-              {:ok, content_response} ->
-                case parse_full_article(summary_response, content_response) do
-                  {:ok, parsed_article} -> {:ok, parsed_article}
-                  error -> error
-                end
-
-              error ->
-                error
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      error ->
-        error
+    with {:ok, summary_response} <- fetch_article_summary(title),
+         {:ok, _article_url} <- extract_article_url(summary_response),
+         {:ok, content_response} <- fetch_article_content(title),
+         {:ok, parsed_article} <- parse_full_article(summary_response, content_response) do
+      {:ok, parsed_article}
+    else
+      error -> error
     end
   end
 
   defp fetch_article_summary(title) do
-    case Req.get(
+    case http_client().get(
            "https://en.wikipedia.org/api/rest_v1/page/summary/#{URI.encode(title)}",
            headers: %{
              "User-Agent" => "Cara-Educational-App/1.0"
@@ -128,8 +118,15 @@ defmodule Cara.Wikipedia do
     end
   end
 
-  defp fetch_article_content(article_url) do
-    case Req.get(article_url,
+  # Changed argument to title
+  defp fetch_article_content(title) do
+    case http_client().get(
+           "https://en.wikipedia.org/w/api.php",
+           query: %{
+             action: "parse",
+             page: title,
+             format: "json"
+           },
            headers: %{
              "User-Agent" => "Cara-Educational-App/1.0"
            }
@@ -151,13 +148,14 @@ defmodule Cara.Wikipedia do
 
   defp parse_search_response(response) do
     case response do
-      [_, _, titles, extracts] ->
+      [_search_term, titles, extracts, urls] ->
         Enum.zip(titles, extracts)
-        |> Enum.map(fn {title, extract} ->
+        |> Enum.zip(urls)
+        |> Enum.map(fn {{title, extract}, url} ->
           %{
             title: title,
             extract: extract,
-            url: "https://en.wikipedia.org/wiki/#{URI.encode(title)}"
+            url: url
           }
         end)
 
