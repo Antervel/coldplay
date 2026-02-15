@@ -3,6 +3,7 @@ defmodule CaraWeb.ChatLive do
   use Retry
   alias Cara.AI.ToolHandler
   alias Cara.AI.Tools.Calculator
+  alias Cara.AI.Tools.Wikipedia
   alias ReqLLM.Context
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
@@ -34,6 +35,8 @@ defmodule CaraWeb.ChatLive do
       %{name: _name, subject: _subject, age: _age} = info ->
         system_prompt = render_greeting_prompt(info)
         calculator_tool = Calculator.calculator_tool()
+        wikipedia_search_tool = Wikipedia.wikipedia_search()
+        wikipedia_get_article_tool = Wikipedia.wikipedia_get_article()
 
         {:ok,
          assign(socket,
@@ -42,7 +45,7 @@ defmodule CaraWeb.ChatLive do
            message_data: %{"message" => ""},
            app_version: app_version(),
            student_info: info,
-           llm_tools: [calculator_tool]
+           llm_tools: [calculator_tool, wikipedia_search_tool, wikipedia_get_article_tool]
          )}
 
       _incomplete ->

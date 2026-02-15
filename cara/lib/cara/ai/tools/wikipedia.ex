@@ -1,0 +1,51 @@
+defmodule Cara.AI.Tools.Wikipedia do
+  @moduledoc """
+  A module containing tools to interact with Wikipedia.
+
+  Example:
+  iex> wikipedia_search_tool = Cara.AI.Tools.Wikipedia.wikipedia_search()                                                                                         │
+  iex> wikipedia_get_article_tool = Cara.AI.Tools.Wikipedia.wikipedia_get_article()
+  iex> {:ok, results} = wikipedia_search_tool.callback.(%{"query" => "Elixir programming language"})
+  iex> {:ok, article} = wikipedia_get_article_tool.callback.(%{"title" => "Elixir (programming language)"})
+  """
+  alias Cara.Wikipedia
+  alias ReqLLM.Tool
+
+  def wikipedia_search do
+    Tool.new!(
+      name: "wikipedia_search",
+      description:
+        ~s|Searches Wikipedia for articles based on a given query. Use this tool when you need to find information on a topic. Returns a list of article summaries including their titles, descriptions, and URLs. Example: {"query": "Elixir programming language"}|,
+      parameter_schema: [
+        query: [type: :string, required: true, doc: "The search query to find Wikipedia articles."]
+      ],
+      callback: fn args ->
+        query = args[:query] || args["query"]
+
+        case Wikipedia.search_articles(query) do
+          {:ok, articles} -> {:ok, articles}
+          {:error, reason} -> {:error, "Wikipedia search failed: #{reason}"}
+        end
+      end
+    )
+  end
+
+  def wikipedia_get_article do
+    Tool.new!(
+      name: "wikipedia_get_article",
+      description:
+        ~s|Retrieves the full content of a Wikipedia article given its exact title. Use this tool when you need detailed information from a specific Wikipedia article. Example: {"title": "Elixir (programming language)"}|,
+      parameter_schema: [
+        title: [type: :string, required: true, doc: "The exact title of the Wikipedia article to retrieve."]
+      ],
+      callback: fn args ->
+        title = args[:title] || args["title"]
+
+        case Wikipedia.get_full_article(title) do
+          {:ok, article} -> {:ok, article}
+          {:error, reason} -> {:error, "Failed to retrieve Wikipedia article: #{reason}"}
+        end
+      end
+    )
+  end
+end
