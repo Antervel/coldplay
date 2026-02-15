@@ -11,6 +11,11 @@ defmodule Cara.MixProject do
       aliases: aliases(),
       deps: deps(),
       test_coverage: test_coverage(),
+      dialyzer: [
+        plt_add_apps: [:mix, :ex_unit],
+        ignore_warnings: "test/support/conn_case.ex",
+        ignore_warnings: "test/support/data_case.ex"
+      ],
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader]
     ]
@@ -23,12 +28,6 @@ defmodule Cara.MixProject do
     [
       mod: {Cara.Application, []},
       extra_applications: [:logger, :runtime_tools]
-    ]
-  end
-
-  def cli do
-    [
-      preferred_envs: [precommit: :test]
     ]
   end
 
@@ -101,7 +100,7 @@ defmodule Cara.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
-        "dialyzer",
+        ~s(cmd sh -c "MIX_ENV=test mix dialyzer"),
         ~s(cmd sh -c "MIX_ENV=test mix test --cover")
       ]
     ]
