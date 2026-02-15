@@ -332,5 +332,33 @@ defmodule Cara.WikipediaTest do
       {:error, reason} = Wikipedia.get_full_article("Elixir (programming language)")
       assert reason == "HTTP 500"
     end
+
+    test "returns an error if content fetch connection fails" do
+      summary_mock_response = %{
+        "title" => "Elixir (programming language)",
+        "extract" => "Elixir is a functional, concurrent, general-purpose programming language...",
+        "content_urls" => %{"desktop" => %{"page" => "https://en.wikipedia.org/wiki/Elixir_(programming_language)"}},
+        "originalimage" => %{
+          "source" =>
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Elixir_programming_language_logo.svg/500px-Elixir_programming_language_logo.svg.png"
+        }
+      }
+
+      # Expect for summary fetch
+      expect(Cara.HTTPClientMock, :get, fn url, _opts ->
+        assert url == "https://en.wikipedia.org/api/rest_v1/page/summary/Elixir%20(programming%20language)"
+        {:ok, %{status: 200, body: summary_mock_response}}
+      end)
+
+      # Expect for full content fetch to fail with connection error
+      expect(Cara.HTTPClientMock, :get, fn url, opts ->
+        assert url == "https://en.wikipedia.org/w/api.php"
+        assert opts[:query] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
+        {:error, :nxdomain}
+      end)
+
+      {:error, reason} = Wikipedia.get_full_article("Elixir (programming language)")
+      assert reason == :nxdomain
+    end
   end
 end
