@@ -22,7 +22,7 @@ defmodule Cara.Wikipedia do
   def search_articles(query) do
     case http_client().get(
            "https://en.wikipedia.org/w/api.php",
-           query: %{
+           params: %{
              action: "opensearch",
              search: query,
              limit: 10,
@@ -128,7 +128,7 @@ defmodule Cara.Wikipedia do
   defp fetch_article_content(title) do
     case http_client().get(
            "https://en.wikipedia.org/w/api.php",
-           query: %{
+           params: %{
              action: "parse",
              page: title,
              format: "json"

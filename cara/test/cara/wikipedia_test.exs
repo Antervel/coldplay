@@ -32,7 +32,7 @@ defmodule Cara.WikipediaTest do
 
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:query] == %{action: "opensearch", search: "elixir", limit: 10, format: "json"}
+        assert opts[:params] == %{action: "opensearch", search: "elixir", limit: 10, format: "json"}
         assert opts[:headers]["User-Agent"] == "Cara-Educational-App/1.0"
 
         {:ok, %{status: 200, body: mock_response}}
@@ -192,7 +192,7 @@ defmodule Cara.WikipediaTest do
       # Expect for full content fetch (using action=parse)
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:query] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
+        assert opts[:params] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
         {:ok, %{status: 200, body: content_mock_response}}
       end)
 
@@ -233,7 +233,7 @@ defmodule Cara.WikipediaTest do
       # Expect for full content fetch (using action=parse)
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:query] == %{action: "parse", page: "Phoenix (web framework)", format: "json"}
+        assert opts[:params] == %{action: "parse", page: "Phoenix (web framework)", format: "json"}
         {:ok, %{status: 200, body: content_mock_response}}
       end)
 
@@ -353,7 +353,7 @@ defmodule Cara.WikipediaTest do
       # Expect for full content fetch to fail with connection error
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:query] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
+        assert opts[:params] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
         {:error, :nxdomain}
       end)
 
