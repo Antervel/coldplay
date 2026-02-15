@@ -9,6 +9,7 @@ defmodule Cara.AI.Tools.Wikipedia do
   iex> {:ok, article} = wikipedia_get_article_tool.callback.(%{"title" => "Elixir (programming language)"})
   """
   alias Cara.Wikipedia
+  alias Floki
   alias ReqLLM.Tool
 
   def wikipedia_search do
@@ -23,8 +24,22 @@ defmodule Cara.AI.Tools.Wikipedia do
         query = args[:query] || args["query"]
 
         case Wikipedia.search_articles(query) do
-          {:ok, articles} -> {:ok, articles}
-          {:error, reason} -> {:error, "Wikipedia search failed: #{reason}"}
+          {:ok, articles} ->
+            if Enum.empty?(articles) do
+              {:ok, "No Wikipedia articles found for '#{query}'."}
+            else
+              formatted_results =
+                articles
+                |> Enum.with_index(1)
+                |> Enum.map_join("\n", fn {article, index} ->
+                  "#{index}. #{to_string(article.title)} - #{to_string(article.url)}"
+                end)
+
+              {:ok, "Wikipedia search results for '#{query}':\n#{formatted_results}"}
+            end
+
+          {:error, reason} ->
+            {:error, "Wikipedia search failed: #{reason}"}
         end
       end
     )
@@ -42,8 +57,19 @@ defmodule Cara.AI.Tools.Wikipedia do
         title = args[:title] || args["title"]
 
         case Wikipedia.get_full_article(title) do
-          {:ok, article} -> {:ok, article}
-          {:error, reason} -> {:error, "Failed to retrieve Wikipedia article: #{reason}"}
+          {:ok, %{title: article_title, content: content, url: url}} ->
+            text_content =
+              case Floki.parse_fragment(content) do
+                {:ok, parsed_html} -> Floki.text(parsed_html)
+                # Fallback to original content if parsing fails
+                {:error, _reason} -> content
+              end
+
+            formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{text_content}"
+            {:ok, formatted_article}
+
+          {:error, reason} ->
+            {:error, "Failed to retrieve Wikipedia article: #{reason}"}
         end
       end
     )

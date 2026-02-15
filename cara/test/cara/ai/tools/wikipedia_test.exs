@@ -38,13 +38,8 @@ defmodule Cara.AI.Tools.WikipediaTest do
     tool = Wikipedia.wikipedia_search()
     {:ok, results} = tool.callback.(%{"query" => "Elixir"})
 
-    assert results == [
-             %{
-               title: "Elixir (programming language)",
-               extract: "Elixir is a functional, concurrent, general-purpose programming language...",
-               url: "https://en.wikipedia.org/wiki/Elixir_(programming_language)"
-             }
-           ]
+    assert results ==
+             "Wikipedia search results for 'Elixir':\n1. Elixir (programming language) - https://en.wikipedia.org/wiki/Elixir_(programming_language)"
   end
 
   test "wikipedia_search/0 callback handles empty search results" do
@@ -61,7 +56,7 @@ defmodule Cara.AI.Tools.WikipediaTest do
 
     tool = Wikipedia.wikipedia_search()
     {:ok, results} = tool.callback.(%{"query" => "nonexistent"})
-    assert results == []
+    assert results == "No Wikipedia articles found for 'nonexistent'."
   end
 
   test "wikipedia_search/0 callback returns an error on Wikipedia search failure" do
@@ -118,14 +113,8 @@ defmodule Cara.AI.Tools.WikipediaTest do
     tool = Wikipedia.wikipedia_get_article()
     {:ok, article} = tool.callback.(%{"title" => "Elixir (programming language)"})
 
-    assert article == %{
-             title: "Elixir (programming language)",
-             extract: "Elixir is a functional, concurrent, general-purpose programming language...",
-             content: "<p>Full content of Elixir article...</p>",
-             url: "https://en.wikipedia.org/wiki/Elixir_(programming_language)",
-             image:
-               "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Elixir_programming_language_logo.svg/500px-Elixir_programming_language_logo.svg.png"
-           }
+    assert article ==
+             "Title: Elixir (programming language)\nURL: https://en.wikipedia.org/wiki/Elixir_(programming_language)\n\nContent:\nFull content of Elixir article..."
   end
 
   test "wikipedia_get_article/0 callback returns an error when article is not found" do

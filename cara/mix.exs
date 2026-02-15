@@ -70,6 +70,7 @@ defmodule Cara.MixProject do
       {:mdex_gfm, "~> 0.1"},
       {:mdex_mermaid, "~> 0.1"},
       {:mdex_katex, "~> 0.1"},
+      {:floki, "~> 0.30"},
       {:bypass, "~> 2.1", only: :test},
       {:retry, "~> 0.18"},
       {:abacus, "~> 0.3.0"}
