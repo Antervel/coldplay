@@ -7,6 +7,7 @@ defmodule Cara.AI.ToolHandler do
   """
 
   alias ReqLLM.Context
+  require Logger
 
   @doc """
   Processes a list of tool calls and returns an updated context.
@@ -72,6 +73,8 @@ defmodule Cara.AI.ToolHandler do
 
   @spec execute_tool_and_add_result(ReqLLM.Tool.t(), ReqLLM.ToolCall.t(), map(), Context.t(), module()) :: Context.t()
   defp execute_tool_and_add_result(tool, tool_call, args, context, chat_module) do
+    Logger.info("Calling tool '#{tool.name}' with args: #{inspect(args)}")
+
     case chat_module.execute_tool(tool, args) do
       {:ok, result} ->
         add_tool_success_result(context, tool_call.id, result)

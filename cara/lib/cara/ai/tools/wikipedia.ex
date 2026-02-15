@@ -58,20 +58,24 @@ defmodule Cara.AI.Tools.Wikipedia do
 
         case Wikipedia.get_full_article(title) do
           {:ok, %{title: article_title, content: content, url: url}} ->
-            text_content =
-              case Floki.parse_fragment(content) do
-                {:ok, parsed_html} -> Floki.text(parsed_html)
-                # Fallback to original content if parsing fails
-                {:error, _reason} -> content
+                        text_content =
+                          case parse_html(content) do
+                            {:ok, parsed_html} -> Floki.text(parsed_html)
+                            # Fallback to original content if parsing fails
+                            {:error, _reason} -> content
+                          end
+            
+                        formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{text_content}"
+                        {:ok, formatted_article}
+            
+                      {:error, reason} ->
+                        {:error, "Failed to retrieve Wikipedia article: #{reason}"}
+                    end
+                  end
+                )
               end
-
-            formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{text_content}"
-            {:ok, formatted_article}
-
-          {:error, reason} ->
-            {:error, "Failed to retrieve Wikipedia article: #{reason}"}
-        end
-      end
-    )
-  end
-end
+            
+              defp parse_html(html_content) do
+                Floki.parse_fragment(html_content)
+              end
+            end
