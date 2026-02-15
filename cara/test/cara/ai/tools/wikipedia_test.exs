@@ -4,11 +4,20 @@ defmodule Cara.AI.Tools.WikipediaTest do
 
   alias Cara.AI.Tools.Wikipedia
 
+  # Define a mock module for Floki that always fails parsing
+  defmodule FailingFlokiParser do
+    def parse_fragment(_html_content), do: {:error, :test_parse_error}
+    # Floki.text is called even if parse_fragment fails for some reason
+    def text(_parsed_html), do: ""
+  end
+
   setup :verify_on_exit!
 
   setup do
     # Configure Cara.Wikipedia to use our mock HTTP client
     Application.put_env(:cara, :http_client, Cara.HTTPClientMock)
+    # Ensure real Floki is used by default unless specifically overridden for a test
+    Application.put_env(:cara, :floki_parser, Floki)
     :ok
   end
 
@@ -110,11 +119,58 @@ defmodule Cara.AI.Tools.WikipediaTest do
       {:ok, %{status: 200, body: content_mock_response}}
     end)
 
+    # We need to make sure the original Floki is used for this test
+    # (setup ensures this by default, but good to be explicit if other tests change it)
+    Application.put_env(:cara, :floki_parser, Floki)
+
     tool = Wikipedia.wikipedia_get_article()
     {:ok, article} = tool.callback.(%{"title" => "Elixir (programming language)"})
 
     assert article ==
              "Title: Elixir (programming language)\nURL: https://en.wikipedia.org/wiki/Elixir_(programming_language)\n\nContent:\nFull content of Elixir article..."
+  end
+
+  test "wikipedia_get_article/0 callback falls back to original content on HTML parsing failure" do
+    summary_mock_response = %{
+      "title" => "Invalid HTML Article",
+      "extract" => "This article contains invalid HTML.",
+      "content_urls" => %{"desktop" => %{"page" => "https://en.wikipedia.org/wiki/Invalid_HTML_Article"}},
+      "originalimage" => %{
+        "source" =>
+          "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Elixir_programming_language_logo.svg/500px-Elixir_programming_language_logo.svg.png"
+      }
+    }
+
+    content_mock_response = %{
+      "parse" => %{
+        "title" => "Invalid HTML Article",
+        "pageid" => 12_346,
+        "text" => %{"*" => "<invalid>Invalid HTML content</invalid>"}
+      }
+    }
+
+    # Expect for summary fetch
+    expect(Cara.HTTPClientMock, :get, fn url, _opts ->
+      assert url == "https://en.wikipedia.org/api/rest_v1/page/summary/Invalid%20HTML%20Article"
+      {:ok, %{status: 200, body: summary_mock_response}}
+    end)
+
+    # Expect for full content fetch
+    expect(Cara.HTTPClientMock, :get, fn url, opts ->
+      assert url == "https://en.wikipedia.org/w/api.php"
+      assert opts[:params] == %{action: "parse", page: "Invalid HTML Article", format: "json"}
+      {:ok, %{status: 200, body: content_mock_response}}
+    end)
+
+    # Configure the failing Floki parser for this test
+    Application.put_env(:cara, :floki_parser, FailingFlokiParser)
+    # No need for expect(FailingFlokiParser, ...) as it's not a Mox mock.
+
+    tool = Wikipedia.wikipedia_get_article()
+    {:ok, article} = tool.callback.(%{"title" => "Invalid HTML Article"})
+
+    assert article ==
+             "Title: Invalid HTML Article\nURL: https://en.wikipedia.org/wiki/Invalid_HTML_Article\n\nContent:\n<invalid>Invalid HTML content</invalid>"
   end
 
   test "wikipedia_get_article/0 callback returns an error when article is not found" do
