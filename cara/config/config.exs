@@ -12,7 +12,7 @@ config :cara,
   generators: [timestamp_type: :utc_datetime]
 
 # Configure the default AI model
-config :cara, :ai_model, "openrouter:mistralai/ministral-3b"
+config :cara, :ai_model, "openrouter:mistralai/ministral-3b-2512"
 
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
