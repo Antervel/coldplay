@@ -104,24 +104,53 @@ Hooks.MessageContextMenu = {
       currentMessageEl = this.el; // Still need the message element for data-message-content
       const messageContent = currentMessageEl.dataset.messageContent;
 
+      // Make visible first (remove display: none), then allow browser to paint, then apply transition classes
       contextMenu.classList.remove('hidden');
+      // Force reflow/repaint to ensure 'display' change is registered before applying opacity/scale
+      contextMenu.offsetWidth; // This forces a reflow. Without this, the transition won't work on 'display' change.
+
+      contextMenu.classList.remove('opacity-0', 'scale-95');
+      contextMenu.classList.add('opacity-100', 'scale-100');
 
       const triggerButton = event.currentTarget; // The button that was clicked
       const triggerButtonRect = triggerButton.getBoundingClientRect();
-      const contextMenuRect = contextMenu.getBoundingClientRect();
+      const contextMenuRect = contextMenu.getBoundingClientRect(); // Get dimensions AFTER removing hidden and setting opacity/scale
 
       contextMenu.style.top = `${triggerButtonRect.bottom + window.scrollY + 5}px`;
 
       // Check if the message is from the user or AI to adjust horizontal position
       const isUserMessage = currentMessageEl.parentElement.classList.contains('justify-end');
 
+      let finalLeft;
+      const padding = 10; // Padding from viewport edges
+
       if (isUserMessage) {
-        // For user messages (justify-end), align the right of the context menu with the right of the button
-        contextMenu.style.left = `${triggerButtonRect.right - contextMenuRect.width + window.scrollX}px`;
+        // Attempt to align the right of the context menu with the right of the button
+        finalLeft = triggerButtonRect.right - contextMenuRect.width + window.scrollX;
       } else {
-        // For AI messages (justify-start), align the left of the context menu with the left of the button
-        contextMenu.style.left = `${triggerButtonRect.left + window.scrollX}px`;
+        // Attempt to align the left of the context menu with the left of the button
+        finalLeft = triggerButtonRect.left + window.scrollX;
       }
+
+      // Apply left constraint
+      if (finalLeft < padding) {
+        finalLeft = padding;
+      }
+
+      // Apply right constraint
+      // The right edge of the menu is finalLeft + contextMenuRect.width
+      if (finalLeft + contextMenuRect.width > window.innerWidth - padding) {
+        finalLeft = window.innerWidth - contextMenuRect.width - padding;
+      }
+
+      // Ensure finalLeft doesn't become negative if menu is wider than viewport,
+      // or if the right constraint pushed it too far left.
+      // This effectively re-applies the left constraint after the right one.
+      if (finalLeft < padding) {
+        finalLeft = padding;
+      }
+
+      contextMenu.style.left = `${finalLeft}px`;
 
       // Attach actions to buttons
       contextMenu.querySelector('[data-action="copy"]').onclick = async (e) => {
@@ -165,8 +194,14 @@ Hooks.MessageContextMenu = {
     };
 
     const hideContextMenu = () => {
-      contextMenu.classList.add('hidden');
-      currentMessageEl = null;
+      contextMenu.classList.remove('opacity-100', 'scale-100');
+      contextMenu.classList.add('opacity-0', 'scale-95');
+
+      // Add hidden after a short delay to allow transition to complete
+      setTimeout(() => {
+        contextMenu.classList.add('hidden');
+        currentMessageEl = null;
+      }, 300); // Match this delay to the Tailwind transition duration (duration-300)
     };
 
     this.el.querySelector('[data-action="open-context-menu"]').addEventListener('click', showContextMenu);
