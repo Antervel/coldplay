@@ -95,26 +95,32 @@ Hooks.MessageContextMenu = {
       event.preventDefault();
       event.stopPropagation(); // Stop propagation to prevent document click from closing immediately
 
-      currentMessageEl = this.el;
+      // If the menu is already open for THIS message, close it.
+      if (!contextMenu.classList.contains('hidden') && currentMessageEl === this.el) {
+        hideContextMenu();
+        return;
+      }
+
+      currentMessageEl = this.el; // Still need the message element for data-message-content
       const messageContent = currentMessageEl.dataset.messageContent;
 
-      contextMenu.classList.remove('hidden'); // Ensure menu is visible to get accurate dimensions
-      // Position the context menu
-      const messageBubbleEl = currentMessageEl.firstElementChild;
-      const messageBubbleRect = messageBubbleEl.getBoundingClientRect();
-      const contextMenuRect = contextMenu.getBoundingClientRect(); // Get context menu's current dimensions
+      contextMenu.classList.remove('hidden');
 
-      contextMenu.style.top = `${messageBubbleRect.bottom + window.scrollY + 5}px`;
+      const triggerButton = event.currentTarget; // The button that was clicked
+      const triggerButtonRect = triggerButton.getBoundingClientRect();
+      const contextMenuRect = contextMenu.getBoundingClientRect();
+
+      contextMenu.style.top = `${triggerButtonRect.bottom + window.scrollY + 5}px`;
 
       // Check if the message is from the user or AI to adjust horizontal position
-      const isUserMessage = currentMessageEl.classList.contains('justify-end');
+      const isUserMessage = currentMessageEl.parentElement.classList.contains('justify-end');
 
       if (isUserMessage) {
-        // For user messages (justify-end), align the right of the context menu with the right of the message bubble
-        contextMenu.style.left = `${messageBubbleRect.right - contextMenuRect.width + window.scrollX}px`;
+        // For user messages (justify-end), align the right of the context menu with the right of the button
+        contextMenu.style.left = `${triggerButtonRect.right - contextMenuRect.width + window.scrollX}px`;
       } else {
-        // For AI messages (justify-start), align the left of the context menu with the left of the message bubble
-        contextMenu.style.left = `${messageBubbleRect.left + window.scrollX}px`;
+        // For AI messages (justify-start), align the left of the context menu with the left of the button
+        contextMenu.style.left = `${triggerButtonRect.left + window.scrollX}px`;
       }
 
       // Attach actions to buttons
@@ -163,8 +169,8 @@ Hooks.MessageContextMenu = {
       currentMessageEl = null;
     };
 
-    this.el.addEventListener('click', showContextMenu);
-    this.el.addEventListener('touchstart', showContextMenu); // For touch devices
+    this.el.querySelector('[data-action="open-context-menu"]').addEventListener('click', showContextMenu);
+    this.el.querySelector('[data-action="open-context-menu"]').addEventListener('touchstart', showContextMenu); // For touch devices
 
     // Close menu when clicking anywhere else on the document
     document.addEventListener('click', (event) => {
