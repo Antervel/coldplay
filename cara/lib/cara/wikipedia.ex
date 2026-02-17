@@ -129,10 +129,10 @@ defmodule Cara.Wikipedia do
            "https://en.wikipedia.org/w/api.php",
            params: %{
              action: "query",
-             prop: "revisions",
+             prop: "extracts",
              titles: title,
-             rvslots: "main",
-             rvprop: "content",
+             explaintext: 1,
+             exsectionformat: "plain",
              format: "json",
              formatversion: 2
            },
@@ -183,23 +183,18 @@ defmodule Cara.Wikipedia do
   end
 
   defp parse_full_article_response(summary, content) do
-    # Extract MediaWiki content from the 'content' response
-    # The structure is content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"]
-    mediawiki_content =
+    # Extract plain text content from the 'content' response
+    plain_text_content =
       content
       |> Map.get("query")
       |> Map.get("pages")
       |> hd()
-      |> Map.get("revisions")
-      |> hd()
-      |> Map.get("slots")
-      |> Map.get("main")
-      |> Map.get("content")
+      |> Map.get("extract")
 
     %{
       title: summary["title"],
       extract: summary["extract"],
-      content: mediawiki_content,
+      content: plain_text_content,
       url: summary["content_urls"]["desktop"]["page"],
       image: summary["originalimage"]["source"]
     }

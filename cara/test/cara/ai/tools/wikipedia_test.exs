@@ -112,17 +112,7 @@ defmodule Cara.AI.Tools.WikipediaTest do
             "pageid" => 12_345,
             "ns" => 0,
             "title" => "Elixir (programming language)",
-            "revisions" => [
-              %{
-                "slots" => %{
-                  "main" => %{
-                    "contentmodel" => "wikitext",
-                    "contentformat" => "text/x-wiki",
-                    "content" => "Full content of Elixir article..."
-                  }
-                }
-              }
-            ]
+            "extract" => "Full content of Elixir article..."
           }
         ]
       }
@@ -140,10 +130,10 @@ defmodule Cara.AI.Tools.WikipediaTest do
 
       assert opts[:params] == %{
                action: "query",
-               prop: "revisions",
+               prop: "extracts",
                titles: "Elixir (programming language)",
-               rvslots: "main",
-               rvprop: "content",
+               explaintext: 1,
+               exsectionformat: "plain",
                format: "json",
                formatversion: 2
              }
@@ -162,7 +152,7 @@ defmodule Cara.AI.Tools.WikipediaTest do
              "Title: Elixir (programming language)\nURL: https://en.wikipedia.org/wiki/Elixir_(programming_language)\n\nContent:\nFull content of Elixir article..."
   end
 
-  test "wikipedia_get_article/0 callback falls back to original content on HTML parsing failure" do
+  test "wikipedia_get_article/0 callback returns full plain text content even if extract contains invalid html tags" do
     summary_mock_response = %{
       "title" => "Invalid HTML Article",
       "extract" => "This article contains invalid HTML.",
@@ -187,17 +177,7 @@ defmodule Cara.AI.Tools.WikipediaTest do
             "pageid" => 12_346,
             "ns" => 0,
             "title" => "Invalid HTML Article",
-            "revisions" => [
-              %{
-                "slots" => %{
-                  "main" => %{
-                    "contentmodel" => "wikitext",
-                    "contentformat" => "text/x-wiki",
-                    "content" => "<invalid>Invalid HTML content</invalid>"
-                  }
-                }
-              }
-            ]
+            "extract" => "<invalid>Invalid HTML content</invalid>"
           }
         ]
       }
@@ -215,20 +195,16 @@ defmodule Cara.AI.Tools.WikipediaTest do
 
       assert opts[:params] == %{
                action: "query",
-               prop: "revisions",
+               prop: "extracts",
                titles: "Invalid HTML Article",
-               rvslots: "main",
-               rvprop: "content",
+               explaintext: 1,
+               exsectionformat: "plain",
                format: "json",
                formatversion: 2
              }
 
       {:ok, %{status: 200, body: content_mock_response}}
     end)
-
-    # Configure the failing Floki parser for this test
-    Application.put_env(:cara, :floki_parser, FailingFlokiParser)
-    # No need for expect(FailingFlokiParser, ...) as it's not a Mox mock.
 
     tool = Wikipedia.wikipedia_get_article()
     {:ok, article} = tool.callback.(%{"title" => "Invalid HTML Article"})

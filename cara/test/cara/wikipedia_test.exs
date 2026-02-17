@@ -189,17 +189,7 @@ defmodule Cara.WikipediaTest do
               "pageid" => 12_345,
               "ns" => 0,
               "title" => "Elixir (programming language)",
-              "revisions" => [
-                %{
-                  "slots" => %{
-                    "main" => %{
-                      "contentmodel" => "wikitext",
-                      "contentformat" => "text/x-wiki",
-                      "content" => "Full content of Elixir article..."
-                    }
-                  }
-                }
-              ]
+              "extract" => "Full content of Elixir article..."
             }
           ]
         }
@@ -217,10 +207,10 @@ defmodule Cara.WikipediaTest do
 
         assert opts[:params] == %{
                  action: "query",
-                 prop: "revisions",
+                 prop: "extracts",
                  titles: "Elixir (programming language)",
-                 rvslots: "main",
-                 rvprop: "content",
+                 explaintext: 1,
+                 exsectionformat: "plain",
                  format: "json",
                  formatversion: 2
                }
@@ -262,17 +252,7 @@ defmodule Cara.WikipediaTest do
               "pageid" => 67_890,
               "ns" => 0,
               "title" => "Phoenix (web framework)",
-              "revisions" => [
-                %{
-                  "slots" => %{
-                    "main" => %{
-                      "contentmodel" => "wikitext",
-                      "contentformat" => "text/x-wiki",
-                      "content" => "Full content of Phoenix framework article..."
-                    }
-                  }
-                }
-              ]
+              "extract" => "Full content of Phoenix framework article..."
             }
           ]
         }
@@ -290,10 +270,10 @@ defmodule Cara.WikipediaTest do
 
         assert opts[:params] == %{
                  action: "query",
-                 prop: "revisions",
+                 prop: "extracts",
                  titles: "Phoenix (web framework)",
-                 rvslots: "main",
-                 rvprop: "content",
+                 explaintext: 1,
+                 exsectionformat: "plain",
                  format: "json",
                  formatversion: 2
                }
@@ -420,10 +400,10 @@ defmodule Cara.WikipediaTest do
 
         assert opts[:params] == %{
                  action: "query",
-                 prop: "revisions",
+                 prop: "extracts",
                  titles: "Elixir (programming language)",
-                 rvslots: "main",
-                 rvprop: "content",
+                 explaintext: 1,
+                 exsectionformat: "plain",
                  format: "json",
                  formatversion: 2
                }
