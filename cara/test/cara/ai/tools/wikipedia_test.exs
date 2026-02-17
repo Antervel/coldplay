@@ -4,20 +4,12 @@ defmodule Cara.AI.Tools.WikipediaTest do
 
   alias Cara.AI.Tools.Wikipedia
 
-  # Define a mock module for Floki that always fails parsing
-  defmodule FailingFlokiParser do
-    def parse_fragment(_html_content), do: {:error, :test_parse_error}
-    # Floki.text is called even if parse_fragment fails for some reason
-    def text(_parsed_html), do: ""
-  end
-
   setup :verify_on_exit!
 
   setup do
     # Configure Cara.Wikipedia to use our mock HTTP client
     Application.put_env(:cara, :http_client, Cara.HTTPClientMock)
-    # Ensure real Floki is used by default unless specifically overridden for a test
-    Application.put_env(:cara, :floki_parser, Floki)
+
     :ok
   end
 
@@ -140,10 +132,6 @@ defmodule Cara.AI.Tools.WikipediaTest do
 
       {:ok, %{status: 200, body: content_mock_response}}
     end)
-
-    # We need to make sure the original Floki is used for this test
-    # (setup ensures this by default, but good to be explicit if other tests change it)
-    Application.put_env(:cara, :floki_parser, Floki)
 
     tool = Wikipedia.wikipedia_get_article()
     {:ok, article} = tool.callback.(%{"title" => "Elixir (programming language)"})
