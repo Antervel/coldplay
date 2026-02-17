@@ -3,13 +3,12 @@ defmodule Cara.AI.Tools.Wikipedia do
   A module containing tools to interact with Wikipedia.
 
   Example:
-  iex> wikipedia_search_tool = Cara.AI.Tools.Wikipedia.wikipedia_search()                                                                                         │
+  iex> wikipedia_search_tool = Cara.AI.Tools.Wikipedia.wikipedia_search()
   iex> wikipedia_get_article_tool = Cara.AI.Tools.Wikipedia.wikipedia_get_article()
   iex> {:ok, results} = wikipedia_search_tool.callback.(%{"query" => "Elixir programming language"})
   iex> {:ok, article} = wikipedia_get_article_tool.callback.(%{"title" => "Elixir (programming language)"})
   """
   alias Cara.Wikipedia
-  alias Floki
   alias ReqLLM.Tool
 
   def wikipedia_search do
@@ -58,14 +57,7 @@ defmodule Cara.AI.Tools.Wikipedia do
 
         case Wikipedia.get_full_article(title) do
           {:ok, %{title: article_title, content: content, url: url}} ->
-            text_content =
-              case parse_html(content) do
-                {:ok, parsed_html} -> Floki.text(parsed_html)
-                # Fallback to original content if parsing fails
-                {:error, _reason} -> content
-              end
-
-            formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{text_content}"
+            formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{content}"
             {:ok, formatted_article}
 
           {:error, reason} ->
@@ -73,10 +65,5 @@ defmodule Cara.AI.Tools.Wikipedia do
         end
       end
     )
-  end
-
-  defp parse_html(html_content) do
-    parser = Application.get_env(:cara, :floki_parser, Floki)
-    parser.parse_fragment(html_content)
   end
 end

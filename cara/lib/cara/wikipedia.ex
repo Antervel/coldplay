@@ -124,14 +124,17 @@ defmodule Cara.Wikipedia do
     end
   end
 
-  # Changed argument to title
   defp fetch_article_content(title) do
     case http_client().get(
            "https://en.wikipedia.org/w/api.php",
            params: %{
-             action: "parse",
-             page: title,
-             format: "json"
+             action: "query",
+             prop: "revisions",
+             titles: title,
+             rvslots: "main",
+             rvprop: "content",
+             format: "json",
+             formatversion: 2
            },
            headers: %{
              "User-Agent" => "Cara-Educational-App/1.0"
@@ -180,10 +183,23 @@ defmodule Cara.Wikipedia do
   end
 
   defp parse_full_article_response(summary, content) do
+    # Extract MediaWiki content from the 'content' response
+    # The structure is content["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"]
+    mediawiki_content =
+      content
+      |> Map.get("query")
+      |> Map.get("pages")
+      |> hd()
+      |> Map.get("revisions")
+      |> hd()
+      |> Map.get("slots")
+      |> Map.get("main")
+      |> Map.get("content")
+
     %{
       title: summary["title"],
       extract: summary["extract"],
-      content: content["parse"]["text"]["*"],
+      content: mediawiki_content,
       url: summary["content_urls"]["desktop"]["page"],
       image: summary["originalimage"]["source"]
     }

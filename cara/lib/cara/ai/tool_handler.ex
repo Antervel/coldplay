@@ -77,6 +77,7 @@ defmodule Cara.AI.ToolHandler do
 
     case chat_module.execute_tool(tool, args) do
       {:ok, result} ->
+        Logger.info("Got this answer: #{result}")
         add_tool_success_result(context, tool_call.id, result)
 
       {:error, reason} ->
