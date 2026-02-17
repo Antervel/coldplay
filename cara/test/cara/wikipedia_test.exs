@@ -176,10 +176,32 @@ defmodule Cara.WikipediaTest do
       }
 
       content_mock_response = %{
-        "parse" => %{
-          "title" => "Elixir (programming language)",
-          "pageid" => 12_345,
-          "text" => %{"*" => "<p>Full content of Elixir article...</p>"}
+        "batchcomplete" => true,
+        "query" => %{
+          "normalized" => [
+            %{
+              "from" => "Elixir (programming language)",
+              "to" => "Elixir (programming language)"
+            }
+          ],
+          "pages" => [
+            %{
+              "pageid" => 12_345,
+              "ns" => 0,
+              "title" => "Elixir (programming language)",
+              "revisions" => [
+                %{
+                  "slots" => %{
+                    "main" => %{
+                      "contentmodel" => "wikitext",
+                      "contentformat" => "text/x-wiki",
+                      "content" => "Full content of Elixir article..."
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         }
       }
 
@@ -189,10 +211,20 @@ defmodule Cara.WikipediaTest do
         {:ok, %{status: 200, body: summary_mock_response}}
       end)
 
-      # Expect for full content fetch (using action=parse)
+      # Expect for full content fetch (using action=query)
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:params] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
+
+        assert opts[:params] == %{
+                 action: "query",
+                 prop: "revisions",
+                 titles: "Elixir (programming language)",
+                 rvslots: "main",
+                 rvprop: "content",
+                 format: "json",
+                 formatversion: 2
+               }
+
         {:ok, %{status: 200, body: content_mock_response}}
       end)
 
@@ -201,7 +233,7 @@ defmodule Cara.WikipediaTest do
       assert article == %{
                title: "Elixir (programming language)",
                extract: "Elixir is a functional, concurrent, general-purpose programming language...",
-               content: "<p>Full content of Elixir article...</p>",
+               content: "Full content of Elixir article...",
                url: "https://en.wikipedia.org/wiki/Elixir_(programming_language)",
                image:
                  "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Elixir_programming_language_logo.svg/500px-Elixir_programming_language_logo.svg.png"
@@ -217,10 +249,32 @@ defmodule Cara.WikipediaTest do
       }
 
       content_mock_response = %{
-        "parse" => %{
-          "title" => "Phoenix (web framework)",
-          "pageid" => 67_890,
-          "text" => %{"*" => "<p>Full content of Phoenix framework article...</p>"}
+        "batchcomplete" => true,
+        "query" => %{
+          "normalized" => [
+            %{
+              "from" => "Phoenix (web framework)",
+              "to" => "Phoenix (web framework)"
+            }
+          ],
+          "pages" => [
+            %{
+              "pageid" => 67_890,
+              "ns" => 0,
+              "title" => "Phoenix (web framework)",
+              "revisions" => [
+                %{
+                  "slots" => %{
+                    "main" => %{
+                      "contentmodel" => "wikitext",
+                      "contentformat" => "text/x-wiki",
+                      "content" => "Full content of Phoenix framework article..."
+                    }
+                  }
+                }
+              ]
+            }
+          ]
         }
       }
 
@@ -230,10 +284,20 @@ defmodule Cara.WikipediaTest do
         {:ok, %{status: 200, body: summary_mock_response}}
       end)
 
-      # Expect for full content fetch (using action=parse)
+      # Expect for full content fetch (using action=query)
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:params] == %{action: "parse", page: "Phoenix (web framework)", format: "json"}
+
+        assert opts[:params] == %{
+                 action: "query",
+                 prop: "revisions",
+                 titles: "Phoenix (web framework)",
+                 rvslots: "main",
+                 rvprop: "content",
+                 format: "json",
+                 formatversion: 2
+               }
+
         {:ok, %{status: 200, body: content_mock_response}}
       end)
 
@@ -242,7 +306,7 @@ defmodule Cara.WikipediaTest do
       assert article == %{
                title: "Phoenix (web framework)",
                extract: "Phoenix is a web framework written in Elixir...",
-               content: "<p>Full content of Phoenix framework article...</p>",
+               content: "Full content of Phoenix framework article...",
                url: "https://en.wikipedia.org/wiki/Phoenix_(web_framework)",
                image: "https://upload.wikimedia.org/wikipedia/commons/thumb/phoenix.png"
              }
@@ -353,7 +417,17 @@ defmodule Cara.WikipediaTest do
       # Expect for full content fetch to fail with connection error
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:params] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
+
+        assert opts[:params] == %{
+                 action: "query",
+                 prop: "revisions",
+                 titles: "Elixir (programming language)",
+                 rvslots: "main",
+                 rvprop: "content",
+                 format: "json",
+                 formatversion: 2
+               }
+
         {:error, :nxdomain}
       end)
 

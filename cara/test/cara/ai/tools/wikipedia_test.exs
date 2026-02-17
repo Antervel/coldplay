@@ -99,10 +99,32 @@ defmodule Cara.AI.Tools.WikipediaTest do
     }
 
     content_mock_response = %{
-      "parse" => %{
-        "title" => "Elixir (programming language)",
-        "pageid" => 12_345,
-        "text" => %{"*" => "<p>Full content of Elixir article...</p>"}
+      "batchcomplete" => true,
+      "query" => %{
+        "normalized" => [
+          %{
+            "from" => "Elixir (programming language)",
+            "to" => "Elixir (programming language)"
+          }
+        ],
+        "pages" => [
+          %{
+            "pageid" => 12_345,
+            "ns" => 0,
+            "title" => "Elixir (programming language)",
+            "revisions" => [
+              %{
+                "slots" => %{
+                  "main" => %{
+                    "contentmodel" => "wikitext",
+                    "contentformat" => "text/x-wiki",
+                    "content" => "Full content of Elixir article..."
+                  }
+                }
+              }
+            ]
+          }
+        ]
       }
     }
 
@@ -112,10 +134,20 @@ defmodule Cara.AI.Tools.WikipediaTest do
       {:ok, %{status: 200, body: summary_mock_response}}
     end)
 
-    # Expect for full content fetch (using action=parse)
+    # Expect for full content fetch (using action=query)
     expect(Cara.HTTPClientMock, :get, fn url, opts ->
       assert url == "https://en.wikipedia.org/w/api.php"
-      assert opts[:params] == %{action: "parse", page: "Elixir (programming language)", format: "json"}
+
+      assert opts[:params] == %{
+               action: "query",
+               prop: "revisions",
+               titles: "Elixir (programming language)",
+               rvslots: "main",
+               rvprop: "content",
+               format: "json",
+               formatversion: 2
+             }
+
       {:ok, %{status: 200, body: content_mock_response}}
     end)
 
@@ -142,10 +174,32 @@ defmodule Cara.AI.Tools.WikipediaTest do
     }
 
     content_mock_response = %{
-      "parse" => %{
-        "title" => "Invalid HTML Article",
-        "pageid" => 12_346,
-        "text" => %{"*" => "<invalid>Invalid HTML content</invalid>"}
+      "batchcomplete" => true,
+      "query" => %{
+        "normalized" => [
+          %{
+            "from" => "Invalid HTML Article",
+            "to" => "Invalid HTML Article"
+          }
+        ],
+        "pages" => [
+          %{
+            "pageid" => 12_346,
+            "ns" => 0,
+            "title" => "Invalid HTML Article",
+            "revisions" => [
+              %{
+                "slots" => %{
+                  "main" => %{
+                    "contentmodel" => "wikitext",
+                    "contentformat" => "text/x-wiki",
+                    "content" => "<invalid>Invalid HTML content</invalid>"
+                  }
+                }
+              }
+            ]
+          }
+        ]
       }
     }
 
@@ -158,7 +212,17 @@ defmodule Cara.AI.Tools.WikipediaTest do
     # Expect for full content fetch
     expect(Cara.HTTPClientMock, :get, fn url, opts ->
       assert url == "https://en.wikipedia.org/w/api.php"
-      assert opts[:params] == %{action: "parse", page: "Invalid HTML Article", format: "json"}
+
+      assert opts[:params] == %{
+               action: "query",
+               prop: "revisions",
+               titles: "Invalid HTML Article",
+               rvslots: "main",
+               rvprop: "content",
+               format: "json",
+               formatversion: 2
+             }
+
       {:ok, %{status: 200, body: content_mock_response}}
     end)
 
