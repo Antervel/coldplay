@@ -37,6 +37,7 @@ defmodule CaraWeb.ChatLive do
         calculator_tool = Calculator.calculator_tool()
         wikipedia_search_tool = Wikipedia.wikipedia_search()
         wikipedia_get_article_tool = Wikipedia.wikipedia_get_article()
+        llm_tools = [calculator_tool, wikipedia_search_tool, wikipedia_get_article_tool]
 
         {:ok,
          assign(socket,
@@ -45,7 +46,10 @@ defmodule CaraWeb.ChatLive do
            message_data: %{"message" => ""},
            app_version: app_version(),
            student_info: info,
-           llm_tools: [calculator_tool, wikipedia_search_tool, wikipedia_get_article_tool]
+           llm_tools: llm_tools,
+           tool_usage_counts: Enum.reduce(llm_tools, %{}, fn tool, acc ->
+             Map.put(acc, tool.name, 0)
+           end)
          )}
 
       _incomplete ->
@@ -82,6 +86,11 @@ defmodule CaraWeb.ChatLive do
     final_content = get_last_assistant_message_content(socket.assigns.chat_messages)
     updated_llm_context = llm_context_builder.(final_content)
     {:noreply, assign(socket, llm_context: updated_llm_context)}
+  end
+
+  @impl true
+  def handle_info({:update_tool_usage_counts, tool_usage_counts}, socket) do
+    {:noreply, assign(socket, :tool_usage_counts, tool_usage_counts)}
   end
 
   # Handle LLM errors
@@ -147,7 +156,13 @@ defmodule CaraWeb.ChatLive do
 
     Task.start(fn ->
       retry with: constant_backoff(100) |> Stream.take(10) do
-        process_llm_request(message, llm_context, live_view_pid, llm_tools)
+        process_llm_request(
+          message,
+          llm_context,
+          live_view_pid,
+          llm_tools,
+          socket.assigns.tool_usage_counts
+        )
       end
     end)
 
@@ -159,8 +174,8 @@ defmodule CaraWeb.ChatLive do
     assign(socket, message_data: %{"message" => ""})
   end
 
-  @spec process_llm_request(String.t(), term(), pid(), list()) :: :ok | :retry
-  defp process_llm_request(message, llm_context, live_view_pid, llm_tools) do
+  @spec process_llm_request(String.t(), term(), pid(), list(), map()) :: :ok | :retry
+  defp process_llm_request(message, llm_context, live_view_pid, llm_tools, tool_usage_counts) do
     chat_mod = Application.get_env(:cara, :chat_module, Cara.AI.Chat)
 
     case chat_mod.send_message_stream(message, llm_context, tools: llm_tools) do
@@ -173,7 +188,8 @@ defmodule CaraWeb.ChatLive do
           message,
           live_view_pid,
           llm_tools,
-          chat_mod
+          chat_mod,
+          tool_usage_counts
         )
 
       {:error, reason} ->
@@ -195,7 +211,8 @@ defmodule CaraWeb.ChatLive do
           String.t(),
           pid(),
           list(),
-          module()
+          module(),
+          map()
         ) :: :ok | :retry
   defp handle_llm_stream_response(
          stream,
@@ -205,37 +222,113 @@ defmodule CaraWeb.ChatLive do
          message,
          live_view_pid,
          llm_tools,
-         chat_mod
+         chat_mod,
+         tool_usage_counts
        ) do
     if Enum.empty?(tool_calls) do
       # No tool calls, process the stream normally
-      if process_stream(stream, live_view_pid, llm_context_builder) do
+      if process_stream(stream, live_view_pid, llm_context_builder, tool_usage_counts) do
         :ok
       else
         send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
         :error
       end
     else
-      # Tool calls found - use ToolHandler to process them!
-      # This is now a pure function call - easy to test!
-      llm_context_with_assistant_tool_calls =
-        Context.append(llm_context, Context.assistant("", tool_calls: tool_calls))
+      tool_calls_to_execute = []
+      tool_results_for_limited_tools = []
+      new_tool_usage_counts = tool_usage_counts
 
-      # Execute tools and get updated context - all in one pure function!
-      updated_llm_context =
-        ToolHandler.handle_tool_calls(
-          tool_calls,
-          llm_context_with_assistant_tool_calls,
+      {tool_calls_to_execute, tool_results_for_limited_tools, new_tool_usage_counts} =
+        Enum.reduce(tool_calls, {[], [], new_tool_usage_counts}, fn tool_call,
+                                                                      {exec_acc, limited_acc,
+                                                                       counts_acc} ->
+          # Use String.to_atom directly, ensure the atom exists for pattern matching
+          tool_name_atom = String.to_atom(tool_call.function.name)
+          current_count = Map.get(counts_acc, tool_name_atom, 0)
+
+          if current_count < 5 do
+            {
+              [tool_call | exec_acc],
+              limited_acc,
+              Map.put(counts_acc, tool_name_atom, current_count + 1)
+            }
+          else
+            tool_result =
+              Context.tool_result(
+                tool_call.id,
+                "Tool limit reached. Summarize with what you have"
+              )
+
+            {exec_acc, [tool_result | limited_acc], counts_acc}
+          end
+        end)
+
+      # Reverse the accumulated lists to maintain original order
+      tool_calls_to_execute = Enum.reverse(tool_calls_to_execute)
+      tool_results_for_limited_tools = Enum.reverse(tool_results_for_limited_tools)
+
+      if Enum.empty?(tool_calls_to_execute) do
+        # All tool calls were limited, or there were no tools to execute initially.
+        # Still need to send the original tool calls to the context for the LLM to understand what it tried to do.
+        llm_context_with_assistant_tool_calls =
+          Context.append(llm_context, Context.assistant("", tool_calls: tool_calls))
+
+        # Append tool results for limited tools
+        updated_llm_context =
+          Enum.reduce(tool_results_for_limited_tools, llm_context_with_assistant_tool_calls, fn tr,
+                                                                                                 acc ->
+            Context.append(acc, tr)
+          end)
+
+        # Make another LLM call with the tool results and updated usage counts
+        process_llm_request(
+          message,
+          updated_llm_context,
+          live_view_pid,
           llm_tools,
-          chat_mod
+          new_tool_usage_counts
         )
+      else
+        # Some tool calls are allowed, process them!
+        llm_context_with_assistant_tool_calls =
+          Context.append(llm_context, Context.assistant("", tool_calls: tool_calls_to_execute))
 
-      # Make another LLM call with the tool results
-      process_llm_request(message, updated_llm_context, live_view_pid, llm_tools)
+        # Execute tools and get updated context
+        updated_llm_context =
+          ToolHandler.handle_tool_calls(
+            tool_calls_to_execute,
+            llm_context_with_assistant_tool_calls,
+            llm_tools,
+            chat_mod
+          )
+
+        # Append tool results for limited tools (if any)
+        updated_llm_context =
+          Enum.reduce(tool_results_for_limited_tools, updated_llm_context, fn tr, acc ->
+            Context.append(acc, tr)
+          end)
+
+        # Make another LLM call with the tool results and updated usage counts
+        process_llm_request(
+          message,
+          updated_llm_context,
+          live_view_pid,
+          llm_tools,
+          new_tool_usage_counts
+        )
+      end
     end
   end
 
-  defp process_stream(stream, live_view_pid, llm_context_builder) do
+  @spec process_stream(
+          Enumerable.t(),
+          pid(),
+          (String.t() -> ReqLLM.Context.t()),
+          map()
+        ) :: boolean()
+  defp process_stream(stream, live_view_pid, llm_context_builder, tool_usage_counts) do
+    send(live_view_pid, {:update_tool_usage_counts, tool_usage_counts})
+
     sent_any_chunks =
       Enum.reduce_while(stream, false, fn chunk, _acc ->
         send(live_view_pid, {:llm_chunk, chunk})
