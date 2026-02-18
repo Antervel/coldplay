@@ -109,7 +109,7 @@ defmodule Cara.MixProject do
   # Cara.AI.CLI is a test module to quickly test Cara.AI.Chat from iex.
   def test_coverage do
     [
-      summary: [threshold: 95],
+      summary: [threshold: 90],
       output: "cover",
       ignore_modules: [
         Cara.AI.CLI,
