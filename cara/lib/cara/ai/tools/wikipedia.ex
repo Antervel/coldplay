@@ -14,32 +14,37 @@ defmodule Cara.AI.Tools.Wikipedia do
   def wikipedia_search do
     Tool.new!(
       name: "wikipedia_search",
-      description:
-        ~s|Searches Wikipedia for articles based on a given query. Use this tool when you need to find information on a topic. Returns a list of article summaries including their titles, descriptions, and URLs. Example: {"query": "Elixir programming language"}|,
+      description: "Search Wikipedia. Input: {\"query\": \"topic\"}",
       parameter_schema: [
-        query: [type: :string, required: true, doc: "The search query to find Wikipedia articles."]
+        query: [type: :string, required: true, doc: "The search query"]
       ],
       callback: fn args ->
+        start_time = :erlang.monotonic_time(:millisecond)
         query = args[:query] || args["query"]
 
-        case Wikipedia.search_articles(query) do
-          {:ok, articles} ->
-            if Enum.empty?(articles) do
-              {:ok, "No Wikipedia articles found for '#{query}'."}
-            else
-              formatted_results =
-                articles
-                |> Enum.with_index(1)
-                |> Enum.map_join("\n", fn {article, index} ->
-                  "#{index}. #{to_string(article.title)} - #{to_string(article.url)}"
-                end)
+        result =
+          case Wikipedia.search_articles(query) do
+            {:ok, articles} ->
+              if Enum.empty?(articles) do
+                {:ok, "No Wikipedia articles found for '#{query}'."}
+              else
+                formatted_results =
+                  articles
+                  |> Enum.with_index(1)
+                  |> Enum.map_join("\n", fn {article, index} ->
+                    "#{index}. #{to_string(article.title)} - #{to_string(article.url)}"
+                  end)
 
-              {:ok, "Wikipedia search results for '#{query}':\n#{formatted_results}"}
-            end
+                {:ok, "Wikipedia search results for '#{query}':\n#{formatted_results}"}
+              end
 
-          {:error, reason} ->
-            {:error, "Wikipedia search failed: #{reason}"}
-        end
+            {:error, reason} ->
+              {:error, "Wikipedia search failed: #{reason}"}
+          end
+
+        end_time = :erlang.monotonic_time(:millisecond)
+        IO.puts("Tool 'wikipedia_search' total execution took #{end_time - start_time}ms")
+        result
       end
     )
   end
@@ -47,22 +52,27 @@ defmodule Cara.AI.Tools.Wikipedia do
   def wikipedia_get_article do
     Tool.new!(
       name: "wikipedia_get_article",
-      description:
-        ~s|Retrieves the full content of a Wikipedia article given its exact title. Use this tool when you need detailed information from a specific Wikipedia article. Example: {"title": "Elixir (programming language)"}|,
+      description: "Get full Wikipedia article. Input: {\"title\": \"Exact Title\"}",
       parameter_schema: [
-        title: [type: :string, required: true, doc: "The exact title of the Wikipedia article to retrieve."]
+        title: [type: :string, required: true, doc: "The exact title"]
       ],
       callback: fn args ->
-        title = args[:title] || args["title"]
+        start_time = :erlang.monotonic_time(:millisecond)
+        title = args[:title] || args["query"] || args["title"]
 
-        case Wikipedia.get_full_article(title) do
-          {:ok, %{title: article_title, content: content, url: url}} ->
-            formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{content}"
-            {:ok, formatted_article}
+        result =
+          case Wikipedia.get_full_article(title) do
+            {:ok, %{title: article_title, content: content, url: url}} ->
+              formatted_article = "Title: #{article_title}\nURL: #{url}\n\nContent:\n#{content}"
+              {:ok, formatted_article}
 
-          {:error, reason} ->
-            {:error, "Failed to retrieve Wikipedia article: #{reason}"}
-        end
+            {:error, reason} ->
+              {:error, "Failed to retrieve Wikipedia article: #{reason}"}
+          end
+
+        end_time = :erlang.monotonic_time(:millisecond)
+        IO.puts("Tool 'wikipedia_get_article' total execution took #{end_time - start_time}ms")
+        result
       end
     )
   end

@@ -2,8 +2,6 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   use Retry
   alias Cara.AI.ToolHandler
-  alias Cara.AI.Tools.Calculator
-  alias Cara.AI.Tools.Wikipedia
   alias ReqLLM.Context
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
@@ -42,10 +40,7 @@ defmodule CaraWeb.ChatLive do
     case Map.get(session, "student_info") do
       %{name: _name, subject: _subject, age: _age} = info ->
         system_prompt = render_greeting_prompt(info)
-        calculator_tool = Calculator.calculator_tool()
-        wikipedia_search_tool = Wikipedia.wikipedia_search()
-        wikipedia_get_article_tool = Wikipedia.wikipedia_get_article()
-        llm_tools = [calculator_tool, wikipedia_search_tool, wikipedia_get_article_tool]
+        llm_tools = Cara.AI.Tools.load_tools()
 
         {:ok,
          assign(socket,
@@ -199,9 +194,9 @@ defmodule CaraWeb.ChatLive do
          } = llm_call_params
        ) do
     case chat_mod.send_message_stream(message, llm_context, tools: llm_tools) do
-      {:ok, stream, llm_context_builder, tool_calls} ->
+      {:ok, %ReqLLM.StreamResponse{} = stream_response, llm_context_builder, tool_calls} ->
         handle_llm_stream_response(
-          stream,
+          stream_response,
           llm_context_builder,
           tool_calls,
           llm_call_params
@@ -219,13 +214,13 @@ defmodule CaraWeb.ChatLive do
   end
 
   @spec handle_llm_stream_response(
-          Enumerable.t(),
+          ReqLLM.StreamResponse.t(),
           (String.t() -> ReqLLM.Context.t()),
           list(),
           llm_call_params()
         ) :: :ok | :retry
   defp handle_llm_stream_response(
-         stream,
+         stream_response,
          llm_context_builder,
          tool_calls,
          %{
@@ -239,15 +234,19 @@ defmodule CaraWeb.ChatLive do
        ) do
     if Enum.empty?(tool_calls) do
       # No tool calls, process the stream normally
-      if process_stream(stream, live_view_pid, llm_context_builder, tool_usage_counts) do
+      if process_stream(stream_response, live_view_pid, llm_context_builder, tool_usage_counts) do
         :ok
       else
         send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
         :error
       end
     else
-      next_llm_call_params = handle_tool_call_execution(tool_calls, llm_call_params)
-      process_llm_request(next_llm_call_params)
+      # Tool calls found, execute them and recursively call LLM with results
+      # We update the context in llm_call_params to include the user message
+      # which is already present in the stream_response.context
+      updated_llm_call_params = %{llm_call_params | llm_context: stream_response.context}
+      next_llm_call_params = handle_tool_call_execution(tool_calls, updated_llm_call_params)
+      process_llm_request(%{next_llm_call_params | message: ""})
     end
   end
 
@@ -263,7 +262,8 @@ defmodule CaraWeb.ChatLive do
        ) do
     {tool_calls_to_execute, tool_results_for_limited_tools, new_tool_usage_counts} =
       Enum.reduce(tool_calls, {[], [], tool_usage_counts}, fn tool_call, {exec_acc, limited_acc, counts_acc} ->
-        tool_name_atom = String.to_atom(tool_call.function.name)
+        tool_name = ReqLLM.ToolCall.name(tool_call)
+        tool_name_atom = String.to_atom(tool_name)
         current_count = Map.get(counts_acc, tool_name_atom, 0)
 
         if current_count < 5 do
@@ -303,19 +303,29 @@ defmodule CaraWeb.ChatLive do
   end
 
   @spec process_stream(
-          Enumerable.t(),
+          ReqLLM.StreamResponse.t(),
           pid(),
           (String.t() -> ReqLLM.Context.t()),
           map()
         ) :: boolean()
-  defp process_stream(stream, live_view_pid, llm_context_builder, tool_usage_counts) do
+  defp process_stream(stream_response, live_view_pid, llm_context_builder, tool_usage_counts) do
     send(live_view_pid, {:update_tool_usage_counts, tool_usage_counts})
 
+    start_time = :erlang.monotonic_time(:millisecond)
+
     sent_any_chunks =
-      Enum.reduce_while(stream, false, fn chunk, _acc ->
+      stream_response
+      |> ReqLLM.StreamResponse.tokens()
+      |> Enum.reduce_while(false, fn chunk, _acc ->
         send(live_view_pid, {:llm_chunk, chunk})
         {:cont, true}
       end)
+
+    end_time = :erlang.monotonic_time(:millisecond)
+    IO.puts("LLM streaming of answer took #{end_time - start_time}ms")
+
+    metadata = Task.await(stream_response.metadata_task)
+    IO.puts("LLM stream complete metadata: #{inspect(metadata)}")
 
     if sent_any_chunks do
       send(live_view_pid, {:llm_end, llm_context_builder})
