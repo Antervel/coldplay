@@ -12,7 +12,13 @@ config :cara,
   generators: [timestamp_type: :utc_datetime]
 
 # Configure the default AI model
-config :cara, :ai_model, "openrouter:mistralai/ministral-3b-2512"
+config :req_llm,
+  openai_api_key: "ollama",
+  openai: [
+    base_url: "http://host.containers.internal:11434/v1"
+  ]
+
+config :cara, :ai_model, "openai:llama3"
 
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
