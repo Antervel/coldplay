@@ -1,4 +1,6 @@
 defmodule Cara.AI.Tools.Calculator do
+  require Logger
+
   @moduledoc """
   Calculator tool for ReqLLM.
   """
@@ -37,7 +39,7 @@ defmodule Cara.AI.Tools.Calculator do
           end
 
         end_time = :erlang.monotonic_time(:millisecond)
-        IO.puts("Tool 'calculator' execution took #{end_time - start_time}ms")
+        Logger.info("Tool 'calculator' execution took #{end_time - start_time}ms")
         result
       end
     )

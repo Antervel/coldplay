@@ -1,4 +1,6 @@
 defmodule Cara.AI.Tools.Wikipedia do
+  require Logger
+
   @moduledoc """
   A module containing tools to interact with Wikipedia.
 
@@ -43,7 +45,7 @@ defmodule Cara.AI.Tools.Wikipedia do
           end
 
         end_time = :erlang.monotonic_time(:millisecond)
-        IO.puts("Tool 'wikipedia_search' total execution took #{end_time - start_time}ms")
+        Logger.info("Tool 'wikipedia_search' total execution took #{end_time - start_time}ms")
         result
       end
     )
@@ -71,7 +73,7 @@ defmodule Cara.AI.Tools.Wikipedia do
           end
 
         end_time = :erlang.monotonic_time(:millisecond)
-        IO.puts("Tool 'wikipedia_get_article' total execution took #{end_time - start_time}ms")
+        Logger.info("Tool 'wikipedia_get_article' total execution took #{end_time - start_time}ms")
         result
       end
     )

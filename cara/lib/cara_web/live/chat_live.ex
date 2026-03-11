@@ -1,8 +1,9 @@
 defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   use Retry
-
+  require Logger
   alias Cara.AI.ToolHandler
+
   alias Cara.AI.Tools
   alias ReqLLM.Context
 
@@ -324,10 +325,10 @@ defmodule CaraWeb.ChatLive do
       end)
 
     end_time = :erlang.monotonic_time(:millisecond)
-    IO.puts("LLM streaming of answer took #{end_time - start_time}ms")
+    Logger.info("LLM streaming of answer took #{end_time - start_time}ms")
 
     metadata = Task.await(stream_response.metadata_task)
-    IO.puts("LLM stream complete metadata: #{inspect(metadata)}")
+    Logger.info("LLM stream complete metadata: #{inspect(metadata)}")
 
     if sent_any_chunks do
       send(live_view_pid, {:llm_end, llm_context_builder})

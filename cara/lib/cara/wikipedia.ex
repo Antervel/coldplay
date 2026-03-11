@@ -1,4 +1,6 @@
 defmodule Cara.Wikipedia do
+  require Logger
+
   @moduledoc """
   A module to interface with the Wikipedia API for searching articles and retrieving full articles.
 
@@ -49,7 +51,7 @@ defmodule Cara.Wikipedia do
       end
 
     end_time = :erlang.monotonic_time(:millisecond)
-    IO.puts("Wikipedia search_articles('#{query}') took #{end_time - start_time}ms")
+    Logger.info("Wikipedia search_articles('#{query}') took #{end_time - start_time}ms")
     result
   end
 
@@ -86,7 +88,7 @@ defmodule Cara.Wikipedia do
       end
 
     end_time = :erlang.monotonic_time(:millisecond)
-    IO.puts("Wikipedia get_article('#{title}') took #{end_time - start_time}ms")
+    Logger.info("Wikipedia get_article('#{title}') took #{end_time - start_time}ms")
     result
   end
 
@@ -110,7 +112,7 @@ defmodule Cara.Wikipedia do
       end
 
     end_time = :erlang.monotonic_time(:millisecond)
-    IO.puts("Wikipedia get_full_article('#{title}') took #{end_time - start_time}ms")
+    Logger.info("Wikipedia get_full_article('#{title}') took #{end_time - start_time}ms")
     result
   end
 
