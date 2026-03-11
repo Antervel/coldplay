@@ -3,8 +3,9 @@ defmodule CaraWeb.ChatLiveToolTest do
 
   import Phoenix.LiveViewTest
   import Mox
-  alias ReqLLM.StreamResponse
+
   alias ReqLLM.Context
+  alias ReqLLM.StreamResponse
 
   setup %{conn: conn} do
     # Initialize test session

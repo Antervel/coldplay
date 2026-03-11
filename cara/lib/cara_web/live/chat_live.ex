@@ -1,7 +1,9 @@
 defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   use Retry
+
   alias Cara.AI.ToolHandler
+  alias Cara.AI.Tools
   alias ReqLLM.Context
 
   @type chat_message :: %{sender: :user | :assistant, content: String.t()}
@@ -40,7 +42,7 @@ defmodule CaraWeb.ChatLive do
     case Map.get(session, "student_info") do
       %{name: _name, subject: _subject, age: _age} = info ->
         system_prompt = render_greeting_prompt(info)
-        llm_tools = Cara.AI.Tools.load_tools()
+        llm_tools = Tools.load_tools()
 
         {:ok,
          assign(socket,

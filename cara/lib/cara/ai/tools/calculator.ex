@@ -7,7 +7,8 @@ defmodule Cara.AI.Tools.Calculator do
   def calculator_tool do
     Tool.new!(
       name: "calculator",
-      description: "Evaluate math. Example: {\"expression\":\"2+2\"}",
+      description:
+        "Evaluate math expressions. Use ^ for powers and square root (e.g. 25 ^ 0.5). Example: {\"expression\":\"2+2\"}",
       parameter_schema: [
         expression: [type: :string, required: true, doc: "The math expression"]
       ],
@@ -19,8 +20,17 @@ defmodule Cara.AI.Tools.Calculator do
         result =
           if is_binary(expr) do
             case Abacus.eval(expr) do
-              {:ok, val} -> {:ok, val}
-              {:error, r} -> {:error, "Invalid expression: #{Exception.message(r)}"}
+              {:ok, val} ->
+                {:ok, val}
+
+              {:error, r} ->
+                message =
+                  case r do
+                    %_{__exception__: true} = e -> Exception.message(e)
+                    other -> inspect(other)
+                  end
+
+                {:error, "Invalid expression: #{message}"}
             end
           else
             {:error, "Missing 'expression' parameter"}

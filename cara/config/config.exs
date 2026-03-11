@@ -20,6 +20,8 @@ config :req_llm,
 
 config :cara, :ai_model, "openai:cara-cpu"
 
+config :cara, :enabled_tools, [:calculator, :wikipedia_search, :wikipedia_get_article]
+
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
   url: [host: "localhost"],
