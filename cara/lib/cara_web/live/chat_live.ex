@@ -266,7 +266,7 @@ defmodule CaraWeb.ChatLive do
         tool_name_atom = String.to_atom(tool_name)
         current_count = Map.get(counts_acc, tool_name_atom, 0)
 
-        if current_count < 5 do
+        if current_count < 10 do
           {[tool_call | exec_acc], limited_acc, Map.put(counts_acc, tool_name_atom, current_count + 1)}
         else
           tool_result = Context.tool_result(tool_call.id, "Tool limit reached. Summarize with what you have")
