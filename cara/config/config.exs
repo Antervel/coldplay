@@ -18,7 +18,7 @@ config :req_llm,
     base_url: "http://host.containers.internal:11434/v1"
   ]
 
-config :cara, :ai_model, "openai:llama3"
+config :cara, :ai_model, "openai:cara-cpu"
 
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
