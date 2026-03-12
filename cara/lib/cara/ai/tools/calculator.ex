@@ -1,4 +1,6 @@
 defmodule Cara.AI.Tools.Calculator do
+  require Logger
+
   @moduledoc """
   Calculator tool for ReqLLM.
   """
@@ -7,22 +9,38 @@ defmodule Cara.AI.Tools.Calculator do
   def calculator_tool do
     Tool.new!(
       name: "calculator",
-      description: ~s|Safely evaluate a math expression. Example: {"expression":"(2+3)*7"}|,
+      description:
+        "Evaluate math expressions. Use ^ for powers and square root (e.g. 25 ^ 0.5). Example: {\"expression\":\"2+2\"}",
       parameter_schema: [
-        expression: [type: :string, required: true, doc: "Math expression, e.g., \"(2+3)^2 / 5\""]
+        expression: [type: :string, required: true, doc: "The math expression"]
       ],
       callback: fn args ->
+        start_time = :erlang.monotonic_time(:millisecond)
         # Handle both atom keys (internal) and string keys (JSON)
         expr = args[:expression] || args["expression"]
 
-        if is_binary(expr) do
-          case Abacus.eval(expr) do
-            {:ok, val} -> {:ok, val}
-            {:error, r} -> {:error, "Invalid expression: #{Exception.message(r)}"}
+        result =
+          if is_binary(expr) do
+            case Abacus.eval(expr) do
+              {:ok, val} ->
+                {:ok, val}
+
+              {:error, r} ->
+                message =
+                  case r do
+                    %_{__exception__: true} = e -> Exception.message(e)
+                    other -> inspect(other)
+                  end
+
+                {:error, "Invalid expression: #{message}"}
+            end
+          else
+            {:error, "Missing 'expression' parameter"}
           end
-        else
-          {:error, "Missing 'expression' parameter"}
-        end
+
+        end_time = :erlang.monotonic_time(:millisecond)
+        Logger.info("Tool 'calculator' execution took #{end_time - start_time}ms")
+        result
       end
     )
   end

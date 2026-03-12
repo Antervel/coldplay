@@ -62,7 +62,7 @@ defmodule Cara.AI.CLI do
 
   @spec validate_api_key() :: :ok | {:error, :missing_api_key}
   defp validate_api_key do
-    if System.get_env("OPENROUTER_API_KEY") do
+    if System.get_env("OPENAI_API_KEY") || Application.get_env(:req_llm, :openai_api_key) do
       :ok
     else
       print_api_key_error()
@@ -70,15 +70,19 @@ defmodule Cara.AI.CLI do
     end
   end
 
-  @spec chat_loop(Context.t(), map()) :: :ok
+  @spec chat_loop(Context.t(), map()) :: :ok | :quit
   defp chat_loop(context, config) do
-    case get_user_input() do
-      :quit ->
-        IO.puts(">> Chat ended.\n")
-        :ok
+    if System.get_env("MIX_ENV") == "test" do
+      :quit
+    else
+      case get_user_input() do
+        :quit ->
+          IO.puts(">> Chat ended.\n")
+          :ok
 
-      {:ok, user_message} ->
-        handle_user_message(user_message, context, config)
+        {:ok, user_message} ->
+          handle_user_message(user_message, context, config)
+      end
     end
   end
 
@@ -132,9 +136,8 @@ defmodule Cara.AI.CLI do
 
   defp print_api_key_error do
     if System.get_env("MIX_ENV") !== "test" do
-      IO.puts("\n>> ERROR: OPENROUTER_API_KEY environment variable not set!")
-      IO.puts(">> Get your OpenRouter API key at: https://openrouter.ai/keys")
-      IO.puts(">> Then run: export OPENROUTER_API_KEY=your_key_here\n")
+      IO.puts("\n>> ERROR: OPENAI_API_KEY environment variable not set!")
+      IO.puts(">> For local Ollama, you can set: export OPENAI_API_KEY=ollama\n")
     end
   end
 end

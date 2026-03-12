@@ -3,6 +3,7 @@ defmodule CaraWeb.ChatLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  alias ReqLLM.StreamResponse
 
   setup %{conn: conn} do
     # Initialize test session
@@ -43,13 +44,21 @@ defmodule CaraWeb.ChatLiveTest do
 
     test "user can send a message and receive a streamed response", %{conn: conn} do
       # Mock the Chat module to return a controlled stream
-      mock_stream = ["Hello", " there", "!"]
+      mock_stream = [ReqLLM.StreamChunk.text("Hello"), ReqLLM.StreamChunk.text(" there"), ReqLLM.StreamChunk.text("!")]
       mock_context_builder = fn content -> {:updated_context, content} end
 
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Hi", :initial_context, _opts ->
-        {:ok, mock_stream, mock_context_builder, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: mock_stream,
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, mock_context_builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -78,12 +87,21 @@ defmodule CaraWeb.ChatLiveTest do
       stub(Cara.AI.ChatMock, :send_message_stream, fn message, context, _opts ->
         stream =
           case message do
-            "First message" -> ["Response ", "one"]
-            "Second message" -> ["Response ", "two"]
+            "First message" -> [ReqLLM.StreamChunk.text("Response "), ReqLLM.StreamChunk.text("one")]
+            "Second message" -> [ReqLLM.StreamChunk.text("Response "), ReqLLM.StreamChunk.text("two")]
           end
 
         builder = fn _content -> {:updated, context} end
-        {:ok, stream, builder, []}
+
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: stream,
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -154,7 +172,15 @@ defmodule CaraWeb.ChatLiveTest do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Test", :initial_context, _opts ->
-        {:ok, ["Response"], fn _content -> :updated_context end, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: [ReqLLM.StreamChunk.text("Response")],
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, fn _content -> :updated_context end, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -178,7 +204,15 @@ defmodule CaraWeb.ChatLiveTest do
 
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Error test", :initial_context, _opts ->
         # Empty stream
-        {:ok, [], fn _content -> :updated_context end, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: [],
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, fn _content -> :updated_context end, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -319,9 +353,9 @@ defmodule CaraWeb.ChatLiveTest do
           Stream.resource(
             fn -> 0 end,
             fn
-              0 -> {["First "], 1}
-              1 -> {["second "], 2}
-              2 -> {["third"], 3}
+              0 -> {[ReqLLM.StreamChunk.text("First ")], 1}
+              1 -> {[ReqLLM.StreamChunk.text("second ")], 2}
+              2 -> {[ReqLLM.StreamChunk.text("third")], 3}
               3 -> {:halt, 3}
             end,
             fn _ -> :ok end
@@ -332,7 +366,15 @@ defmodule CaraWeb.ChatLiveTest do
           :updated_context
         end
 
-        {:ok, stream, builder, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: stream,
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -354,9 +396,25 @@ defmodule CaraWeb.ChatLiveTest do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Empty chunks", :initial_context, _opts ->
-        stream = ["Hello", "", " ", "", "world"]
+        stream = [
+          ReqLLM.StreamChunk.text("Hello"),
+          ReqLLM.StreamChunk.text(""),
+          ReqLLM.StreamChunk.text(" "),
+          ReqLLM.StreamChunk.text(""),
+          ReqLLM.StreamChunk.text("world")
+        ]
+
         builder = fn _content -> :updated_context end
-        {:ok, stream, builder, []}
+
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: stream,
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -384,7 +442,15 @@ defmodule CaraWeb.ChatLiveTest do
           :updated_context
         end
 
-        {:ok, [], builder, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: [],
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -418,7 +484,15 @@ defmodule CaraWeb.ChatLiveTest do
           :updated_context
         end
 
-        {:ok, ["Response"], builder, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: [ReqLLM.StreamChunk.text("Response")],
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -442,7 +516,16 @@ defmodule CaraWeb.ChatLiveTest do
       stub(Cara.AI.ChatMock, :send_message_stream, fn "User only", :initial_context, _opts ->
         # Simulate a scenario where we have chunks but want to test edge cases
         builder = fn _content -> :updated_context end
-        {:ok, ["Response"], builder, []}
+
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: [ReqLLM.StreamChunk.text("Response")],
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -469,11 +552,29 @@ defmodule CaraWeb.ChatLiveTest do
       stub(Cara.AI.ChatMock, :send_message_stream, fn
         "First", :context_v1, _opts ->
           builder = fn _content -> :context_v2 end
-          {:ok, ["Response 1"], builder, []}
+
+          stream_response = %StreamResponse{
+            context: %ReqLLM.Context{messages: []},
+            model: %ReqLLM.Model{model: "test-model", provider: :openai},
+            cancel: fn -> :ok end,
+            stream: [ReqLLM.StreamChunk.text("Response 1")],
+            metadata_task: Task.async(fn -> %{} end)
+          }
+
+          {:ok, stream_response, builder, []}
 
         "Second", :context_v2, _opts ->
           builder = fn _content -> :context_v3 end
-          {:ok, ["Response 2"], builder, []}
+
+          stream_response = %StreamResponse{
+            context: %ReqLLM.Context{messages: []},
+            model: %ReqLLM.Model{model: "test-model", provider: :openai},
+            cancel: fn -> :ok end,
+            stream: [ReqLLM.StreamChunk.text("Response 2")],
+            metadata_task: Task.async(fn -> %{} end)
+          }
+
+          {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -528,9 +629,18 @@ defmodule CaraWeb.ChatLiveTest do
 
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Markdown test", :initial_context, _opts ->
         # Return markdown content
-        stream = ["**Bold** and *italic*"]
+        stream = [ReqLLM.StreamChunk.text("**Bold** and *italic*")]
         builder = fn _content -> :updated_context end
-        {:ok, stream, builder, []}
+
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: stream,
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -606,14 +716,22 @@ defmodule CaraWeb.ChatLiveTest do
       # completes before any assistant message is added
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Quick", :initial_context, _opts ->
         # Stream that appears to send chunks but we'll intercept
-        stream = ["Response"]
+        stream = [ReqLLM.StreamChunk.text("Response")]
 
         builder = fn _content ->
           # At this point, content should be "Response"
           :updated_context
         end
 
-        {:ok, stream, builder, []}
+        stream_response = %StreamResponse{
+          context: %ReqLLM.Context{messages: []},
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: stream,
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")

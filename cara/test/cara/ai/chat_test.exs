@@ -5,6 +5,7 @@ defmodule Cara.AI.ChatTest do
   alias Cara.AI.CLI
   alias Cara.AI.Tools.Calculator
   alias ReqLLM.Context
+  alias ReqLLM.StreamResponse
 
   describe "new_context/0" do
     test "creates a context with default system prompt" do
@@ -90,15 +91,15 @@ defmodule Cara.AI.ChatTest do
       bypass = Bypass.open()
 
       # Configure ReqLLM to use bypass URL - note the path is included in base_url
-      Application.put_env(:req_llm, :openrouter,
+      Application.put_env(:req_llm, :openai,
         base_url: "http://localhost:#{bypass.port}",
         api_key: "test-key"
       )
 
-      System.put_env("OPENROUTER_API_KEY", "test-key")
+      System.put_env("OPENAI_API_KEY", "test-key")
 
       on_exit(fn ->
-        Application.delete_env(:req_llm, :openrouter)
+        Application.delete_env(:req_llm, :openai)
       end)
 
       {:ok, bypass: bypass}
@@ -129,7 +130,7 @@ defmodule Cara.AI.ChatTest do
       end)
 
       context = Chat.new_context("Test system prompt")
-      {:ok, response, new_context} = Chat.send_message("Hello", context, model: "openrouter:test-model")
+      {:ok, response, new_context} = Chat.send_message("Hello", context, model: "openai:test-model")
 
       assert is_binary(response)
       assert response =~ "Hello"
@@ -171,7 +172,7 @@ defmodule Cara.AI.ChatTest do
       end)
 
       context = Chat.new_context("Test system prompt")
-      {:ok, _response, new_context} = Chat.send_message("Test message", context, model: "openrouter:test-model")
+      {:ok, _response, new_context} = Chat.send_message("Test message", context, model: "openai:test-model")
 
       user_messages = Enum.filter(new_context.messages, fn msg -> msg.role == :user end)
       assert match?([_], user_messages)
@@ -215,15 +216,15 @@ defmodule Cara.AI.ChatTest do
     setup do
       bypass = Bypass.open()
 
-      Application.put_env(:req_llm, :openrouter,
+      Application.put_env(:req_llm, :openai,
         base_url: "http://localhost:#{bypass.port}",
         api_key: "test-key"
       )
 
-      System.put_env("OPENROUTER_API_KEY", "test-key")
+      System.put_env("OPENAI_API_KEY", "test-key")
 
       on_exit(fn ->
-        Application.delete_env(:req_llm, :openrouter)
+        Application.delete_env(:req_llm, :openai)
       end)
 
       {:ok, bypass: bypass}
@@ -254,13 +255,13 @@ defmodule Cara.AI.ChatTest do
 
       context = Chat.new_context("Test system prompt")
 
-      {:ok, stream, context_builder, _tool_calls} =
-        Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
+      {:ok, stream_response, context_builder, _tool_calls} =
+        Chat.send_message_stream("Hello", context, model: "openai:test-model")
 
       assert is_function(context_builder, 1)
 
       # Consume the stream
-      chunks = Enum.to_list(stream)
+      chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
       assert not Enum.empty?(chunks)
       assert Enum.all?(chunks, &is_binary/1)
     end
@@ -290,9 +291,9 @@ defmodule Cara.AI.ChatTest do
 
       # Call without passing opts to trigger the 2-arity version
       context = Chat.new_context("Test system prompt")
-      {:ok, stream, _context_builder, _tool_calls} = Chat.send_message_stream("Hello", context)
+      {:ok, stream_response, _context_builder, _tool_calls} = Chat.send_message_stream("Hello", context)
 
-      chunks = Enum.to_list(stream)
+      chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
       assert is_list(chunks)
     end
 
@@ -321,11 +322,11 @@ defmodule Cara.AI.ChatTest do
 
       context = Chat.new_context("Test system prompt")
 
-      {:ok, stream, context_builder, _tool_calls} =
-        Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
+      {:ok, stream_response, context_builder, _tool_calls} =
+        Chat.send_message_stream("Hello", context, model: "openai:test-model")
 
       # Consume the stream
-      full_text = Enum.join(stream, "")
+      full_text = stream_response |> StreamResponse.tokens() |> Enum.join("")
 
       # Build the final context
       final_context = context_builder.(full_text)
@@ -352,10 +353,10 @@ defmodule Cara.AI.ChatTest do
 
       context = Chat.new_context("Test system prompt")
 
-      {:ok, stream, _context_builder, _tool_calls} =
-        Chat.send_message_stream("Hello", context, model: "openrouter:test-model")
+      {:ok, stream_response, _context_builder, _tool_calls} =
+        Chat.send_message_stream("Hello", context, model: "openai:test-model")
 
-      chunks = Enum.to_list(stream)
+      chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
       full_text = Enum.join(chunks, "")
 
       assert full_text == "First Second Third"
@@ -366,15 +367,15 @@ defmodule Cara.AI.ChatTest do
     setup do
       bypass = Bypass.open()
 
-      Application.put_env(:req_llm, :openrouter,
+      Application.put_env(:req_llm, :openai,
         base_url: "http://localhost:#{bypass.port}",
         api_key: "test-key"
       )
 
-      System.put_env("OPENROUTER_API_KEY", "test-key")
+      System.put_env("OPENAI_API_KEY", "test-key")
 
       on_exit(fn ->
-        Application.delete_env(:req_llm, :openrouter)
+        Application.delete_env(:req_llm, :openai)
       end)
 
       {:ok, bypass: bypass}
@@ -436,13 +437,13 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context("Test system prompt")
       calculator_tool = Calculator.calculator_tool()
 
-      {:ok, stream, _context_builder, tool_calls} =
+      {:ok, stream_response, _context_builder, tool_calls} =
         Chat.send_message_stream("What is 2+2?", context,
-          model: "openrouter:test-model",
+          model: "openai:test-model",
           tools: [calculator_tool]
         )
 
-      chunks = Enum.to_list(stream)
+      chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
       assert is_list(chunks)
       assert tool_calls == []
     end
@@ -452,15 +453,15 @@ defmodule Cara.AI.ChatTest do
     setup do
       bypass = Bypass.open()
 
-      Application.put_env(:req_llm, :openrouter,
+      Application.put_env(:req_llm, :openai,
         base_url: "http://localhost:#{bypass.port}",
         api_key: "test-key"
       )
 
-      System.put_env("OPENROUTER_API_KEY", "test-key")
+      System.put_env("OPENAI_API_KEY", "test-key")
 
       on_exit(fn ->
-        Application.delete_env(:req_llm, :openrouter)
+        Application.delete_env(:req_llm, :openai)
       end)
 
       {:ok, bypass: bypass}
@@ -468,20 +469,22 @@ defmodule Cara.AI.ChatTest do
 
     test "handles tools provided and tool calls made", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
-        # Non-streaming response with tool calls
-        response = %{
+        # Streaming SSE response with tool call
+        conn = Plug.Conn.put_resp_header(conn, "content-type", "text/event-stream")
+        conn = Plug.Conn.send_chunked(conn, 200)
+
+        tool_call_chunk = %{
           "id" => "test-id",
-          "object" => "chat.completion",
+          "object" => "chat.completion.chunk",
           "created" => 1_234_567_890,
           "model" => "test-model",
           "choices" => [
             %{
               "index" => 0,
-              "message" => %{
-                "role" => "assistant",
-                "content" => nil,
+              "delta" => %{
                 "tool_calls" => [
                   %{
+                    "index" => 0,
                     "id" => "call_123",
                     "type" => "function",
                     "function" => %{
@@ -491,20 +494,37 @@ defmodule Cara.AI.ChatTest do
                   }
                 ]
               },
+              "finish_reason" => nil
+            }
+          ]
+        }
+
+        done_chunk = %{
+          "id" => "test-id",
+          "object" => "chat.completion.chunk",
+          "created" => 1_234_567_890,
+          "model" => "test-model",
+          "choices" => [
+            %{
+              "index" => 0,
+              "delta" => %{},
               "finish_reason" => "tool_calls"
             }
           ]
         }
 
-        Plug.Conn.send_resp(conn, 200, Jason.encode!(response))
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: #{Jason.encode!(tool_call_chunk)}\n\n")
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: #{Jason.encode!(done_chunk)}\n\n")
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
+        conn
       end)
 
       context = Chat.new_context("Test system prompt")
       calculator_tool = Calculator.calculator_tool()
 
-      {:ok, _stream, _context_builder, tool_calls} =
+      {:ok, _stream_response, _context_builder, tool_calls} =
         Chat.send_message_stream("Calculate 2+2", context,
-          model: "openrouter:test-model",
+          model: "openai:test-model",
           tools: [calculator_tool]
         )
 
@@ -549,14 +569,20 @@ defmodule Cara.AI.ChatTest do
 
   describe "start/1" do
     test "returns error when API key is not set" do
-      original_key = System.get_env("OPENROUTER_API_KEY")
-      System.delete_env("OPENROUTER_API_KEY")
+      original_key = System.get_env("OPENAI_API_KEY")
+      System.delete_env("OPENAI_API_KEY")
+      original_app_key = Application.get_env(:req_llm, :openai_api_key)
+      Application.delete_env(:req_llm, :openai_api_key)
 
       # Can't easily test interactive loop, but we can test the API key validation
       assert {:error, :missing_api_key} = CLI.start()
 
       if original_key do
-        System.put_env("OPENROUTER_API_KEY", original_key)
+        System.put_env("OPENAI_API_KEY", original_key)
+      end
+
+      if original_app_key do
+        Application.put_env(:req_llm, :openai_api_key, original_app_key)
       end
     end
   end
@@ -579,7 +605,7 @@ defmodule Cara.AI.ChatTest do
 
   describe "default_model/0" do
     test "returns the default model string" do
-      assert Chat.default_model() =~ "openrouter:"
+      assert Chat.default_model() =~ "openai:"
     end
   end
 end

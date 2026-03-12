@@ -5,6 +5,9 @@ defmodule Cara.AI.Chat do
   Handles message sending, streaming, and conversation context management.
   """
   import ReqLLM.Context
+
+  require Logger
+
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
@@ -60,16 +63,21 @@ defmodule Cara.AI.Chat do
     * `:tools` - A list of `ReqLLM.Tool` structs to provide to the LLM.
   """
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
-          {:ok, Enumerable.t(), (String.t() -> Context.t()), list()}
+          {:ok, ReqLLM.StreamResponse.t(), (String.t() -> Context.t()), list()} | {:error, term()}
   def send_message_stream(message, context, opts \\ []) do
     config = build_config(opts)
-    updated_context = add_user_message(context, message)
+
+    updated_context =
+      if message != nil and message != "" do
+        add_user_message(context, message)
+      else
+        context
+      end
 
     case call_llm(config.model, updated_context, config.tools) do
       {:ok, stream_response, tool_calls} ->
-        text_stream = extract_text_stream(stream_response.stream)
         context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
-        {:ok, text_stream, context_builder, tool_calls}
+        {:ok, stream_response, context_builder, tool_calls}
 
       {:error, reason} ->
         {:error, reason}
@@ -148,53 +156,139 @@ defmodule Cara.AI.Chat do
   @spec call_llm(String.t(), Context.t(), list()) ::
           {:ok, StreamResponse.t(), list()} | {:error, term()}
   defp call_llm(model, context, tools) do
-    if Enum.empty?(tools) do
-      # No tools provided, just stream text directly
+    Logger.info("LLM call_llm starting with context: #{inspect(context)}")
+    start_time = :erlang.monotonic_time(:millisecond)
+
+    result =
       case ReqLLM.stream_text(model, context.messages, tools: tools) do
-        {:ok, stream_response} -> {:ok, stream_response, []}
-        {:error, reason} -> {:error, reason}
+        {:ok, stream_response} ->
+          if Enum.empty?(tools) do
+            {:ok, stream_response, []}
+          else
+            handle_stream_for_tools(stream_response)
+          end
+
+        {:error, reason} ->
+          {:error, reason}
       end
-    else
-      # Tools are provided, first attempt to get tool calls using generate_text
-      case ReqLLM.generate_text(model, context.messages, tools: tools) do
-        {:ok, response} -> handle_tool_check_response(response, model, context, tools)
-        {:error, reason} -> {:error, reason}
-      end
+
+    end_time = :erlang.monotonic_time(:millisecond)
+    Logger.info("LLM call_llm(model: #{model}, tools: #{length(tools)}) took #{end_time - start_time}ms")
+    result
+  end
+
+  # Peeks at the stream to see if the LLM is calling a tool or just talking.
+  defp handle_stream_for_tools(%StreamResponse{stream: stream} = stream_response) do
+    # We take chunks until we see a tool call or content with text.
+    case consume_until_intent(stream) do
+      {:tool_call, consumed_chunks, remaining_stream} ->
+        # It's a tool call! Consume the whole stream to get all arguments.
+        all_chunks = consumed_chunks ++ Enum.to_list(remaining_stream)
+        tool_calls = extract_tool_calls_from_chunks(all_chunks)
+
+        # We need to provide a dummy stream because the original one is consumed
+        {:ok, dummy_stream_response(stream_response), tool_calls}
+
+      {:content, consumed_chunks, remaining_stream} ->
+        # It's content (text). Prepend the chunks we took and return as a normal stream.
+        new_stream = Stream.concat(consumed_chunks, remaining_stream)
+        {:ok, %{stream_response | stream: new_stream}, []}
+
+      {:empty, _consumed_chunks} ->
+        # Empty stream
+        {:ok, stream_response, []}
     end
   end
 
-  # This function receives the initial response from the LLM after calling
-  # ReqLLM.generate_text. It then checks if this response includes any tool_calls.
-  defp handle_tool_check_response(response, model, context, tools) do
-    tool_calls = ReqLLM.Response.tool_calls(response)
+  defp consume_until_intent(stream) do
+    Enum.reduce_while(stream, {[], stream}, fn chunk, {acc, _} ->
+      cond do
+        chunk.type == :tool_call ->
+          {:halt, {:tool_call, Enum.reverse([chunk | acc]), stream}}
 
-    if Enum.empty?(tool_calls) do
-      # No tool calls, proceed with streaming the text response
-      case ReqLLM.stream_text(model, context.messages, tools: tools) do
-        {:ok, stream_response} -> {:ok, stream_response, []}
-        {:error, reason} -> {:error, reason}
+        chunk.type == :content and (chunk.text != nil and chunk.text != "") ->
+          {:halt, {:content, Enum.reverse([chunk | acc]), stream}}
+
+        true ->
+          # Keep looking (meta chunks, empty content chunks, etc.)
+          {:cont, {[chunk | acc], stream}}
       end
-    else
-      # Tool calls found
-      {:ok, dummy_stream_response(response), tool_calls}
+    end)
+    |> case do
+      {acc, _} -> {:empty, Enum.reverse(acc)}
+      result -> result
     end
   end
 
-  defp dummy_stream_response(response) do
+  defp extract_tool_calls_from_chunks(chunks) do
+    base_calls = Enum.filter(chunks, fn chunk -> Map.get(chunk, :type) == :tool_call end)
+    fragments = extract_fragments(chunks)
+
+    # Merge and deduplicate by ID
+    base_calls
+    |> Enum.map(fn call -> build_tool_call(call, fragments) end)
+    |> Enum.uniq_by(fn tc -> tc.id end)
+  end
+
+  defp extract_fragments(chunks) do
+    chunks
+    |> Enum.filter(fn chunk ->
+      Map.get(chunk, :type) == :meta and
+        match?(%{tool_call_args: %{index: _}}, Map.get(chunk, :metadata, %{}))
+    end)
+    |> Enum.group_by(fn chunk ->
+      meta = Map.get(chunk, :metadata, %{})
+      args = Map.get(meta, :tool_call_args, %{})
+      Map.get(args, :index)
+    end)
+    |> Map.new(fn {idx, meta_chunks} ->
+      json =
+        Enum.map_join(meta_chunks, "", fn chunk ->
+          meta = Map.get(chunk, :metadata, %{})
+          args = Map.get(meta, :tool_call_args, %{})
+          Map.get(args, :fragment, "")
+        end)
+
+      {idx, json}
+    end)
+  end
+
+  defp build_tool_call(call, fragments) do
+    metadata = Map.get(call, :metadata, %{})
+    index = Map.get(metadata, :index) || Map.get(call, :index)
+    id = Map.get(metadata, :id) || Map.get(call, :id)
+    name = Map.get(call, :name) || Map.get(metadata, :name)
+
+    arguments_json =
+      case Map.get(fragments, index) do
+        nil ->
+          extract_arguments_from_call(call, metadata)
+
+        json ->
+          json
+      end
+
+    ReqLLM.ToolCall.new(id, name, arguments_json)
+  end
+
+  defp extract_arguments_from_call(call, metadata) do
+    call_args = Map.get(call, :arguments) || Map.get(metadata, :arguments)
+
+    cond do
+      is_binary(call_args) -> call_args
+      is_map(call_args) -> Jason.encode!(call_args)
+      true -> "{}"
+    end
+  end
+
+  defp dummy_stream_response(%StreamResponse{context: context, model: model}) do
     %StreamResponse{
-      stream: Stream.cycle([""]),
-      context: response.context,
-      model: response.model,
-      cancel: :noop,
-      metadata_task: :noop
+      stream: [%ReqLLM.StreamChunk{type: :content, text: ""}],
+      context: context,
+      model: model,
+      cancel: fn -> :ok end,
+      metadata_task: Task.async(fn -> %{} end)
     }
-  end
-
-  @spec extract_text_stream(Enumerable.t()) :: Enumerable.t()
-  defp extract_text_stream(stream) do
-    stream
-    |> Stream.filter(&content_chunk?/1)
-    |> Stream.map(& &1.text)
   end
 
   @spec consume_stream_to_text(Enumerable.t()) :: String.t()
