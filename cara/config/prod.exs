@@ -14,7 +14,7 @@ config :cara, CaraWeb.Endpoint,
   force_ssl: [rewrite_on: [:x_forwarded_proto]],
   exclude: [
     # paths: ["/health"],
-    hosts: ["localhost", "127.0.0.1"]
+    hosts: ["localhost", "0.0.0.0/0"]
   ]
 
 # Configure Swoosh API Client
