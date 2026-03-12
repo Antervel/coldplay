@@ -34,6 +34,13 @@
         </div>
       </div>
     <% end %>
+
+    <%= if @tool_status do %>
+      <div class="flex justify-start items-center space-x-2 p-3 bg-gray-200 rounded-lg max-w-xs animate-pulse">
+        <span class="loading loading-spinner loading-sm text-blue-600"></span>
+        <span class="text-gray-600 text-sm italic">{@tool_status}</span>
+      </div>
+    <% end %>
   </main>
 
   <div

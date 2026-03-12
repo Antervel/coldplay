@@ -53,6 +53,7 @@ defmodule CaraWeb.ChatLive do
            app_version: app_version(),
            student_info: info,
            llm_tools: llm_tools,
+           tool_status: nil,
            tool_usage_counts:
              Enum.reduce(llm_tools, %{}, fn tool, acc ->
                Map.put(acc, tool.name, 0)
@@ -84,7 +85,7 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_info({:llm_chunk, chunk}, socket) when is_binary(chunk) do
     updated_messages = append_chunk_to_messages(chunk, socket.assigns.chat_messages)
-    {:noreply, assign(socket, chat_messages: updated_messages)}
+    {:noreply, assign(socket, chat_messages: updated_messages, tool_status: nil)}
   end
 
   # Handle end of LLM stream
@@ -92,7 +93,12 @@ defmodule CaraWeb.ChatLive do
   def handle_info({:llm_end, llm_context_builder}, socket) when is_function(llm_context_builder, 1) do
     final_content = get_last_assistant_message_content(socket.assigns.chat_messages)
     updated_llm_context = llm_context_builder.(final_content)
-    {:noreply, assign(socket, llm_context: updated_llm_context)}
+    {:noreply, assign(socket, llm_context: updated_llm_context, tool_status: nil)}
+  end
+
+  @impl true
+  def handle_info({:llm_status, status}, socket) do
+    {:noreply, assign(socket, tool_status: status)}
   end
 
   @impl true
@@ -104,7 +110,7 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_info({:llm_error, error_message}, socket) when is_binary(error_message) do
     error_message_obj = %{sender: :assistant, content: error_message}
-    {:noreply, assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj])}
+    {:noreply, assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj], tool_status: nil)}
   end
 
   ## Private Functions
@@ -138,6 +144,7 @@ defmodule CaraWeb.ChatLive do
       {:noreply, socket}
     else
       socket
+      |> assign(tool_status: "Thinking...")
       |> add_user_message_to_chat(message)
       |> start_llm_stream(message)
       |> reset_message_form()
@@ -260,9 +267,13 @@ defmodule CaraWeb.ChatLive do
            llm_context: llm_context,
            llm_tools: llm_tools,
            chat_mod: chat_mod,
-           tool_usage_counts: tool_usage_counts
+           tool_usage_counts: tool_usage_counts,
+           live_view_pid: live_view_pid
          } = llm_call_params
        ) do
+    tool_names = Enum.map_join(tool_calls, ", ", &ReqLLM.ToolCall.name/1)
+    send(live_view_pid, {:llm_status, "Using #{tool_names}..."})
+
     {tool_calls_to_execute, tool_results_for_limited_tools, new_tool_usage_counts} =
       Enum.reduce(tool_calls, {[], [], tool_usage_counts}, fn tool_call, {exec_acc, limited_acc, counts_acc} ->
         tool_name = ReqLLM.ToolCall.name(tool_call)
