@@ -8,5 +8,7 @@ defmodule Cara.AI.ChatBehaviour do
   @callback new_context(String.t()) :: Context.t()
   @callback send_message_stream(String.t(), Context.t(), keyword()) ::
               {:ok, ReqLLM.StreamResponse.t(), (String.t() -> Context.t()), list()} | {:error, term()}
+  @callback send_message(String.t(), Context.t(), keyword()) ::
+              {:ok, String.t(), Context.t()} | {:error, term()}
   @callback execute_tool(Tool.t(), map()) :: {:ok, term()} | {:error, term()}
 end
