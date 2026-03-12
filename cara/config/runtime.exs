@@ -22,6 +22,13 @@ end
 
 config :cara, CaraWeb.Endpoint, http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Configure the default AI model
+config :req_llm,
+  openai_api_key: "ollama",
+  openai: [
+    base_url: System.get_env("OLLAMA_URL", "http://host.containers.internal:11434/v1")
+  ]
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
