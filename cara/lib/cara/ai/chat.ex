@@ -8,6 +8,7 @@ defmodule Cara.AI.Chat do
 
   require Logger
 
+  alias Cara.AI.LLM.StreamParser
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
@@ -30,16 +31,20 @@ defmodule Cara.AI.Chat do
     * `:model` - The model to use (defaults to the model specified in the application config).
   """
   @spec send_message(String.t(), Context.t(), keyword()) ::
-          {:ok, String.t(), Context.t()}
+          {:ok, String.t(), Context.t()} | {:error, term()}
   def send_message(message, context, opts \\ []) do
     config = build_config(opts)
     updated_context = add_user_message(context, message)
 
-    {:ok, stream_response, _tool_calls} = call_llm(config.model, updated_context, config.tools)
-    final_text = consume_stream_to_text(stream_response.stream)
-    final_context = add_assistant_message(updated_context, final_text)
+    case call_llm(config.model, updated_context, config.tools) do
+      {:ok, stream_response, _tool_calls} ->
+        final_text = StreamParser.consume_to_text(stream_response.stream)
+        final_context = add_assistant_message(updated_context, final_text)
+        {:ok, final_text, final_context}
 
-    {:ok, final_text, final_context}
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -180,11 +185,11 @@ defmodule Cara.AI.Chat do
   # Peeks at the stream to see if the LLM is calling a tool or just talking.
   defp handle_stream_for_tools(%StreamResponse{stream: stream} = stream_response) do
     # We take chunks until we see a tool call or content with text.
-    case consume_until_intent(stream) do
+    case StreamParser.consume_until_intent(stream) do
       {:tool_call, consumed_chunks, remaining_stream} ->
         # It's a tool call! Consume the whole stream to get all arguments.
         all_chunks = consumed_chunks ++ Enum.to_list(remaining_stream)
-        tool_calls = extract_tool_calls_from_chunks(all_chunks)
+        tool_calls = StreamParser.extract_tool_calls(all_chunks)
 
         # We need to provide a dummy stream because the original one is consumed
         {:ok, dummy_stream_response(stream_response), tool_calls}
@@ -198,87 +203,8 @@ defmodule Cara.AI.Chat do
         # Empty stream
         {:ok, stream_response, []}
     end
-  end
-
-  defp consume_until_intent(stream) do
-    Enum.reduce_while(stream, {[], stream}, fn chunk, {acc, _} ->
-      cond do
-        chunk.type == :tool_call ->
-          {:halt, {:tool_call, Enum.reverse([chunk | acc]), stream}}
-
-        chunk.type == :content and (chunk.text != nil and chunk.text != "") ->
-          {:halt, {:content, Enum.reverse([chunk | acc]), stream}}
-
-        true ->
-          # Keep looking (meta chunks, empty content chunks, etc.)
-          {:cont, {[chunk | acc], stream}}
-      end
-    end)
-    |> case do
-      {acc, _} -> {:empty, Enum.reverse(acc)}
-      result -> result
-    end
-  end
-
-  defp extract_tool_calls_from_chunks(chunks) do
-    base_calls = Enum.filter(chunks, fn chunk -> Map.get(chunk, :type) == :tool_call end)
-    fragments = extract_fragments(chunks)
-
-    # Merge and deduplicate by ID
-    base_calls
-    |> Enum.map(fn call -> build_tool_call(call, fragments) end)
-    |> Enum.uniq_by(fn tc -> tc.id end)
-  end
-
-  defp extract_fragments(chunks) do
-    chunks
-    |> Enum.filter(fn chunk ->
-      Map.get(chunk, :type) == :meta and
-        match?(%{tool_call_args: %{index: _}}, Map.get(chunk, :metadata, %{}))
-    end)
-    |> Enum.group_by(fn chunk ->
-      meta = Map.get(chunk, :metadata, %{})
-      args = Map.get(meta, :tool_call_args, %{})
-      Map.get(args, :index)
-    end)
-    |> Map.new(fn {idx, meta_chunks} ->
-      json =
-        Enum.map_join(meta_chunks, "", fn chunk ->
-          meta = Map.get(chunk, :metadata, %{})
-          args = Map.get(meta, :tool_call_args, %{})
-          Map.get(args, :fragment, "")
-        end)
-
-      {idx, json}
-    end)
-  end
-
-  defp build_tool_call(call, fragments) do
-    metadata = Map.get(call, :metadata, %{})
-    index = Map.get(metadata, :index) || Map.get(call, :index)
-    id = Map.get(metadata, :id) || Map.get(call, :id)
-    name = Map.get(call, :name) || Map.get(metadata, :name)
-
-    arguments_json =
-      case Map.get(fragments, index) do
-        nil ->
-          extract_arguments_from_call(call, metadata)
-
-        json ->
-          json
-      end
-
-    ReqLLM.ToolCall.new(id, name, arguments_json)
-  end
-
-  defp extract_arguments_from_call(call, metadata) do
-    call_args = Map.get(call, :arguments) || Map.get(metadata, :arguments)
-
-    cond do
-      is_binary(call_args) -> call_args
-      is_map(call_args) -> Jason.encode!(call_args)
-      true -> "{}"
-    end
+  rescue
+    e -> {:error, e}
   end
 
   defp dummy_stream_response(%StreamResponse{context: context, model: model}) do
@@ -290,24 +216,6 @@ defmodule Cara.AI.Chat do
       metadata_task: Task.async(fn -> %{} end)
     }
   end
-
-  @spec consume_stream_to_text(Enumerable.t()) :: String.t()
-  defp consume_stream_to_text(stream) do
-    stream
-    |> Enum.reduce("", &accumulate_text_chunk/2)
-  end
-
-  @spec accumulate_text_chunk(stream_chunk(), String.t()) :: String.t()
-  defp accumulate_text_chunk(chunk, acc) do
-    if content_chunk?(chunk) do
-      acc <> chunk.text
-    else
-      acc
-    end
-  end
-
-  @spec content_chunk?(stream_chunk()) :: boolean()
-  defp content_chunk?(chunk), do: chunk.type == :content
 
   @doc """
   Executes a given tool with the provided arguments.

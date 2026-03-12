@@ -4,8 +4,8 @@ defmodule CaraWeb.ChatLiveCoverageTest do
   import Mox
 
   alias ReqLLM.Context
-  alias ReqLLM.StreamResponse
   alias ReqLLM.StreamChunk
+  alias ReqLLM.StreamResponse
 
   setup %{conn: conn} do
     conn = Plug.Test.init_test_session(conn, %{})
