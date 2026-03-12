@@ -16,23 +16,28 @@ defmodule Cara.AI.Tools.Calculator do
       ],
       callback: fn args ->
         start_time = :erlang.monotonic_time(:millisecond)
-        # Handle both atom keys (internal) and string keys (JSON)
-        expr = args[:expression] || args["expression"]
+
+        # Handle both atom keys (internal) and string keys (JSON) safely
+        expr =
+          case args do
+            m when is_map(m) -> Map.get(m, :expression) || Map.get(m, "expression")
+            l when is_list(l) -> Keyword.get(l, :expression)
+            _ -> nil
+          end
 
         result =
           if is_binary(expr) do
-            case Abacus.eval(expr) do
-              {:ok, val} ->
-                {:ok, val}
+            try do
+              case Abacus.eval(expr) do
+                {:ok, val} ->
+                  {:ok, val}
 
-              {:error, r} ->
-                message =
-                  case r do
-                    %_{__exception__: true} = e -> Exception.message(e)
-                    other -> inspect(other)
-                  end
-
-                {:error, "Invalid expression: #{message}"}
+                {:error, r} ->
+                  {:error, "Invalid expression: #{inspect(r)}"}
+              end
+            rescue
+              e ->
+                {:error, "Invalid expression: #{Exception.message(e)}"}
             end
           else
             {:error, "Missing 'expression' parameter"}
