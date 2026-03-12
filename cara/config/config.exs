@@ -15,7 +15,7 @@ config :cara,
 config :req_llm,
   openai_api_key: "ollama",
   openai: [
-    base_url: "http://host.containers.internal:11434/v1"
+    base_url: System.get_env("OLLAMA_URL", "http://host.containers.internal:11434/v1")
   ]
 
 config :cara, :ai_model, "openai:cara-cpu"
