@@ -134,6 +134,7 @@ jobs:
         context: ./cara
         push: ${{ github.event_name != 'pull_request' }}
         labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta.outputs.tags }}
         build-args: |
           MIX_ENV=prod
 
