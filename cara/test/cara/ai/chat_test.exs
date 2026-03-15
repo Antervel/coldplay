@@ -107,7 +107,7 @@ defmodule Cara.AI.ChatTest do
 
     test "sends a message and returns response with updated context", %{bypass: bypass} do
       # OpenRouter uses /chat/completions endpoint
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         response = %{
@@ -140,7 +140,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "includes user message in context", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         request = Jason.decode!(body)
 
@@ -180,7 +180,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "sends a message using the default model when no options are provided", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         response = %{
@@ -231,7 +231,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "returns a stream and context builder function", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         response = %{
@@ -267,7 +267,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "send_message_stream works with default options", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         response = %{
@@ -298,7 +298,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "context builder creates context with assistant message", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         response = %{
@@ -341,7 +341,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "stream yields text chunks in order", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         {:ok, conn} = send_chunk(conn, %{"choices" => [%{"index" => 0, "delta" => %{"content" => "First "}}]})
@@ -383,7 +383,7 @@ defmodule Cara.AI.ChatTest do
 
     test "handles tools provided but no tool calls made", %{bypass: bypass} do
       # First call to generate_text returns no tool calls
-      Bypass.expect(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect(bypass, "POST", "/v1/chat/completions", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         request = Jason.decode!(body)
 
@@ -468,7 +468,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "orchestrates a tool call correctly", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.put_resp_header(conn, "content-type", "text/event-stream")
         conn = Plug.Conn.send_chunked(conn, 200)
 
@@ -509,7 +509,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "returns empty tool calls when LLM just talks", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
         {:ok, conn} = send_chunk(conn, %{"choices" => [%{"delta" => %{"content" => "I am talking"}}]})
         {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
@@ -532,7 +532,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "handles empty stream in handle_stream_for_tools", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
         {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
         conn
@@ -562,7 +562,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "orchestrates tool call and dummy stream response", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
         tc = %{
@@ -630,7 +630,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "send_message handles empty text response", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "POST", "/chat/completions", fn conn ->
+      Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
         {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
         conn
@@ -716,6 +716,42 @@ defmodule Cara.AI.ChatTest do
   describe "default_model/0" do
     test "returns the default model string" do
       assert Chat.default_model() =~ "openai:"
+    end
+  end
+
+  describe "health_check/0" do
+    setup do
+      bypass = Bypass.open()
+
+      # Configure ReqLLM to use bypass URL - the root URL for health check
+      Application.put_env(:req_llm, :openai,
+        base_url: "http://localhost:#{bypass.port}/v1",
+        api_key: "test-key"
+      )
+
+      {:ok, bypass: bypass}
+    end
+
+    test "returns :ok when service is available", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/api/tags", fn conn ->
+        Plug.Conn.resp(conn, 200, "{\"object\":\"list\",\"data\":[]}")
+      end)
+
+      assert Chat.health_check() == :ok
+    end
+
+    test "returns {:error, :unavailable} when service returns error", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/api/tags", fn conn ->
+        Plug.Conn.resp(conn, 500, "error")
+      end)
+
+      assert Chat.health_check() == {:error, :unavailable}
+    end
+
+    test "returns {:error, :unavailable} when service is unreachable", %{bypass: bypass} do
+      Bypass.down(bypass)
+      # We use a very short timeout in health_check so this should fail fast
+      assert Chat.health_check() == {:error, :unavailable}
     end
   end
 end

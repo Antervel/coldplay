@@ -18,6 +18,7 @@ defmodule CaraWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/sleeping", PageController, :sleeping
     get "/student", StudentController, :index
     post "/student", StudentController, :create
     live "/chat", ChatLive, :index
