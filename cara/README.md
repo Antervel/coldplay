@@ -55,16 +55,22 @@ To get Cara up and running on your local machine, follow these steps.
     mix ecto.setup
     ```
 
-5.  **Set up your AI provider:**
-    Cara uses the `req_llm` library for AI chat. By default, it's configured to use OpenRouter. To make it work, you need to set the `OPENROUTER_API_KEY` environment variable.
+5.  **Set up your AI provider (Ollama):**
+    Cara uses Ollama for the AI chat. To get it running:
 
-    You can get a free key from the [OpenRouter.ai website](https://openrouter.ai/).
+    a. **Install Ollama:** Follow the instructions on [ollama.com](https://ollama.com/).
+    b. **Create the model:**
+       From the `cara/` directory, run:
+       ```bash
+       ollama create cara-cpu -f Modelfile
+       ```
+    c. **Configure the URL (Optional):**
+       By default, Cara expects Ollama at `http://host.containers.internal:11434/v1` (useful for Docker). For local development, you might need to set:
+       ```bash
+       export OLLAMA_URL="http://localhost:11434/v1"
+       ```
 
-    ```bash
-    export OPENROUTER_API_KEY="your-key-here"
-    ```
-
-    Alternatively, you can configure a different provider (like OpenAI or a local model) by updating the configuration in `config/config.exs`.
+    Alternatively, you can configure a different provider by updating the configuration in `config/config.exs`.
 
 6.  **Run the development server:**
     ```bash

@@ -22,7 +22,7 @@ FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends build-essential git \
+  && apt-get install -y --no-install-recommends build-essential git nodejs npm \
   && rm -rf /var/lib/apt/lists/*
 
 # prepare build dir
@@ -57,7 +57,7 @@ RUN mix compile
 
 COPY assets assets
 
-# compile assets
+RUN cd assets && npm ci && cd ..
 RUN mix assets.deploy
 
 # Changes to config/runtime.exs don't require recompiling the code
