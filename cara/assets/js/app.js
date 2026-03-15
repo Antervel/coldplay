@@ -24,9 +24,28 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/cara"
 import topbar from "../vendor/topbar"
+import mermaid from 'mermaid'
+
+// Run mermaid when the LLM ends its answer (and sends `phx:llm_end` event)
+mermaid.initialize({
+  startOnLoad: false,
+  securityLevel: 'loose',
+})
+window.mermaid = mermaid;
+mermaid.run();
+window.addEventListener("phx:llm_end", () => mermaid.run());
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
 let Hooks = {}
+Hooks.MermaidHook = {
+  mounted() {
+    mermaid.run({
+      querySelector: '.mermaid'
+    });
+  }
+}
+
 Hooks.ChatScroll = {
   mounted() {
     this.isAtBottom = true // Assume at bottom initially

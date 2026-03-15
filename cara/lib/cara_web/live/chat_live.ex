@@ -92,12 +92,16 @@ defmodule CaraWeb.ChatLive do
     {:noreply, assign(socket, chat_messages: updated_messages, tool_status: nil)}
   end
 
-  # Handle end of LLM stream
+  # Handle end of LLM stream. Send the `llm_end` event to javascript so Mermaid runs
   @impl true
   def handle_info({:llm_end, llm_context_builder}, socket) when is_function(llm_context_builder, 1) do
     final_content = get_last_assistant_message_content(socket.assigns.chat_messages)
     updated_llm_context = llm_context_builder.(final_content)
-    {:noreply, assign(socket, llm_context: updated_llm_context, tool_status: nil)}
+
+    {:noreply,
+     socket
+     |> assign(llm_context: updated_llm_context, tool_status: nil)
+     |> push_event("llm_end", %{})}
   end
 
   @impl true
@@ -401,6 +405,13 @@ defmodule CaraWeb.ChatLive do
   def render_markdown(content) do
     MDEx.new(markdown: content)
     |> MDExGFM.attach()
+    |> MDExMermaid.attach(
+      # already initialized in app.js
+      mermaid_init: "",
+      mermaid_pre_attrs: fn seq ->
+        ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidHook" phx-update="ignore")
+      end
+    )
     |> MDEx.to_html!(sanitize: MDEx.Document.default_sanitize_options())
     |> Phoenix.HTML.raw()
   end

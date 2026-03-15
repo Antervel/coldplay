@@ -7,7 +7,11 @@ defmodule CaraWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {CaraWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers, %{"content-security-policy" => "default-src 'self'; img-src 'self' data:;"}
+
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:;"
+    }
   end
 
   #  pipeline :api do
