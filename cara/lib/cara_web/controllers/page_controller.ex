@@ -4,4 +4,8 @@ defmodule CaraWeb.PageController do
   def home(conn, _params) do
     render(conn, :home)
   end
+
+  def sleeping(conn, _params) do
+    render(conn, :sleeping)
+  end
 end

@@ -9,6 +9,7 @@ defmodule Cara.AI.Chat do
   require Logger
 
   alias Cara.AI.LLM.StreamParser
+  alias Req
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
@@ -30,6 +31,7 @@ defmodule Cara.AI.Chat do
 
     * `:model` - The model to use (defaults to the model specified in the application config).
   """
+  @impl true
   @spec send_message(String.t(), Context.t(), keyword()) ::
           {:ok, String.t(), Context.t()} | {:error, term()}
   def send_message(message, context, opts \\ []) do
@@ -67,6 +69,7 @@ defmodule Cara.AI.Chat do
     * `:model` - The model to use (defaults to the model specified in the application config).
     * `:tools` - A list of `ReqLLM.Tool` structs to provide to the LLM.
   """
+  @impl true
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
           {:ok, ReqLLM.StreamResponse.t(), (String.t() -> Context.t()), list()} | {:error, term()}
   def send_message_stream(message, context, opts \\ []) do
@@ -97,6 +100,7 @@ defmodule Cara.AI.Chat do
       iex> context = Cara.AI.Chat.new_context()
       iex> context = Cara.AI.Chat.new_context("You are a helpful coding assistant")
   """
+  @impl true
   @spec new_context(String.t()) :: Context.t()
   def new_context(system_prompt) do
     Context.new([system(system_prompt)])
@@ -164,8 +168,10 @@ defmodule Cara.AI.Chat do
     Logger.info("LLM call_llm starting with context: #{inspect(context)}")
     start_time = :erlang.monotonic_time(:millisecond)
 
+    %{model_endpoint: model_endpoint} = endpoints()
+
     result =
-      case ReqLLM.stream_text(model, context.messages, tools: tools) do
+      case ReqLLM.stream_text(model, context.messages, tools: tools, base_url: model_endpoint) do
         {:ok, stream_response} ->
           if Enum.empty?(tools) do
             {:ok, stream_response, []}
@@ -220,8 +226,50 @@ defmodule Cara.AI.Chat do
   @doc """
   Executes a given tool with the provided arguments.
   """
+  @impl true
   @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
   def execute_tool(tool, args) do
     ReqLLM.Tool.execute(tool, args)
+  end
+
+  @doc """
+  Checks if the configured LLM provider is available.
+  """
+  @impl true
+  def health_check do
+    %{health_endpoint: health_endpoint} = endpoints()
+
+    Logger.info("Checking AI health at: #{health_endpoint}")
+
+    case Req.get(health_endpoint, connect_options: [timeout: 1000], retry: false) do
+      {:ok, %{status: 200}} ->
+        Logger.info("AI health check successful")
+        :ok
+
+      {:ok, %{status: status}} ->
+        Logger.info("AI health check failed with status: #{status}")
+        {:error, :unavailable}
+
+      {:error, reason} ->
+        Logger.info("AI health check failed with error: #{inspect(reason)}")
+        {:error, :unavailable}
+    end
+  end
+
+  defp endpoints do
+    config_url =
+      :req_llm
+      |> Application.get_env(:openai, [])
+      |> Keyword.get(:base_url)
+
+    uri = URI.parse(config_url)
+    port_str = if uri.port, do: ":#{uri.port}", else: ""
+    base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
+
+    %{
+      base_url: base_url,
+      model_endpoint: base_url <> "/v1",
+      health_endpoint: base_url <> "/api/tags"
+    }
   end
 end

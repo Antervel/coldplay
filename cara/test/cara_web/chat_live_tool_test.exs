@@ -8,6 +8,9 @@ defmodule CaraWeb.ChatLiveToolTest do
   alias ReqLLM.StreamResponse
 
   setup %{conn: conn} do
+    # Stub health check
+    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+
     # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
     # Fetch the session

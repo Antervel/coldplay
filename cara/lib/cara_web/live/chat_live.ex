@@ -40,28 +40,32 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def mount(_params, session, socket) do
-    case Map.get(session, "student_info") do
-      %{name: _name, subject: _subject, age: _age} = info ->
-        system_prompt = render_greeting_prompt(info)
-        llm_tools = Tools.load_tools()
+    if chat_module().health_check() == :ok do
+      case Map.get(session, "student_info") do
+        %{name: _name, subject: _subject, age: _age} = info ->
+          system_prompt = render_greeting_prompt(info)
+          llm_tools = Tools.load_tools()
 
-        {:ok,
-         assign(socket,
-           chat_messages: [welcome_message_for_student(info)],
-           llm_context: chat_module().new_context(system_prompt),
-           message_data: %{"message" => ""},
-           app_version: app_version(),
-           student_info: info,
-           llm_tools: llm_tools,
-           tool_status: nil,
-           tool_usage_counts:
-             Enum.reduce(llm_tools, %{}, fn tool, acc ->
-               Map.put(acc, tool.name, 0)
-             end)
-         )}
+          {:ok,
+           assign(socket,
+             chat_messages: [welcome_message_for_student(info)],
+             llm_context: chat_module().new_context(system_prompt),
+             message_data: %{"message" => ""},
+             app_version: app_version(),
+             student_info: info,
+             llm_tools: llm_tools,
+             tool_status: nil,
+             tool_usage_counts:
+               Enum.reduce(llm_tools, %{}, fn tool, acc ->
+                 Map.put(acc, tool.name, 0)
+               end)
+           )}
 
-      _incomplete ->
-        {:ok, redirect(socket, to: "/student")}
+        _incomplete ->
+          {:ok, redirect(socket, to: "/student")}
+      end
+    else
+      {:ok, redirect(socket, to: "/sleeping")}
     end
   end
 

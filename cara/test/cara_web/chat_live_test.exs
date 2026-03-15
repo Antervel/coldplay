@@ -6,6 +6,9 @@ defmodule CaraWeb.ChatLiveTest do
   alias ReqLLM.StreamResponse
 
   setup %{conn: conn} do
+    # Stub health check by default
+    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+
     # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
     # Fetch the session
@@ -40,6 +43,12 @@ defmodule CaraWeb.ChatLiveTest do
       conn = put_session(original_conn, :student_info, %{invalid: "data"})
       {:error, {:redirect, %{to: path}}} = live(conn, ~p"/chat")
       assert path == "/student"
+    end
+
+    test "redirects to sleeping page when AI is unavailable", %{conn: conn} do
+      stub(Cara.AI.ChatMock, :health_check, fn -> {:error, :unavailable} end)
+      {:error, {:redirect, %{to: path}}} = live(conn, ~p"/chat")
+      assert path == "/sleeping"
     end
 
     test "user can send a message and receive a streamed response", %{conn: conn} do

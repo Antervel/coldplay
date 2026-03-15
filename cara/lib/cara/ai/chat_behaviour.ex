@@ -11,4 +11,5 @@ defmodule Cara.AI.ChatBehaviour do
   @callback send_message(String.t(), Context.t(), keyword()) ::
               {:ok, String.t(), Context.t()} | {:error, term()}
   @callback execute_tool(Tool.t(), map()) :: {:ok, term()} | {:error, term()}
+  @callback health_check() :: :ok | {:error, term()}
 end
