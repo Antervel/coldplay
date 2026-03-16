@@ -19,6 +19,7 @@ defmodule Cara.AI.CLI do
   """
 
   alias Cara.AI.Chat
+  alias Cara.AI.LLM.StreamParser
   alias ReqLLM.Context
 
   @doc """
@@ -108,7 +109,7 @@ defmodule Cara.AI.CLI do
           IO.write(chunk.text)
         end
 
-        Cara.AI.LLM.StreamParser.accumulate_text(chunk, acc)
+        StreamParser.accumulate_text(chunk, acc)
       end)
 
     if !should_stream?, do: IO.write(final_text)
