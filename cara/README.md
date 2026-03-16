@@ -18,7 +18,7 @@ Cara is built on a modern Elixir stack:
 - **Backend:** Elixir, Phoenix
 - **Real-time UI:** Phoenix LiveView
 - **Database:** PostgreSQL (via Ecto)
-- **AI Integration:** `req_llm` library, configurable to use various LLM providers (defaults to OpenRouter with Mistral).
+- **AI Integration:** `req_llm` library, configurable to use various LLM providers (defaults to local Ollama).
 - **Frontend:** Tailwind CSS and esbuild for asset management.
 - **Testing:** A robust test suite using ExUnit, with mocking provided by the Mox library.
 

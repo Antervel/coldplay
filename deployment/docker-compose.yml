@@ -43,18 +43,12 @@ services:
       MIX_ENV: prod
       PHX_SERVER: true
       RELEASE_COOKIE: ${RELEASE_COOKIE}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.containers.internal:11434/v1}
     depends_on:
       db:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    restart: unless-stopped
-
-  # MCP servers typically don't expose ports - they use stdio
-  wikipedia-mcp:
-    image: mcp/server/wikipedia-mcp:latest
-    container_name: wikipedia-mcp
     restart: unless-stopped
 
 volumes:

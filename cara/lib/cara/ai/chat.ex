@@ -140,7 +140,7 @@ defmodule Cara.AI.Chat do
   """
   @spec default_model() :: String.t()
   def default_model do
-    Application.get_env(:cara, :ai_model, "openrouter:mistralai/mistral-7b-instruct-v0.2")
+    Application.get_env(:cara, :ai_model, "openai:cara-cpu")
   end
 
   ## Private Functions

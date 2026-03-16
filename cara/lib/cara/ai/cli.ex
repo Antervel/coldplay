@@ -3,8 +3,8 @@ defmodule Cara.AI.CLI do
   Interactive command-line interface for chatting with AI models.
 
   Setup:
-  1. Get an OpenRouter API key from https://openrouter.ai/keys
-  2. Set environment variable: `export OPENROUTER_API_KEY=your_key_here`
+  1. Ensure Ollama is running (http://localhost:11434)
+  2. Pull the model: `ollama pull cara-cpu`
   3. Start chatting: `Cara.AI.CLI.start()`
 
   Usage from iex:
@@ -26,14 +26,14 @@ defmodule Cara.AI.CLI do
 
   ## Options
 
-    * `:model` - The model to use (default: mistral-7b-instruct)
+    * `:model` - The model to use (default: cara-cpu)
     * `:system_prompt` - Custom system prompt (default: built-in)
     * `:stream` - Whether to stream responses (default: true)
 
   ## Examples
 
       iex> Cara.AI.CLI.start()
-      iex> Cara.AI.CLI.start(model: "openrouter:gpt-4")
+      iex> Cara.AI.CLI.start(model: "openai:cara-cpu")
       iex> Cara.AI.CLI.start(stream: false)
   """
   @spec start(keyword()) :: :ok | {:error, :missing_api_key}
@@ -89,22 +89,26 @@ defmodule Cara.AI.CLI do
   @spec handle_user_message(String.t(), Context.t(), map()) :: :ok | no_return()
   defp handle_user_message(message, context, config) do
     # Use the public send_message_stream function
-    {:ok, stream, context_builder, _tool_calls} = Chat.send_message_stream(message, context, model: config.model)
+    {:ok, stream_response, context_builder, _tool_calls} =
+      Chat.send_message_stream(message, context, model: config.model)
 
     IO.write("Assistant: ")
-    final_text = consume_and_display_stream(stream, config.stream)
+    final_text = consume_and_display_stream(stream_response, config.stream)
     IO.write("\n\n")
 
     new_context = context_builder.(final_text)
     chat_loop(new_context, config)
   end
 
-  @spec consume_and_display_stream(Enumerable.t(), boolean()) :: String.t()
-  defp consume_and_display_stream(stream, should_stream?) do
+  @spec consume_and_display_stream(ReqLLM.StreamResponse.t(), boolean()) :: String.t()
+  defp consume_and_display_stream(%ReqLLM.StreamResponse{stream: stream}, should_stream?) do
     final_text =
       Enum.reduce(stream, "", fn chunk, acc ->
-        if should_stream?, do: IO.write(chunk)
-        acc <> chunk
+        if should_stream? and chunk.type == :content do
+          IO.write(chunk.text)
+        end
+
+        Cara.AI.LLM.StreamParser.accumulate_text(chunk, acc)
       end)
 
     if !should_stream?, do: IO.write(final_text)

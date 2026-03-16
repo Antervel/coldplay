@@ -106,7 +106,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "sends a message and returns response with updated context", %{bypass: bypass} do
-      # OpenRouter uses /chat/completions endpoint
+      # Ollama (OpenAI compatible) uses /v1/chat/completions endpoint
       Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
         conn = Plug.Conn.send_chunked(conn, 200)
 
@@ -607,7 +607,7 @@ defmodule Cara.AI.ChatTest do
       Application.delete_env(:cara, :ai_model)
 
       try do
-        assert Chat.default_model() == "openrouter:mistralai/mistral-7b-instruct-v0.2"
+        assert Chat.default_model() == "openai:cara-cpu"
       after
         if old, do: Application.put_env(:cara, :ai_model, old)
       end

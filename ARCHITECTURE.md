@@ -27,7 +27,7 @@ graph TB
     end
     
     subgraph "External API"
-        OR[OpenRouter<br/>AI Model Provider]
+        OL[Ollama<br/>Local AI Model]
     end
     
     subgraph "Database"
@@ -40,7 +40,7 @@ graph TB
     WEB --> CHAT
     CHAT --> FILTER
     
-    FILTER <-->|API Request/Response| OR
+    FILTER <-->|API Request/Response| OL
     
     FILTER --> BL
     BL --> CA
@@ -55,7 +55,7 @@ graph TB
     style FILTER fill:#d4edda,color:#000
     style BL fill:#ffe1e1,color:#000
     style CA fill:#ffe1e1,color:#000
-    style OR fill:#f0e1ff,color:#000
+    style OL fill:#f0e1ff,color:#000
     style DB fill:#cce5ff,color:#000
 ```
 
@@ -99,9 +99,9 @@ The core application is built using Phoenix Framework running on the Elixir/BEAM
 - Coordinates message flow between clients, AI, and filters
 - Handles role-based access (pupil vs teacher permissions)
 
-##### Filter Module
+##### Filter Module - TODO
 - Orchestrates the content filtering pipeline
-- Sends pupil questions to OpenRouter AI
+- Sends pupil questions to Ollama AI
 - Routes AI responses through filtering services
 - Returns filtered responses to pupils or blocks inappropriate content
 
@@ -121,7 +121,7 @@ The core application is built using Phoenix Framework running on the Elixir/BEAM
 
 ### External Services
 
-#### OpenRouter
+#### Ollama
 - **Purpose**: AI model provider for educational question answering
 - **Protocol**: REST API over HTTPS
 - **Models**: Configurable (To be decided)
@@ -149,9 +149,9 @@ The core application is built using Phoenix Framework running on the Elixir/BEAM
 
 3. **Session Management**: Chat Controller identifies the session and verifies permissions
 
-4. **AI Request**: Filter Module forwards the question to OpenRouter API
+4. **AI Request**: Filter Module forwards the question to Ollama API
 
-5. **AI Response**: OpenRouter returns an AI-generated answer
+5. **AI Response**: Ollama returns an AI-generated answer
 
 6. **Content Filtering**:
    - **Stage 1**: Blacklist Service scans for forbidden words
@@ -182,7 +182,6 @@ Teachers maintain persistent WebSocket connections to receive:
 ### Network Security
 - **HTTPS/WSS**: All client-server communication is encrypted
 - **Authentication**: Role-based access control for pupils and teachers
-- **API Keys**: Secure storage of OpenRouter credentials (environment variables)
 
 ### Privacy
 - **Data minimization**: Only necessary information is collected
@@ -211,7 +210,7 @@ Teachers maintain persistent WebSocket connections to receive:
 
 ### Configuration
 Environment variables control:
-- `OPENROUTER_API_KEY`: API credentials
+- `OLLAMA_URL`: Location of Ollama server
 - `DATABASE_URL`: Database connection string
 - `SECRET_KEY_BASE`: Phoenix session encryption
 - `CENSOR_AI_ENDPOINT`: Content filtering service URL
