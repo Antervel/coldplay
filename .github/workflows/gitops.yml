@@ -1,0 +1,52 @@
+name: Update GitOps Manifest
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    steps:
+      - name: Checkout GitOps Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Antervel/gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops-repo
+
+      - name: Update Kubernetes Manifest
+        run: |
+          cd gitops-repo/k8s-manifests/coldplay
+          
+          # Extract the short SHA from the commit that triggered the build
+          SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
+          NEW_IMAGE="ghcr.io/antervel/coldplay:sha-${SHORT_SHA}"
+          
+          echo "Updating deployment.yaml with image: $NEW_IMAGE"
+          
+          # Update the image tag in deployment.yaml
+          sed -i "s|image: ghcr.io/antervel/coldplay:.*|image: $NEW_IMAGE|g" deployment.yaml
+          
+          # Verify change
+          grep "image:" deployment.yaml
+
+      - name: Commit and Push Changes
+        run: |
+          cd gitops-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes to commit
+          if [[ -n $(git status --porcelain) ]]; then
+            git add k8s-manifests/coldplay/deployment.yaml
+            git commit -m "Update coldplay image to sha-$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)"
+            git push origin main
+          else
+            echo "No changes to commit."
+          fi
