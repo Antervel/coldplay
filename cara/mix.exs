@@ -78,7 +78,9 @@ defmodule Cara.MixProject do
       {:opentelemetry_phoenix, "~> 1.2"},
       {:opentelemetry_ecto, "~> 1.2"},
       {:opentelemetry_req, "~> 0.2"},
-      {:telemetry_metrics_prometheus, "~> 1.1"}
+      {:opentelemetry_logger_metadata, "~> 0.2"},
+      {:opentelemetry_api_experimental, "~> 0.5"},
+      {:opentelemetry_experimental, "~> 0.5"}
     ]
   end
 

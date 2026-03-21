@@ -11,7 +11,6 @@ defmodule Cara.Application do
     OpentelemetryEcto.setup([:cara, :repo])
 
     children = [
-      {TelemetryMetricsPrometheus, metrics: CaraWeb.Telemetry.metrics()},
       CaraWeb.Telemetry,
       Cara.Repo,
       {DNSCluster, query: Application.get_env(:cara, :dns_cluster_query) || :ignore},
