@@ -7,7 +7,11 @@ defmodule Cara.Application do
 
   @impl true
   def start(_type, _args) do
+    OpentelemetryPhoenix.setup()
+    OpentelemetryEcto.setup([:cara, :repo])
+
     children = [
+      {TelemetryMetricsPrometheus, metrics: CaraWeb.Telemetry.metrics()},
       CaraWeb.Telemetry,
       Cara.Repo,
       {DNSCluster, query: Application.get_env(:cara, :dns_cluster_query) || :ignore},

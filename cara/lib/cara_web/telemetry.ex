@@ -22,63 +22,76 @@ defmodule CaraWeb.Telemetry do
   def metrics do
     [
       # Phoenix Metrics
-      summary("phoenix.endpoint.start.system_time",
-        unit: {:native, :millisecond}
+      distribution("phoenix.endpoint.start.system_time",
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("phoenix.endpoint.stop.duration",
-        unit: {:native, :millisecond}
+      distribution("phoenix.endpoint.stop.duration",
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("phoenix.router_dispatch.start.system_time",
+      distribution("phoenix.router_dispatch.start.system_time",
         tags: [:route],
-        unit: {:native, :millisecond}
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("phoenix.router_dispatch.exception.duration",
+      distribution("phoenix.router_dispatch.exception.duration",
         tags: [:route],
-        unit: {:native, :millisecond}
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("phoenix.router_dispatch.stop.duration",
+      distribution("phoenix.router_dispatch.stop.duration",
         tags: [:route],
-        unit: {:native, :millisecond}
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("phoenix.socket_connected.duration",
-        unit: {:native, :millisecond}
+      distribution("phoenix.socket_connected.duration",
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
       sum("phoenix.socket_drain.count"),
-      summary("phoenix.channel_joined.duration",
-        unit: {:native, :millisecond}
+      distribution("phoenix.channel_joined.duration",
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("phoenix.channel_handled_in.duration",
+      distribution("phoenix.channel_handled_in.duration",
         tags: [:event],
-        unit: {:native, :millisecond}
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
 
       # Database Metrics
-      summary("cara.repo.query.total_time",
+      distribution("cara.repo.query.total_time",
         unit: {:native, :millisecond},
-        description: "The sum of the other measurements"
+        description: "The sum of the other measurements",
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("cara.repo.query.decode_time",
+      distribution("cara.repo.query.decode_time",
         unit: {:native, :millisecond},
-        description: "The time spent decoding the data received from the database"
+        description: "The time spent decoding the data received from the database",
+        reporter_options: [buckets: [1, 5, 10, 50, 100]]
       ),
-      summary("cara.repo.query.query_time",
+      distribution("cara.repo.query.query_time",
         unit: {:native, :millisecond},
-        description: "The time spent executing the query"
+        description: "The time spent executing the query",
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
-      summary("cara.repo.query.queue_time",
+      distribution("cara.repo.query.queue_time",
         unit: {:native, :millisecond},
-        description: "The time spent waiting for a database connection"
+        description: "The time spent waiting for a database connection",
+        reporter_options: [buckets: [0.1, 0.5, 1, 5, 10]]
       ),
-      summary("cara.repo.query.idle_time",
+      distribution("cara.repo.query.idle_time",
         unit: {:native, :millisecond},
-        description: "The time the connection spent waiting before being checked out for the query"
+        description: "The time the connection spent waiting before being checked out for the query",
+        reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
 
       # VM Metrics
-      summary("vm.memory.total", unit: {:byte, :kilobyte}),
-      summary("vm.total_run_queue_lengths.total"),
-      summary("vm.total_run_queue_lengths.cpu"),
-      summary("vm.total_run_queue_lengths.io")
+      last_value("vm.memory.total", unit: {:byte, :kilobyte}),
+      last_value("vm.total_run_queue_lengths.total"),
+      last_value("vm.total_run_queue_lengths.cpu"),
+      last_value("vm.total_run_queue_lengths.io")
     ]
   end
 
