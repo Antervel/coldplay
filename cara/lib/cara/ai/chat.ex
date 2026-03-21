@@ -165,27 +165,31 @@ defmodule Cara.AI.Chat do
   @spec call_llm(String.t(), Context.t(), list()) ::
           {:ok, StreamResponse.t(), list()} | {:error, term()}
   defp call_llm(model, context, tools) do
-    Logger.info("LLM call_llm starting with context: #{inspect(context)}")
-    start_time = :erlang.monotonic_time(:millisecond)
+    require OpenTelemetry.Tracer
 
-    %{model_endpoint: model_endpoint} = endpoints()
+    OpenTelemetry.Tracer.with_span "llm_call", %{attributes: %{model: model}} do
+      Logger.info("LLM call_llm starting with context: #{inspect(context)}")
+      start_time = :erlang.monotonic_time(:millisecond)
 
-    result =
-      case ReqLLM.stream_text(model, context.messages, tools: tools, base_url: model_endpoint) do
-        {:ok, stream_response} ->
-          if Enum.empty?(tools) do
-            {:ok, stream_response, []}
-          else
-            handle_stream_for_tools(stream_response)
-          end
+      %{model_endpoint: model_endpoint} = endpoints()
 
-        {:error, reason} ->
-          {:error, reason}
-      end
+      result =
+        case ReqLLM.stream_text(model, context.messages, tools: tools, base_url: model_endpoint) do
+          {:ok, stream_response} ->
+            if Enum.empty?(tools) do
+              {:ok, stream_response, []}
+            else
+              handle_stream_for_tools(stream_response)
+            end
 
-    end_time = :erlang.monotonic_time(:millisecond)
-    Logger.info("LLM call_llm(model: #{model}, tools: #{length(tools)}) took #{end_time - start_time}ms")
-    result
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      end_time = :erlang.monotonic_time(:millisecond)
+      Logger.info("LLM call_llm(model: #{model}, tools: #{length(tools)}) took #{end_time - start_time}ms")
+      result
+    end
   end
 
   # Peeks at the stream to see if the LLM is calling a tool or just talking.
@@ -241,7 +245,12 @@ defmodule Cara.AI.Chat do
 
     Logger.info("Checking AI health at: #{health_endpoint}")
 
-    case Req.get(health_endpoint, connect_options: [timeout: 1000], retry: false) do
+    case Req.new(
+           connect_options: [timeout: 1000],
+           retry: false
+         )
+         |> OpentelemetryReq.attach(no_path_params: true)
+         |> Req.get(url: health_endpoint) do
       {:ok, %{status: 200}} ->
         Logger.info("AI health check successful")
         :ok

@@ -7,6 +7,10 @@ defmodule Cara.Application do
 
   @impl true
   def start(_type, _args) do
+    :opentelemetry_logger_metadata.setup()
+    OpentelemetryPhoenix.setup()
+    OpentelemetryEcto.setup([:cara, :repo])
+
     children = [
       CaraWeb.Telemetry,
       Cara.Repo,

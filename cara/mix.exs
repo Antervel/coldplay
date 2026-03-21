@@ -72,7 +72,15 @@ defmodule Cara.MixProject do
       {:mdex_katex, "~> 0.1"},
       {:bypass, "~> 2.1", only: :test},
       {:retry, "~> 0.18"},
-      {:abacus, "~> 0.3.0"}
+      {:abacus, "~> 0.3.0"},
+      {:opentelemetry, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.8"},
+      {:opentelemetry_phoenix, "~> 1.2"},
+      {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_req, "~> 0.2"},
+      {:opentelemetry_logger_metadata, "~> 0.2"},
+      {:opentelemetry_api_experimental, "~> 0.5"},
+      {:opentelemetry_experimental, "~> 0.5"}
     ]
   end
 

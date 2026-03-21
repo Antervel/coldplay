@@ -66,10 +66,37 @@ config :tailwind,
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [:request_id, :trace_id, :span_id]
+
+# Configure OpenTelemetry
+config :opentelemetry, :resource, service: [name: "cara"]
+
+config :opentelemetry, :processors,
+  otel_batch_processor: %{
+    exporter: {:opentelemetry_exporter, %{protocol: :grpc}}
+  }
+
+config :opentelemetry_experimental, :metrics_processors,
+  otel_metric_reader: %{
+    exporter: {:opentelemetry_exporter, %{protocol: :grpc}}
+  }
+
+# Configure Logger OTel Handler
+config :logger,
+  handlers: [
+    otel_log_handler: %{
+      id: :otel_log_handler,
+      module: :otel_log_handler,
+      config: %{
+        exporter: {:opentelemetry_exporter, %{protocol: :grpc}}
+      }
+    }
+  ]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+
+config :opentelemetry_logger_metadata, metadata_keys: [:trace_id, :span_id]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
