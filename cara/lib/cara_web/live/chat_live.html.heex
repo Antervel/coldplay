@@ -1,10 +1,15 @@
 <div class="flex flex-col h-screen bg-white">
   <header class="bg-blue-600 p-4 shadow-md text-white">
     <div class="w-full flex items-center justify-between">
-      <h1 class="flex items-baseline gap-2" style="font-size: 22px; line-height: 100%; letter-spacing: 0%;">
-        <span style="font-family: 'Permanent Marker', cursive; font-weight: 400;">Cara</span>
-        <span class="text-sm font-sans opacity-80">v.{@app_version}</span>
-      </h1>
+      <div class="flex items-center gap-4">
+        <button type="button" class="text-white hover:text-gray-200 focus:outline-none">
+          <span class="hero-bars-3 block w-6 h-6"></span>
+        </button>
+        <h1 class="flex items-baseline gap-2" style="font-size: 22px; line-height: 100%; letter-spacing: 0%;">
+          <span style="font-family: 'Permanent Marker', cursive; font-weight: 400;">Cara</span>
+          <span class="text-sm font-sans opacity-80">v.{@app_version}</span>
+        </h1>
+      </div>
       <a 
         href="/student" 
         phx-navigate 
