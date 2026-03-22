@@ -9,7 +9,8 @@ import Config
 
 config :cara,
   ecto_repos: [Cara.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  ui: %{bubble_width: "90%"}
 
 # Configure the default AI model
 config :req_llm,

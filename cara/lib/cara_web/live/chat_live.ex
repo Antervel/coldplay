@@ -46,6 +46,9 @@ defmodule CaraWeb.ChatLive do
           system_prompt = render_greeting_prompt(info)
           llm_tools = Tools.load_tools()
 
+          ui_config = Application.get_env(:cara, :ui, %{})
+          bubble_width = Map.get(ui_config, :bubble_width, "40%")
+
           {:ok,
            assign(socket,
              chat_messages: [welcome_message_for_student(info)],
@@ -55,6 +58,7 @@ defmodule CaraWeb.ChatLive do
              student_info: info,
              llm_tools: llm_tools,
              tool_status: nil,
+             bubble_width: bubble_width,
              tool_usage_counts:
                Enum.reduce(llm_tools, %{}, fn tool, acc ->
                  Map.put(acc, tool.name, 0)
