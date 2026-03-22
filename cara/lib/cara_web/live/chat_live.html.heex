@@ -1,8 +1,16 @@
 <div class="flex flex-col h-screen bg-white">
   <header class="bg-blue-600 p-4 shadow-md text-white">
     <div class="container mx-auto flex items-center justify-between">
-      <h1 class="text-2xl font-semibold">AI Chat v.{@app_version}</h1>
-      <a href="/student" phx-navigate class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+      <h1 class="flex items-baseline gap-2" style="font-size: 22px; line-height: 100%; letter-spacing: 0%;">
+        <span style="font-family: 'Permanent Marker', cursive; font-weight: 400;">Cara</span>
+        <span class="text-sm font-sans opacity-80">v.{@app_version}</span>
+      </h1>
+      <a 
+        href="/student" 
+        phx-navigate 
+        class="bg-red-500 hover:bg-red-700 text-white font-bold flex items-center justify-center"
+        style="width: 128px; height: 41px; border-radius: 10px; padding: 12px 32px; gap: 10px; transform: rotate(0deg); opacity: 1;"
+      >
         Goodbye!
       </a>
     </div>
