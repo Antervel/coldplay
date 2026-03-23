@@ -62,7 +62,10 @@ defmodule CaraWeb.ChatLive do
              tool_usage_counts:
                Enum.reduce(llm_tools, %{}, fn tool, acc ->
                  Map.put(acc, tool.name, 0)
-               end)
+               end),
+             active_task: nil,
+             pending_messages: [],
+             current_user_message: nil
            )}
 
         _incomplete ->
@@ -89,6 +92,47 @@ defmodule CaraWeb.ChatLive do
     {:noreply, assign(socket, message_data: updated_message_data)}
   end
 
+  @impl true
+  def handle_event("cancel", _params, socket) do
+    if pid = socket.assigns.active_task do
+      Process.exit(pid, :kill)
+    end
+
+    {updated_llm_context, updated_chat_messages} =
+      if user_msg = socket.assigns.current_user_message do
+        # We need to gracefully handle the case where there might be no assistant message yet
+        # (e.g. if cancelled immediately during "Thinking...")
+        {partial_content, updated_messages} =
+          case List.last(socket.assigns.chat_messages) do
+            %{sender: :assistant, content: content} ->
+              {content, socket.assigns.chat_messages}
+
+            _ ->
+              cancelled_msg = %{sender: :assistant, content: "*Cancelled*"}
+              {"*Cancelled*", socket.assigns.chat_messages ++ [cancelled_msg]}
+          end
+
+        new_ctx =
+          socket.assigns.llm_context
+          |> ReqLLM.Context.append(ReqLLM.Context.user(user_msg))
+          |> ReqLLM.Context.append(ReqLLM.Context.assistant(partial_content))
+
+        {new_ctx, updated_messages}
+      else
+        {socket.assigns.llm_context, socket.assigns.chat_messages}
+      end
+
+    {:noreply,
+     assign(socket,
+       active_task: nil,
+       pending_messages: [],
+       tool_status: nil,
+       current_user_message: nil,
+       llm_context: updated_llm_context,
+       chat_messages: updated_chat_messages
+     )}
+  end
+
   # Handle streamed chunks from the LLM
   @impl true
   def handle_info({:llm_chunk, chunk}, socket) when is_binary(chunk) do
@@ -102,10 +146,12 @@ defmodule CaraWeb.ChatLive do
     final_content = get_last_assistant_message_content(socket.assigns.chat_messages)
     updated_llm_context = llm_context_builder.(final_content)
 
-    {:noreply,
-     socket
-     |> assign(llm_context: updated_llm_context, tool_status: nil)
-     |> push_event("llm_end", %{})}
+    socket =
+      socket
+      |> push_event("llm_end", %{})
+      |> process_next_message_or_idle(updated_llm_context)
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -122,10 +168,25 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_info({:llm_error, error_message}, socket) when is_binary(error_message) do
     error_message_obj = %{sender: :assistant, content: error_message}
-    {:noreply, assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj], tool_status: nil)}
+    socket = assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj])
+    {:noreply, process_next_message_or_idle(socket)}
   end
 
   ## Private Functions
+
+  defp process_next_message_or_idle(socket, updated_llm_context \\ nil) do
+    socket = if updated_llm_context, do: assign(socket, llm_context: updated_llm_context), else: socket
+
+    case socket.assigns.pending_messages do
+      [next_message | rest] ->
+        socket
+        |> assign(pending_messages: rest, current_user_message: next_message, tool_status: "Thinking...")
+        |> start_llm_stream(next_message)
+
+      [] ->
+        assign(socket, active_task: nil, current_user_message: nil, tool_status: nil)
+    end
+  end
 
   ## Message Processing Helpers
 
@@ -155,12 +216,21 @@ defmodule CaraWeb.ChatLive do
     if message_blank?(message) do
       {:noreply, socket}
     else
-      socket
-      |> assign(tool_status: "Thinking...")
-      |> add_user_message_to_chat(message)
-      |> start_llm_stream(message)
-      |> reset_message_form()
-      |> then(&{:noreply, &1})
+      socket =
+        socket
+        |> add_user_message_to_chat(message)
+        |> reset_message_form()
+
+      if socket.assigns.active_task do
+        {:noreply, assign(socket, pending_messages: socket.assigns.pending_messages ++ [message])}
+      else
+        socket =
+          socket
+          |> assign(tool_status: "Thinking...", current_user_message: message)
+          |> start_llm_stream(message)
+
+        {:noreply, socket}
+      end
     end
   end
 
@@ -190,13 +260,14 @@ defmodule CaraWeb.ChatLive do
       tool_usage_counts: socket.assigns.tool_usage_counts
     }
 
-    Task.start(fn ->
-      retry with: constant_backoff(100) |> Stream.take(10) do
-        process_llm_request(llm_call_params)
-      end
-    end)
+    {:ok, pid} =
+      Task.start(fn ->
+        retry with: constant_backoff(100) |> Stream.take(10) do
+          process_llm_request(llm_call_params)
+        end
+      end)
 
-    socket
+    assign(socket, active_task: pid)
   end
 
   @spec reset_message_form(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
