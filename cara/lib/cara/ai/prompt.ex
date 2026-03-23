@@ -2,7 +2,10 @@ defmodule Cara.AI.Prompt do
   @moduledoc """
   Central module to get prompts from templates.
   """
-  @prompt_dir Path.join(:code.priv_dir(:cara), "prompts")
+
+  defp prompt_dir do
+    Path.join(:code.priv_dir(:cara), "prompts")
+  end
 
   @doc """
   Renders the system prompt for a student.
@@ -15,7 +18,8 @@ defmodule Cara.AI.Prompt do
       age: student_info.age
     ]
 
-    Path.join(@prompt_dir, "greeting.eex")
+    prompt_dir()
+    |> Path.join("greeting.eex")
     |> EEx.eval_file(assigns)
   end
 
@@ -23,7 +27,7 @@ defmodule Cara.AI.Prompt do
   Renders a specific template by name.
   """
   def render(template_name, assigns) do
-    @prompt_dir
+    prompt_dir()
     |> Path.join("#{template_name}.eex")
     |> File.read!()
     |> EEx.eval_string(assigns: Map.to_list(assigns))
