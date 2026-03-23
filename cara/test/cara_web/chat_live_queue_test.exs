@@ -32,19 +32,22 @@ defmodule CaraWeb.ChatLiveQueueTest do
       send(test_pid, {:llm_call_started, message, stream_pid})
 
       # A stream that waits for a message to continue
-      stream = Stream.resource(
-        fn -> :waiting end,
-        fn
-          :waiting ->
-            receive do
-              {:continue_stream, ^message, chunks} -> {chunks, :done}
-            after
-              1000 -> {:halt, :timeout}
-            end
-          :done -> {:halt, :done}
-        end,
-        fn _ -> :ok end
-      )
+      stream =
+        Stream.resource(
+          fn -> :waiting end,
+          fn
+            :waiting ->
+              receive do
+                {:continue_stream, ^message, chunks} -> {chunks, :done}
+              after
+                1000 -> {:halt, :timeout}
+              end
+
+            :done ->
+              {:halt, :done}
+          end,
+          fn _ -> :ok end
+        )
 
       stream_response = %StreamResponse{
         context: %ReqLLM.Context{messages: []},
@@ -108,10 +111,11 @@ defmodule CaraWeb.ChatLiveQueueTest do
       send(test_pid, {:llm_call_started, message, self()})
 
       # Infinite stream
-      stream = Stream.repeatedly(fn ->
-        Process.sleep(100)
-        ReqLLM.StreamChunk.text(".")
-      end)
+      stream =
+        Stream.repeatedly(fn ->
+          Process.sleep(100)
+          ReqLLM.StreamChunk.text(".")
+        end)
 
       stream_response = %StreamResponse{
         context: %ReqLLM.Context{messages: []},

@@ -180,6 +180,7 @@ defmodule CaraWeb.ChatLive do
     case socket.assigns.pending_messages do
       [next_message | rest] ->
         socket
+        |> add_user_message_to_chat(next_message)
         |> assign(pending_messages: rest, current_user_message: next_message, tool_status: "Thinking...")
         |> start_llm_stream(next_message)
 
@@ -216,16 +217,14 @@ defmodule CaraWeb.ChatLive do
     if message_blank?(message) do
       {:noreply, socket}
     else
-      socket =
-        socket
-        |> add_user_message_to_chat(message)
-        |> reset_message_form()
+      socket = reset_message_form(socket)
 
       if socket.assigns.active_task do
         {:noreply, assign(socket, pending_messages: socket.assigns.pending_messages ++ [message])}
       else
         socket =
           socket
+          |> add_user_message_to_chat(message)
           |> assign(tool_status: "Thinking...", current_user_message: message)
           |> start_llm_stream(message)
 

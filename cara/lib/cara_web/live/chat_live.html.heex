@@ -64,6 +64,27 @@
       </div>
     <% end %>
 
+    <%= for msg <- @pending_messages do %>
+      <div class="flex w-full justify-end opacity-60">
+        <div class="flex items-start gap-4 w-full flex-row-reverse">
+          <img
+            src={~p"/images/student.svg"}
+            class="w-12 h-12 flex-shrink-0 mt-1 object-cover"
+            alt="Student Avatar"
+          />
+          <div class="relative flex-1 flex items-center justify-end">
+            <div
+              class="bg-[#FFFFBC] text-black"
+              style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
+            >
+              {render_markdown(msg)}
+              <div class="text-[10px] text-gray-500 mt-1 italic text-right">Queued...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
     <%= if @tool_status do %>
       <div class="flex justify-start items-start gap-4 w-full">
         <img
