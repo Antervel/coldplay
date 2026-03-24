@@ -757,4 +757,43 @@ defmodule CaraWeb.ChatLiveTest do
       assert render(view) =~ "Response"
     end
   end
+
+  describe "notes panel" do
+    test "toggles notes panel", %{conn: conn} do
+      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # Initially closed
+      render(view)
+      assert has_element?(view, ".relative.w-0")
+      refute has_element?(view, ".relative.w-\\[400px\\]")
+
+      # Toggle open
+      view |> element("button", "NOTES") |> render_click()
+      assert has_element?(view, ".relative.w-\\[400px\\]")
+      refute has_element?(view, ".relative.w-0")
+
+      # Toggle closed via the 'X' button
+      view |> element("button[title='Close notes']") |> render_click()
+      assert has_element?(view, ".relative.w-0")
+      refute has_element?(view, ".relative.w-\\[400px\\]")
+    end
+
+    test "updates notes", %{conn: conn} do
+      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # Type some notes (phx-keyup)
+      view
+      |> element("textarea[name='notes']")
+      |> render_keyup(%{"value" => "These are my notes."})
+
+      # Verify socket state
+      state = :sys.get_state(view.pid)
+      assert state.socket.assigns.notes == "These are my notes."
+
+      # Verify rendered content
+      assert render(view) =~ "These are my notes."
+    end
+  end
 end

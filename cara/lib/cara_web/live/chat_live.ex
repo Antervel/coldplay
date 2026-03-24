@@ -44,7 +44,9 @@ defmodule CaraWeb.ChatLive do
                end),
              active_task: nil,
              pending_messages: [],
-             current_user_message: nil
+             current_user_message: nil,
+             show_notes: false,
+             notes: ""
            )}
 
         _incomplete ->
@@ -53,6 +55,16 @@ defmodule CaraWeb.ChatLive do
     else
       {:ok, redirect(socket, to: "/sleeping")}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_notes", _params, socket) do
+    {:noreply, assign(socket, show_notes: !socket.assigns.show_notes)}
+  end
+
+  @impl true
+  def handle_event("update_notes", %{"value" => notes}, socket) do
+    {:noreply, assign(socket, notes: notes)}
   end
 
   @impl true
