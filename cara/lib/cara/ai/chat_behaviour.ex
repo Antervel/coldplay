@@ -6,6 +6,7 @@ defmodule Cara.AI.ChatBehaviour do
   alias ReqLLM.Tool
 
   @callback new_context(String.t()) :: Context.t()
+  @callback reset_context(Context.t()) :: Context.t()
   @callback send_message_stream(String.t(), Context.t(), keyword()) ::
               {:ok, ReqLLM.StreamResponse.t(), (String.t() -> Context.t()), list()} | {:error, term()}
   @callback send_message(String.t(), Context.t(), keyword()) ::

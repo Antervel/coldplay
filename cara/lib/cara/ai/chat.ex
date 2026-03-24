@@ -129,6 +129,7 @@ defmodule Cara.AI.Chat do
       iex> context = Cara.AI.Chat.new_context()
       iex> context = Cara.AI.Chat.reset_context(context)
   """
+  @impl true
   @spec reset_context(Context.t()) :: Context.t()
   def reset_context(context) do
     system_messages = Enum.filter(context.messages, fn msg -> msg.role == :system end)

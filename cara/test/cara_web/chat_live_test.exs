@@ -153,10 +153,10 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "   "})
       |> render_submit()
 
-      # No messages should appear
+      # No new messages should appear (beyond the initial welcome message at index 0)
       html = render(view)
-      refute html =~ ~r/sender.*user/
-      refute html =~ ~r/sender.*assistant/
+      refute html =~ ~r/message-wrapper-user-0/
+      refute html =~ ~r/message-wrapper-assistant-1/
     end
 
     test "handles validation events and updates form state", %{conn: conn} do

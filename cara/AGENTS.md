@@ -88,7 +88,8 @@ custom classes must fully style the input
 ## Mix guidelines
 
 - Read the docs and options before using tasks (by using `mix help task_name`)
-- To debug test failures, run tests in a specific file with `mix test test/my_test.exs` or run all previously failed tests with `mix test --failed`
+- To run the tests, run `mix precommit`. It runs format, credo, dialyzer and tests.
+- To debug test failures, run tests in a specific file with `MIX_ENV=test mix test test/my_test.exs` or run all previously failed tests with `MIX_ENV=test mix test --failed`
 - `mix deps.clean --all` is **almost never needed**. **Avoid** using it unless you have good reason
 
 ## Test guidelines

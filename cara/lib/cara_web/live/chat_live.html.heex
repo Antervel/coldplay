@@ -36,6 +36,8 @@
             id={"message-wrapper-#{message.sender}-#{idx}"}
             phx-hook="MessageContextMenu"
             data-message-content={message.content}
+            data-idx={idx}
+            data-sender={message.sender}
           >
             <div
               class={"#{if message.sender == :user, do: "bg-[#FFFFBC]", else: "bg-[#F5F5F5]"} text-black"}
@@ -128,6 +130,13 @@
       data-action="play"
     >
       <span class="hero-speaker-wave inline-block w-4 h-4 mr-2"></span>Play
+    </button>
+    <button
+      id="delete-message-button"
+      class="flex items-center w-full text-left px-3 py-1 text-red-600 hover:bg-red-600 hover:text-white rounded-md"
+      data-action="delete"
+    >
+      <span class="hero-trash inline-block w-4 h-4 mr-2"></span>Delete
     </button>
   </div>
 

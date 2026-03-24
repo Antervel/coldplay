@@ -184,6 +184,16 @@ Hooks.MessageContextMenu = {
 
       contextMenu.style.left = `${finalLeft}px`;
 
+      // Show/hide Delete button based on sender
+      const deleteButton = contextMenu.querySelector('[data-action="delete"]');
+      if (deleteButton) {
+        if (currentMessageEl.dataset.sender === 'assistant') {
+          deleteButton.classList.remove('hidden');
+        } else {
+          deleteButton.classList.add('hidden');
+        }
+      }
+
       // Attach actions to buttons
       contextMenu.querySelector('[data-action="copy"]').onclick = async (e) => {
         e.stopPropagation();
@@ -223,6 +233,15 @@ Hooks.MessageContextMenu = {
         }
         hideContextMenu();
       };
+
+      if (deleteButton) {
+        deleteButton.onclick = (e) => {
+          e.stopPropagation();
+          const idx = currentMessageEl.dataset.idx;
+          this.pushEvent("delete_message", { idx: parseInt(idx) });
+          hideContextMenu();
+        };
+      }
     };
 
     this.el.addEventListener('click', showContextMenu);

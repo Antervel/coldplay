@@ -72,6 +72,34 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
+  def handle_event("delete_message", %{"idx" => idx}, socket) do
+    # Ensure idx is an integer
+    idx = if is_binary(idx), do: String.to_integer(idx), else: idx
+
+    updated_chat_messages = List.delete_at(socket.assigns.chat_messages, idx)
+
+    # Rebuild llm_context from updated_chat_messages
+    # We skip the first message because it's the welcome message (not in llm_context)
+    # We use chat_module().reset_context(socket.assigns.llm_context) to get a fresh context
+    # with just the system prompt.
+    new_llm_context =
+      updated_chat_messages
+      |> Enum.drop(1)
+      |> Enum.reduce(chat_module().reset_context(socket.assigns.llm_context), fn msg, acc ->
+        case msg.sender do
+          :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
+          :assistant -> ReqLLM.Context.append(acc, ReqLLM.Context.assistant(msg.content))
+        end
+      end)
+
+    {:noreply,
+     assign(socket,
+       chat_messages: updated_chat_messages,
+       llm_context: new_llm_context
+     )}
+  end
+
+  @impl true
   def handle_event("cancel", _params, socket) do
     if pid = socket.assigns.active_task do
       Process.exit(pid, :kill)
