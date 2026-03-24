@@ -11,6 +11,9 @@ USE MERMAID DIAGRAMS
 
 EXAMPLES OF COMMON MISTAKES TO AVOID:
 
+BAD: ```graph TD
+GOOD: ```mermaid\ngraph TD
+
 BAD:  A[user/service] --> B[end]
 GOOD: A["user/service"] --> B["End"]
 
