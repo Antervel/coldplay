@@ -110,7 +110,21 @@ Hooks.MessageContextMenu = {
     const contextMenu = document.getElementById('message-context-menu');
     let currentMessageEl = null;
 
+    const hideContextMenu = () => {
+      contextMenu.classList.remove('opacity-100', 'scale-100');
+      contextMenu.classList.add('opacity-0', 'scale-95');
+
+      // Add hidden after a short delay to allow transition to complete
+      setTimeout(() => {
+        contextMenu.classList.add('hidden');
+        currentMessageEl = null;
+      }, 300); // Match this delay to the Tailwind transition duration (duration-300)
+    };
+
     const showContextMenu = (event) => {
+      const triggerButton = event.target.closest('[data-action="open-context-menu"]');
+      if (!triggerButton) return;
+
       event.preventDefault();
       event.stopPropagation(); // Stop propagation to prevent document click from closing immediately
 
@@ -131,7 +145,6 @@ Hooks.MessageContextMenu = {
       contextMenu.classList.remove('opacity-0', 'scale-95');
       contextMenu.classList.add('opacity-100', 'scale-100');
 
-      const triggerButton = event.currentTarget; // The button that was clicked
       const triggerButtonRect = triggerButton.getBoundingClientRect();
       const contextMenuRect = contextMenu.getBoundingClientRect(); // Get dimensions AFTER removing hidden and setting opacity/scale
 
@@ -212,41 +225,27 @@ Hooks.MessageContextMenu = {
       };
     };
 
-    const hideContextMenu = () => {
-      contextMenu.classList.remove('opacity-100', 'scale-100');
-      contextMenu.classList.add('opacity-0', 'scale-95');
-
-      // Add hidden after a short delay to allow transition to complete
-      setTimeout(() => {
-        contextMenu.classList.add('hidden');
-        currentMessageEl = null;
-      }, 300); // Match this delay to the Tailwind transition duration (duration-300)
-    };
-
-    this.el.querySelector('[data-action="open-context-menu"]').addEventListener('click', showContextMenu);
-    this.el.querySelector('[data-action="open-context-menu"]').addEventListener('touchstart', showContextMenu); // For touch devices
+    this.el.addEventListener('click', showContextMenu);
+    this.el.addEventListener('touchstart', showContextMenu); // For touch devices
 
     // Close menu when clicking anywhere else on the document
-    document.addEventListener('click', (event) => {
+    this._handleDocumentClick = (event) => {
       if (!contextMenu.contains(event.target) && !this.el.contains(event.target)) {
         hideContextMenu();
       }
-    });
-    document.addEventListener('touchstart', (event) => {
-      if (!contextMenu.contains(event.target) && !this.el.contains(event.target)) {
-        hideContextMenu();
-      }
-    });
+    };
+    document.addEventListener('click', this._handleDocumentClick);
+    document.addEventListener('touchstart', this._handleDocumentClick);
 
     this.handleEvent("hide_context_menu", () => {
       hideContextMenu();
     });
   },
   destroyed() {
-    // Clean up event listeners if necessary, though in LiveView context,
-    // new elements/hooks might be mounted more often than destroyed.
-    // For simplicity, document listeners are typically fine to remain
-    // as they handle closing multiple menus.
+    if (this._handleDocumentClick) {
+      document.removeEventListener('click', this._handleDocumentClick);
+      document.removeEventListener('touchstart', this._handleDocumentClick);
+    }
   }
 };
 
