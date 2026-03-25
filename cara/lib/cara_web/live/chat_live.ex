@@ -29,15 +29,23 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def mount(_params, session, socket) do
-    if chat_module().health_check() == :ok do
-      case Map.get(session, "student_info") do
-        %{name: _name, subject: _subject, age: _age} = info ->
-          system_prompt = Prompt.render_greeting_prompt(info)
-          llm_tools = Tools.load_tools()
+    if chat_module().health_check() != :ok do
+      {:ok, redirect(socket, to: "/sleeping")}
+    else
+      do_mount(session, socket)
+    end
+  end
 
-          ui_config = Application.get_env(:cara, :ui, %{})
-          bubble_width = Map.get(ui_config, :bubble_width, "40%")
-          chat_id = info[:chat_id] || Ecto.UUID.generate()
+  defp do_mount(session, socket) do
+    case Map.get(session, "student_info") do
+      %{name: _name, subject: _subject, age: _age, chat_id: chat_id} = info ->
+        system_prompt = Prompt.render_greeting_prompt(info)
+        llm_tools = Tools.load_tools()
+
+        ui_config = Application.get_env(:cara, :ui, %{})
+        bubble_width = Map.get(ui_config, :bubble_width, "40%")
+
+        if connected?(socket) do
           Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
 
           Phoenix.PubSub.broadcast(
@@ -45,34 +53,32 @@ defmodule CaraWeb.ChatLive do
             "teacher:monitor",
             {:chat_started, %{id: chat_id, student: info}}
           )
+        end
 
-          {:ok,
-           assign(socket,
-             chat_messages: [welcome_message_for_student(info)],
-             llm_context: chat_module().new_context(system_prompt),
-             message_data: %{"message" => ""},
-             app_version: app_version(),
-             student_info: info,
-             llm_tools: llm_tools,
-             tool_status: nil,
-             bubble_width: bubble_width,
-             tool_usage_counts:
-               Enum.reduce(llm_tools, %{}, fn tool, acc ->
-                 Map.put(acc, tool.name, 0)
-               end),
-             active_task: nil,
-             pending_messages: [],
-             current_user_message: nil,
-             show_notes: false,
-             notes: ""
-           )
-           |> assign(:chat_id, chat_id)}
+        {:ok,
+         assign(socket,
+           chat_messages: [welcome_message_for_student(info)],
+           llm_context: chat_module().new_context(system_prompt),
+           message_data: %{"message" => ""},
+           app_version: app_version(),
+           student_info: info,
+           llm_tools: llm_tools,
+           tool_status: nil,
+           bubble_width: bubble_width,
+           tool_usage_counts:
+             Enum.reduce(llm_tools, %{}, fn tool, acc ->
+               Map.put(acc, tool.name, 0)
+             end),
+           active_task: nil,
+           pending_messages: [],
+           current_user_message: nil,
+           show_notes: false,
+           notes: ""
+         )
+         |> assign(:chat_id, chat_id)}
 
-        _incomplete ->
-          {:ok, redirect(socket, to: "/student")}
-      end
-    else
-      {:ok, redirect(socket, to: "/sleeping")}
+      _incomplete ->
+        {:ok, redirect(socket, to: "/student")}
     end
   end
 
