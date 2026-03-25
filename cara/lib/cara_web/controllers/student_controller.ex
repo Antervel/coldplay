@@ -9,6 +9,7 @@ defmodule CaraWeb.StudentController do
 
   def create(conn, %{"student" => student_params}) do
     student_info = %{
+      chat_id: Ecto.UUID.generate(),
       name: student_params["name"],
       age: student_params["age"],
       subject: student_params["subject"]

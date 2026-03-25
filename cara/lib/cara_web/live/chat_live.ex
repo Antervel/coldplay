@@ -6,7 +6,12 @@ defmodule CaraWeb.ChatLive do
   alias Cara.AI.Prompt
   alias Cara.AI.Tools
 
-  @type chat_message :: %{sender: :user | :assistant, content: String.t()}
+  @type chat_message :: %{
+          sender: :user | :assistant,
+          content: String.t(),
+          id: String.t(),
+          deleted: boolean()
+        }
 
   # Get the chat module from config at runtime (allows switching to mock in tests)
   defp chat_module do
@@ -14,7 +19,12 @@ defmodule CaraWeb.ChatLive do
   end
 
   defp welcome_message_for_student(%{name: name, subject: subject}) do
-    %{sender: :assistant, content: "Hello **#{name}**! Let's learn about #{subject} together! 🎓"}
+    %{
+      sender: :assistant,
+      content: "Hello **#{name}**! Let's learn about #{subject} together! 🎓",
+      id: Ecto.UUID.generate(),
+      deleted: false
+    }
   end
 
   @impl true
@@ -27,6 +37,14 @@ defmodule CaraWeb.ChatLive do
 
           ui_config = Application.get_env(:cara, :ui, %{})
           bubble_width = Map.get(ui_config, :bubble_width, "40%")
+          chat_id = info[:chat_id] || Ecto.UUID.generate()
+          Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
+
+          Phoenix.PubSub.broadcast(
+            Cara.PubSub,
+            "teacher:monitor",
+            {:chat_started, %{id: chat_id, student: info}}
+          )
 
           {:ok,
            assign(socket,
@@ -47,7 +65,8 @@ defmodule CaraWeb.ChatLive do
              current_user_message: nil,
              show_notes: false,
              notes: ""
-           )}
+           )
+           |> assign(:chat_id, chat_id)}
 
         _incomplete ->
           {:ok, redirect(socket, to: "/student")}
@@ -55,6 +74,19 @@ defmodule CaraWeb.ChatLive do
     else
       {:ok, redirect(socket, to: "/sleeping")}
     end
+  end
+
+  @impl true
+  def terminate(_reason, socket) do
+    if Map.has_key?(socket.assigns, :chat_id) do
+      Phoenix.PubSub.broadcast(
+        Cara.PubSub,
+        "teacher:monitor",
+        {:chat_left, %{id: socket.assigns.chat_id}}
+      )
+    end
+
+    :ok
   end
 
   @impl true
@@ -84,11 +116,21 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
-  def handle_event("delete_message", %{"idx" => idx}, socket) do
-    # Ensure idx is an integer
-    idx = if is_binary(idx), do: String.to_integer(idx), else: idx
+  def handle_event("delete_message", %{"id" => id}, socket) do
+    updated_chat_messages =
+      Enum.map(socket.assigns.chat_messages, fn msg ->
+        if msg.id == id do
+          %{msg | deleted: true}
+        else
+          msg
+        end
+      end)
 
-    updated_chat_messages = List.delete_at(socket.assigns.chat_messages, idx)
+    Phoenix.PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:message_deleted, %{chat_id: socket.assigns.chat_id, message_id: id}}
+    )
 
     # Rebuild llm_context from updated_chat_messages
     # We skip the first message because it's the welcome message (not in llm_context)
@@ -97,6 +139,7 @@ defmodule CaraWeb.ChatLive do
     new_llm_context =
       updated_chat_messages
       |> Enum.drop(1)
+      |> Enum.filter(fn msg -> !msg.deleted end)
       |> Enum.reduce(chat_module().reset_context(socket.assigns.llm_context), fn msg, acc ->
         case msg.sender do
           :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
@@ -109,6 +152,18 @@ defmodule CaraWeb.ChatLive do
        chat_messages: updated_chat_messages,
        llm_context: new_llm_context
      )}
+  end
+
+  # Fallback for old clients (should not happen if refreshed, but for safety)
+  def handle_event("delete_message", %{"idx" => idx}, socket) do
+    idx = if is_binary(idx), do: String.to_integer(idx), else: idx
+    msg_to_delete = Enum.at(socket.assigns.chat_messages, idx)
+
+    if msg_to_delete do
+      handle_event("delete_message", %{"id" => msg_to_delete.id}, socket)
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -125,9 +180,26 @@ defmodule CaraWeb.ChatLive do
               {content, socket.assigns.chat_messages}
 
             _ ->
-              cancelled_msg = %{sender: :assistant, content: "*Cancelled*"}
+              cancelled_msg = %{
+                sender: :assistant,
+                content: "*Cancelled*",
+                id: Ecto.UUID.generate(),
+                deleted: false
+              }
+
               {"*Cancelled*", socket.assigns.chat_messages ++ [cancelled_msg]}
           end
+
+        # If we appended a "Cancelled" message, we should broadcast it
+        cancelled_msg_obj = List.last(updated_messages)
+
+        if cancelled_msg_obj.content == "*Cancelled*" do
+          Phoenix.PubSub.broadcast(
+            Cara.PubSub,
+            "teacher:monitor",
+            {:new_message, %{chat_id: socket.assigns.chat_id, message: cancelled_msg_obj}}
+          )
+        end
 
         new_ctx =
           socket.assigns.llm_context
@@ -150,6 +222,22 @@ defmodule CaraWeb.ChatLive do
      )}
   end
 
+  @impl true
+  def handle_info({:teacher_joined, _}, socket) do
+    Phoenix.PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:chat_state,
+       %{
+         id: socket.assigns.chat_id,
+         student: socket.assigns.student_info,
+         messages: socket.assigns.chat_messages
+       }}
+    )
+
+    {:noreply, socket}
+  end
+
   # Handle streamed chunks from the LLM
   @impl true
   def handle_info({:llm_chunk, chunk}, socket) when is_binary(chunk) do
@@ -162,6 +250,15 @@ defmodule CaraWeb.ChatLive do
   def handle_info({:llm_end, llm_context_builder}, socket) when is_function(llm_context_builder, 1) do
     final_content = get_last_assistant_message_content(socket.assigns.chat_messages)
     updated_llm_context = llm_context_builder.(final_content)
+
+    # Broadcast the completed AI message
+    final_message = List.last(socket.assigns.chat_messages)
+
+    Phoenix.PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:new_message, %{chat_id: socket.assigns.chat_id, message: final_message}}
+    )
 
     socket =
       socket
@@ -181,10 +278,32 @@ defmodule CaraWeb.ChatLive do
     {:noreply, assign(socket, :tool_usage_counts, tool_usage_counts)}
   end
 
+  # Ignore PubSub events intended for the teacher dashboard
+  @impl true
+  def handle_info({:chat_started, _}, socket), do: {:noreply, socket}
+  @impl true
+  def handle_info({:new_message, _}, socket), do: {:noreply, socket}
+  @impl true
+  def handle_info({:message_deleted, _}, socket), do: {:noreply, socket}
+  @impl true
+  def handle_info({:chat_left, _}, socket), do: {:noreply, socket}
+
   # Handle LLM errors
   @impl true
   def handle_info({:llm_error, error_message}, socket) when is_binary(error_message) do
-    error_message_obj = %{sender: :assistant, content: error_message}
+    error_message_obj = %{
+      sender: :assistant,
+      content: error_message,
+      id: Ecto.UUID.generate(),
+      deleted: false
+    }
+
+    Phoenix.PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:new_message, %{chat_id: socket.assigns.chat_id, message: error_message_obj}}
+    )
+
     socket = assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj])
     {:noreply, process_next_message_or_idle(socket)}
   end
@@ -196,8 +315,18 @@ defmodule CaraWeb.ChatLive do
 
     case socket.assigns.pending_messages do
       [next_message | rest] ->
+        socket = add_user_message_to_chat(socket, next_message)
+
+        # Broadcast the user message
+        user_msg = List.last(socket.assigns.chat_messages)
+
+        Phoenix.PubSub.broadcast(
+          Cara.PubSub,
+          "teacher:monitor",
+          {:new_message, %{chat_id: socket.assigns.chat_id, message: user_msg}}
+        )
+
         socket
-        |> add_user_message_to_chat(next_message)
         |> assign(pending_messages: rest, current_user_message: next_message, tool_status: "Thinking...")
         |> start_llm_stream(next_message)
 
@@ -218,7 +347,8 @@ defmodule CaraWeb.ChatLive do
         rest ++ [%{last | content: last.content <> chunk}]
 
       _ ->
-        messages ++ [%{sender: :assistant, content: chunk}]
+        messages ++
+          [%{sender: :assistant, content: chunk, id: Ecto.UUID.generate(), deleted: false}]
     end
   end
 
@@ -239,9 +369,18 @@ defmodule CaraWeb.ChatLive do
       if socket.assigns.active_task do
         {:noreply, assign(socket, pending_messages: socket.assigns.pending_messages ++ [message])}
       else
+        socket = add_user_message_to_chat(socket, message)
+        # Broadcast the user message
+        user_msg = List.last(socket.assigns.chat_messages)
+
+        Phoenix.PubSub.broadcast(
+          Cara.PubSub,
+          "teacher:monitor",
+          {:new_message, %{chat_id: socket.assigns.chat_id, message: user_msg}}
+        )
+
         socket =
           socket
-          |> add_user_message_to_chat(message)
           |> assign(tool_status: "Thinking...", current_user_message: message)
           |> start_llm_stream(message)
 
@@ -255,7 +394,13 @@ defmodule CaraWeb.ChatLive do
   @spec add_user_message_to_chat(Phoenix.LiveView.Socket.t(), String.t()) ::
           Phoenix.LiveView.Socket.t()
   defp add_user_message_to_chat(socket, message) do
-    user_message = %{sender: :user, content: message}
+    user_message = %{
+      sender: :user,
+      content: message,
+      id: Ecto.UUID.generate(),
+      deleted: false
+    }
+
     assign(socket, chat_messages: socket.assigns.chat_messages ++ [user_message])
   end
 

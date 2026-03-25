@@ -24,7 +24,7 @@
 
     <main id="chat-messages" phx-hook="ChatScroll" class="flex-1 overflow-y-auto p-4 space-y-4 text-black">
       <% last_idx = length(@chat_messages) - 1 %>
-      <%= for {message, idx} <- Enum.with_index(@chat_messages) do %>
+      <%= for {message, idx} <- Enum.with_index(@chat_messages), !Map.get(message, :deleted, false) do %>
         <div class={"flex w-full #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
           <div class={"flex items-start gap-4 w-full #{if message.sender == :user, do: "flex-row-reverse", else: "flex-row"}"}>
             <img
@@ -38,6 +38,7 @@
               phx-hook="MessageContextMenu"
               data-message-content={message.content}
               data-idx={idx}
+              data-id={message.id}
               data-sender={message.sender}
             >
               <div

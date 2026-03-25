@@ -88,9 +88,12 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       assert html =~ "Hello AI"
       refute html =~ "Response to Hello AI"
 
-      # Verify it's gone from context
+      # Verify it's marked as deleted in state
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 2
+      # chat_messages still has 3 messages, but one is deleted: true
+      assert length(state.socket.assigns.chat_messages) == 3
+      assert Enum.at(state.socket.assigns.chat_messages, 2).deleted == true
+
       # llm_context should be [system, user]
       assert length(state.socket.assigns.llm_context.messages) == 2
       assert Enum.at(state.socket.assigns.llm_context.messages, 1).role == :user
@@ -136,17 +139,21 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       # Delete R-M1 (idx 2)
       view |> render_hook("delete_message", %{"idx" => 2})
 
-      # chat_messages: [welcome, M1, M2, R-M2] (indices 0, 1, 2, 3)
+      # chat_messages: [welcome, M1, R-M1, M2, R-M2] (indices 0, 1, 2, 3, 4)
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 4
+      assert length(state.socket.assigns.chat_messages) == 5
+      assert Enum.at(state.socket.assigns.chat_messages, 2).deleted == true
+      # llm_context should be [S, M1, M2, R-M2]
       assert length(state.socket.assigns.llm_context.messages) == 4
 
-      # Delete R-M2 (idx 3)
-      view |> render_hook("delete_message", %{"idx" => 3})
+      # Delete R-M2 (idx 4)
+      view |> render_hook("delete_message", %{"idx" => 4})
 
-      # chat_messages: [welcome, M1, M2]
+      # chat_messages: [welcome, M1, R-M1, M2, R-M2]
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 3
+      assert length(state.socket.assigns.chat_messages) == 5
+      assert Enum.at(state.socket.assigns.chat_messages, 4).deleted == true
+      # llm_context should be [S, M1, M2]
       assert length(state.socket.assigns.llm_context.messages) == 3
       assert Enum.at(state.socket.assigns.llm_context.messages, 1).role == :user
       assert Enum.at(state.socket.assigns.llm_context.messages, 2).role == :user
@@ -157,7 +164,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       # Welcome message is at index 0, sender assistant
-      assert has_element?(view, "#message-wrapper-assistant-0[data-idx='0'][data-sender='assistant']")
+      assert has_element?(view, "#message-wrapper-assistant-0[data-idx='0'][data-sender='assistant'][data-id]")
     end
   end
 end

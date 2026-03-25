@@ -4,7 +4,9 @@ defmodule CaraWeb.StudentControllerTest do
   test "index deletes student_info from session and renders index", %{conn: conn} do
     conn =
       conn
-      |> Plug.Test.init_test_session(%{"student_info" => %{name: "Test", age: "10", subject: "Math"}})
+      |> Plug.Test.init_test_session(%{
+        "student_info" => %{name: "Test", age: "10", subject: "Math", chat_id: "test-id"}
+      })
       |> fetch_session()
       |> get("/student")
 
@@ -27,11 +29,11 @@ defmodule CaraWeb.StudentControllerTest do
       |> fetch_session()
       |> post("/student", params)
 
-    assert get_session(conn, :student_info) == %{
-             name: "New Student",
-             age: "12",
-             subject: "Science"
-           }
+    student_info = get_session(conn, :student_info)
+    assert student_info.name == "New Student"
+    assert student_info.age == "12"
+    assert student_info.subject == "Science"
+    assert Map.has_key?(student_info, :chat_id)
 
     assert redirected_to(conn) == "/chat"
   end
