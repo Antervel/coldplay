@@ -1,5 +1,5 @@
 defmodule Cara.AI.ChatTest do
-  use ExUnit.Case, async: true
+  use Cara.DataCase, async: true
 
   alias Cara.AI.Chat
   alias Cara.AI.CLI

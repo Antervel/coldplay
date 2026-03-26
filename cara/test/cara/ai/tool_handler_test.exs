@@ -1,5 +1,5 @@
 defmodule Cara.AI.ToolHandlerTest do
-  use ExUnit.Case, async: true
+  use Cara.DataCase, async: true
 
   alias Cara.AI.ToolHandler
   alias Cara.AI.Tools.Calculator
