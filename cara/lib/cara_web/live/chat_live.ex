@@ -18,6 +18,10 @@ defmodule CaraWeb.ChatLive do
     Application.get_env(:cara, :chat_module, Cara.AI.Chat)
   end
 
+  defp monitoring_enabled? do
+    Application.get_env(:cara, :enable_teacher_monitoring, true)
+  end
+
   defp welcome_message_for_student(%{name: name, subject: subject}) do
     %{
       sender: :assistant,
@@ -45,7 +49,7 @@ defmodule CaraWeb.ChatLive do
         ui_config = Application.get_env(:cara, :ui, %{})
         bubble_width = Map.get(ui_config, :bubble_width, "40%")
 
-        if connected?(socket) do
+        if connected?(socket) and monitoring_enabled?() do
           Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
 
           Phoenix.PubSub.broadcast(
@@ -84,7 +88,7 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def terminate(_reason, socket) do
-    if Map.has_key?(socket.assigns, :chat_id) do
+    if Map.has_key?(socket.assigns, :chat_id) and monitoring_enabled?() do
       Phoenix.PubSub.broadcast(
         Cara.PubSub,
         "teacher:monitor",
@@ -132,11 +136,13 @@ defmodule CaraWeb.ChatLive do
         end
       end)
 
-    Phoenix.PubSub.broadcast(
-      Cara.PubSub,
-      "teacher:monitor",
-      {:message_deleted, %{chat_id: socket.assigns.chat_id, message_id: id}}
-    )
+    if monitoring_enabled?() do
+      Phoenix.PubSub.broadcast(
+        Cara.PubSub,
+        "teacher:monitor",
+        {:message_deleted, %{chat_id: socket.assigns.chat_id, message_id: id}}
+      )
+    end
 
     # Rebuild llm_context from updated_chat_messages
     # We skip the first message because it's the welcome message (not in llm_context)
@@ -199,7 +205,7 @@ defmodule CaraWeb.ChatLive do
         # If we appended a "Cancelled" message, we should broadcast it
         cancelled_msg_obj = List.last(updated_messages)
 
-        if cancelled_msg_obj.content == "*Cancelled*" do
+        if cancelled_msg_obj.content == "*Cancelled*" and monitoring_enabled?() do
           Phoenix.PubSub.broadcast(
             Cara.PubSub,
             "teacher:monitor",
@@ -230,16 +236,18 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_info({:teacher_joined, _}, socket) do
-    Phoenix.PubSub.broadcast(
-      Cara.PubSub,
-      "teacher:monitor",
-      {:chat_state,
-       %{
-         id: socket.assigns.chat_id,
-         student: socket.assigns.student_info,
-         messages: socket.assigns.chat_messages
-       }}
-    )
+    if monitoring_enabled?() do
+      Phoenix.PubSub.broadcast(
+        Cara.PubSub,
+        "teacher:monitor",
+        {:chat_state,
+         %{
+           id: socket.assigns.chat_id,
+           student: socket.assigns.student_info,
+           messages: socket.assigns.chat_messages
+         }}
+      )
+    end
 
     {:noreply, socket}
   end
@@ -260,11 +268,13 @@ defmodule CaraWeb.ChatLive do
     # Broadcast the completed AI message
     final_message = List.last(socket.assigns.chat_messages)
 
-    Phoenix.PubSub.broadcast(
-      Cara.PubSub,
-      "teacher:monitor",
-      {:new_message, %{chat_id: socket.assigns.chat_id, message: final_message}}
-    )
+    if monitoring_enabled?() do
+      Phoenix.PubSub.broadcast(
+        Cara.PubSub,
+        "teacher:monitor",
+        {:new_message, %{chat_id: socket.assigns.chat_id, message: final_message}}
+      )
+    end
 
     socket =
       socket
@@ -304,11 +314,13 @@ defmodule CaraWeb.ChatLive do
       deleted: false
     }
 
-    Phoenix.PubSub.broadcast(
-      Cara.PubSub,
-      "teacher:monitor",
-      {:new_message, %{chat_id: socket.assigns.chat_id, message: error_message_obj}}
-    )
+    if monitoring_enabled?() do
+      Phoenix.PubSub.broadcast(
+        Cara.PubSub,
+        "teacher:monitor",
+        {:new_message, %{chat_id: socket.assigns.chat_id, message: error_message_obj}}
+      )
+    end
 
     socket = assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj])
     {:noreply, process_next_message_or_idle(socket)}
@@ -324,12 +336,9 @@ defmodule CaraWeb.ChatLive do
         socket = add_user_message_to_chat(socket, next_message)
 
         # Broadcast the user message
-        user_msg = List.last(socket.assigns.chat_messages)
-
-        Phoenix.PubSub.broadcast(
-          Cara.PubSub,
-          "teacher:monitor",
-          {:new_message, %{chat_id: socket.assigns.chat_id, message: user_msg}}
+        maybe_broadcast_monitoring(
+          socket,
+          {:new_message, %{chat_id: socket.assigns.chat_id, message: List.last(socket.assigns.chat_messages)}}
         )
 
         socket
@@ -339,6 +348,14 @@ defmodule CaraWeb.ChatLive do
       [] ->
         assign(socket, active_task: nil, current_user_message: nil, tool_status: nil)
     end
+  end
+
+  defp maybe_broadcast_monitoring(socket, event) do
+    if monitoring_enabled?() do
+      Phoenix.PubSub.broadcast(Cara.PubSub, "teacher:monitor", event)
+    end
+
+    socket
   end
 
   ## Message Processing Helpers
@@ -377,12 +394,9 @@ defmodule CaraWeb.ChatLive do
       else
         socket = add_user_message_to_chat(socket, message)
         # Broadcast the user message
-        user_msg = List.last(socket.assigns.chat_messages)
-
-        Phoenix.PubSub.broadcast(
-          Cara.PubSub,
-          "teacher:monitor",
-          {:new_message, %{chat_id: socket.assigns.chat_id, message: user_msg}}
+        maybe_broadcast_monitoring(
+          socket,
+          {:new_message, %{chat_id: socket.assigns.chat_id, message: List.last(socket.assigns.chat_messages)}}
         )
 
         socket =

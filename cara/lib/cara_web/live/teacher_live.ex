@@ -3,12 +3,19 @@ defmodule CaraWeb.TeacherLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
+    monitoring_enabled = Application.get_env(:cara, :enable_teacher_monitoring, true)
+
+    if connected?(socket) and monitoring_enabled do
       Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
       Phoenix.PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:teacher_joined, nil})
     end
 
-    {:ok, assign(socket, chats: %{}, page_title: "Teacher Dashboard")}
+    {:ok,
+     assign(socket,
+       chats: %{},
+       page_title: "Teacher Dashboard",
+       monitoring_enabled: monitoring_enabled
+     )}
   end
 
   @impl true
@@ -89,40 +96,49 @@ defmodule CaraWeb.TeacherLive do
     <div class="min-h-screen bg-gray-100 p-8">
       <h1 class="text-3xl font-bold mb-8 text-gray-800">Teacher Dashboard</h1>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <%= for {chat_id, chat} <- @chats do %>
-          <div class="bg-white rounded-lg shadow-md flex flex-col h-[500px] overflow-hidden">
-            <div class="bg-blue-600 text-white p-4">
-              <h2 class="font-bold text-lg">{chat.student.name}</h2>
-              <p class="text-sm opacity-80">{chat.student.subject} • {chat.student.age} years old</p>
-            </div>
+      <%= if @monitoring_enabled do %>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <%= for {chat_id, chat} <- @chats do %>
+            <div class="bg-white rounded-lg shadow-md flex flex-col h-[500px] overflow-hidden">
+              <div class="bg-blue-600 text-white p-4">
+                <h2 class="font-bold text-lg">{chat.student.name}</h2>
+                <p class="text-sm opacity-80">{chat.student.subject} • {chat.student.age} years old</p>
+              </div>
 
-            <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-              <%= for message <- chat.messages do %>
-                <div class={"flex flex-col #{if message.sender == :user, do: "items-end", else: "items-start"}"}>
-                  <div class={"max-w-[85%] rounded-lg p-3 text-sm #{message_class(message)}"}>
-                    <%= if Map.get(message, :deleted, false) do %>
-                      <div class="text-xs font-bold uppercase mb-1 opacity-70">Deleted by student</div>
-                      <div class="line-through opacity-60">
+              <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                <%= for message <- chat.messages do %>
+                  <div class={"flex flex-col #{if message.sender == :user, do: "items-end", else: "items-start"}"}>
+                    <div class={"max-w-[85%] rounded-lg p-3 text-sm #{message_class(message)}"}>
+                      <%= if Map.get(message, :deleted, false) do %>
+                        <div class="text-xs font-bold uppercase mb-1 opacity-70">Deleted by student</div>
+                        <div class="line-through opacity-60">
+                          {render_markdown(message.content)}
+                        </div>
+                      <% else %>
                         {render_markdown(message.content)}
-                      </div>
-                    <% else %>
-                      {render_markdown(message.content)}
-                    <% end %>
+                      <% end %>
+                    </div>
                   </div>
-                </div>
-              <% end %>
+                <% end %>
+              </div>
             </div>
-          </div>
-        <% end %>
+          <% end %>
 
-        <%= if Enum.empty?(@chats) do %>
-          <div class="col-span-full text-center py-20 text-gray-500">
-            <p class="text-xl">No active students.</p>
-            <p class="text-sm">Waiting for students to join...</p>
-          </div>
-        <% end %>
-      </div>
+          <%= if Enum.empty?(@chats) do %>
+            <div class="col-span-full text-center py-20 text-gray-500">
+              <p class="text-xl">No active students.</p>
+              <p class="text-sm">Waiting for students to join...</p>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="text-center py-20 text-gray-500 bg-white rounded-lg shadow-md">
+          <p class="text-xl font-bold text-red-600">Monitoring is disabled.</p>
+          <p class="text-sm mt-2">
+            Please enable <code>:enable_teacher_monitoring</code> in your configuration to use this dashboard.
+          </p>
+        </div>
+      <% end %>
     </div>
     """
   end
