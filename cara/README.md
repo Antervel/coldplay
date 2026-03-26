@@ -8,8 +8,24 @@ Built with Elixir and the Phoenix Framework, Cara offers a real-time, interactiv
 
 - **Personalized Learning:** Cara's personality and response style are dynamically adjusted based on the student's age, making it a more effective and engaging tutor.
 - **Real-time Interaction:** The chat interface, built with Phoenix LiveView, provides instant, streaming responses from the AI.
+- **Teacher Dashboard:** A dedicated control panel at `/teacher` allows teachers to oversee multiple student sessions in real-time, including viewing deleted messages.
 - **Markdown Support:** The AI's responses are rendered as Markdown, allowing for formatted text, code blocks, lists, and more.
 - **Extensible by Design:** The core AI interaction is abstracted into a behaviour, making it easy to swap out different LLM backends.
+
+## Teacher Dashboard
+
+The Teacher Dashboard (`/teacher`) provides a real-time overview of active student sessions.
+
+- **Multi-student Monitoring:** View up to 9 student chat windows in a grid layout.
+- **Session Stability:** Student sessions are identified by a stable UUID stored in their session cookie, preventing duplicate panels upon browser reloads.
+- **Transparency:** Teachers can see messages that students have deleted (rendered with a strike-through), ensuring full oversight of the learning process.
+- **Automatic Cleanup:** Panels are automatically removed when a student leaves the chat or closes their browser tab.
+
+Monitoring can be toggled in `config/config.exs`:
+
+```elixir
+config :cara, :enable_teacher_monitoring, true
+```
 
 ## Technical Overview
 
