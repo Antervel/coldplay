@@ -237,8 +237,8 @@ Hooks.MessageContextMenu = {
       if (deleteButton) {
         deleteButton.onclick = (e) => {
           e.stopPropagation();
-          const idx = currentMessageEl.dataset.idx;
-          this.pushEvent("delete_message", { idx: parseInt(idx) });
+          const id = currentMessageEl.dataset.id;
+          this.pushEvent("delete_message", { id: id });
           hideContextMenu();
         };
       }

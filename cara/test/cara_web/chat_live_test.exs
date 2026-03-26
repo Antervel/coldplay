@@ -13,7 +13,7 @@ defmodule CaraWeb.ChatLiveTest do
     conn = Plug.Test.init_test_session(conn, %{})
     # Fetch the session
     conn = fetch_session(conn)
-    student_info = %{name: "Test Student", age: "20", subject: "Elixir"}
+    student_info = %{name: "Test Student", age: "20", subject: "Elixir", chat_id: "test-chat-id"}
     conn = put_session(conn, :student_info, student_info)
     {:ok, conn: conn}
   end
@@ -38,9 +38,9 @@ defmodule CaraWeb.ChatLiveTest do
       assert path == "/student"
     end
 
-    test "redirects if student_info in session is invalid", %{conn: original_conn} do
+    test "redirects if student_info in session is invalid (missing chat_id)", %{conn: original_conn} do
       # Put invalid student_info into session
-      conn = put_session(original_conn, :student_info, %{invalid: "data"})
+      conn = put_session(original_conn, :student_info, %{name: "Test", age: "10", subject: "Math"})
       {:error, {:redirect, %{to: path}}} = live(conn, ~p"/chat")
       assert path == "/student"
     end

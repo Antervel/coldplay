@@ -21,6 +21,8 @@ config :req_llm,
 
 config :cara, :ai_model, "openai:cara-cpu"
 
+config :cara, :enable_teacher_monitoring, true
+
 config :cara, :enabled_tools, [:calculator, :wikipedia_search, :wikipedia_get_article]
 
 # Configure the endpoint

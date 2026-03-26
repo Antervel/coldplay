@@ -13,7 +13,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
 
     conn = Plug.Test.init_test_session(conn, %{})
     conn = fetch_session(conn)
-    student_info = %{name: "Test", age: "10", subject: "Math"}
+    student_info = %{name: "Test", age: "10", subject: "Math", chat_id: "test-chat-id"}
     conn = put_session(conn, :student_info, student_info)
     {:ok, conn: conn}
   end
