@@ -230,11 +230,28 @@ defmodule Cara.AI.Chat do
 
   @doc """
   Executes a given tool with the provided arguments.
+  Uses a caching layer to retrieve previous successful results.
   """
   @impl true
   @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
   def execute_tool(tool, args) do
-    ReqLLM.Tool.execute(tool, args)
+    alias Cara.AI.ToolCache
+
+    case ToolCache.get_result(tool.name, args) do
+      {:ok, result} ->
+        Logger.info("Tool '#{tool.name}' cached result found.")
+        {:ok, result}
+
+      :error ->
+        case ReqLLM.Tool.execute(tool, args) do
+          {:ok, result} = success ->
+            ToolCache.save_result(tool.name, args, result)
+            success
+
+          error ->
+            error
+        end
+    end
   end
 
   @doc """
