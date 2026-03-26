@@ -87,6 +87,10 @@ defmodule CaraWeb.Telemetry do
         reporter_options: [buckets: [10, 100, 500, 1000, 5000]]
       ),
 
+      # AI Metrics
+      sum("cara.ai.tool.cache.hit.count", tags: [:tool]),
+      sum("cara.ai.tool.cache.miss.count", tags: [:tool]),
+
       # VM Metrics
       last_value("vm.memory.total", unit: {:byte, :kilobyte}),
       last_value("vm.total_run_queue_lengths.total"),

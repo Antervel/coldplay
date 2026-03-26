@@ -85,4 +85,51 @@ defmodule Cara.AI.ToolCacheTest do
       assert :error == ToolCache.get_result("calculator", args)
     end
   end
+
+  describe "Chat.execute_tool/2 telemetry" do
+    setup do
+      test_pid = self()
+      handler_id = "telemetry-test-handler-#{:erlang.unique_integer()}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [
+          [:cara, :ai, :tool, :cache, :hit],
+          [:cara, :ai, :tool, :cache, :miss]
+        ],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {:telemetry_event, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn ->
+        :telemetry.detach(handler_id)
+      end)
+
+      :ok
+    end
+
+    test "emits miss telemetry on first call" do
+      calculator_tool = Calculator.calculator_tool()
+      args = %{"expression" => "5+5"}
+
+      {:ok, 10} = Chat.execute_tool(calculator_tool, args)
+
+      assert_receive {:telemetry_event, [:cara, :ai, :tool, :cache, :miss], %{count: 1}, %{tool: "calculator"}}
+    end
+
+    test "emits hit telemetry on cached call" do
+      calculator_tool = Calculator.calculator_tool()
+      args = %{"expression" => "7+7"}
+
+      # First call - miss
+      {:ok, 14} = Chat.execute_tool(calculator_tool, args)
+      assert_receive {:telemetry_event, [:cara, :ai, :tool, :cache, :miss], _, _}
+
+      # Second call - hit
+      {:ok, "14"} = Chat.execute_tool(calculator_tool, args)
+      assert_receive {:telemetry_event, [:cara, :ai, :tool, :cache, :hit], %{count: 1}, %{tool: "calculator"}}
+    end
+  end
 end
