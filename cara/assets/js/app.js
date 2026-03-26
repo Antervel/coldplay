@@ -187,11 +187,7 @@ Hooks.MessageContextMenu = {
       // Show/hide Delete button based on sender
       const deleteButton = contextMenu.querySelector('[data-action="delete"]');
       if (deleteButton) {
-        if (currentMessageEl.dataset.sender === 'assistant') {
-          deleteButton.classList.remove('hidden');
-        } else {
-          deleteButton.classList.add('hidden');
-        }
+        deleteButton.classList.remove('hidden');
       }
 
       // Attach actions to buttons

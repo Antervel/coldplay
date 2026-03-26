@@ -89,7 +89,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
     end)
 
     view |> form("form", chat: %{message: "trigger error"}) |> render_submit()
-    :timer.sleep(100)
+    :timer.sleep(1500)
     assert render(view) =~ "The AI is busy"
   end
 end

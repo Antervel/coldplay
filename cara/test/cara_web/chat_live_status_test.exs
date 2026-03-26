@@ -124,7 +124,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
     view |> form("form", chat: %{message: "Error test"}) |> render_submit()
 
     # Initially it might show "Thinking..." but error should clear it
-    Process.sleep(100)
+    Process.sleep(1500)
     refute render(view) =~ "Thinking..."
     assert render(view) =~ "Something went wrong"
   end

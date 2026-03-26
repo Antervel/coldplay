@@ -24,18 +24,38 @@ defmodule Cara.AI.ChatOrchestrator do
   @spec run(llm_call_params()) :: {:ok, pid()}
   def run(params) do
     Task.start(fn ->
-      retry with: constant_backoff(100) |> Stream.take(10) do
-        process_llm_request(params)
+      result =
+        retry with: constant_backoff(100) |> Stream.take(10) do
+          case process_llm_request(params) do
+            :ok ->
+              :ok
+
+            {:error, reason} ->
+              send(params.live_view_pid, {:llm_status, "Retrying..."})
+              {:error, reason}
+          end
+        after
+          result -> result
+        else
+          error -> error
+        end
+
+      case result do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          send(params.live_view_pid, {:llm_error, reason})
       end
     end)
   end
 
-  @spec process_llm_request(llm_call_params()) :: :ok | :retry
+  @spec process_llm_request(llm_call_params()) :: :ok | {:error, String.t()}
   defp process_llm_request(
          %{
            message: message,
            llm_context: llm_context,
-           live_view_pid: live_view_pid,
+           live_view_pid: _live_view_pid,
            llm_tools: llm_tools,
            chat_mod: chat_mod
          } = llm_call_params
@@ -50,14 +70,11 @@ defmodule Cara.AI.ChatOrchestrator do
         )
 
       {:error, reason} ->
-        send(live_view_pid, {:llm_error, "Error: #{inspect(reason)}"})
-        :error
+        {:error, "Error: #{inspect(reason)}"}
     end
   rescue
     exception ->
-      error_message = LLMErrorFormatter.format(exception)
-      send(live_view_pid, {:llm_error, error_message})
-      :error
+      {:error, LLMErrorFormatter.format(exception)}
   end
 
   @spec handle_llm_stream_response(
@@ -65,7 +82,7 @@ defmodule Cara.AI.ChatOrchestrator do
           (String.t() -> ReqLLM.Context.t()),
           list(),
           llm_call_params()
-        ) :: :ok | :retry
+        ) :: :ok | {:error, String.t()}
   defp handle_llm_stream_response(
          stream_response,
          llm_context_builder,
@@ -80,8 +97,7 @@ defmodule Cara.AI.ChatOrchestrator do
       if process_stream(stream_response, live_view_pid, llm_context_builder, tool_usage_counts) do
         :ok
       else
-        send(live_view_pid, {:llm_error, "The AI did not return a response. Please try again."})
-        :error
+        {:error, "The AI did not return a response. Please try again."}
       end
     else
       # Tool calls found, execute them and recursively call LLM with results

@@ -120,14 +120,14 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "First message"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Send second message
       view
       |> form("form", chat: %{message: "Second message"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       html = render(view)
 
@@ -230,7 +230,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Error test"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       assert render(view) =~ "The AI did not return a response"
     end
@@ -250,7 +250,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Error response"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       html = render(view)
       assert html =~ "Error:"
@@ -270,7 +270,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Crash"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       assert render(view) =~ "Error: Simulated error"
     end
@@ -298,7 +298,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Rate limited"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       html = render(view)
       assert html =~ "The AI is busy"
@@ -321,7 +321,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Rate limited"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       html = render(view)
       assert html =~ "The AI is busy"
@@ -344,7 +344,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "API error"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       assert render(view) =~ "API error (status 500)"
     end
@@ -432,7 +432,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Empty chunks"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Empty chunks should not create issues
       assert render(view) =~ "Hello world"
@@ -468,7 +468,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Test"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Should show error message (because empty stream means no chunks were sent)
       assert render(view) =~ "The AI did not return a response"
@@ -510,7 +510,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Edge case"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Should have received the content
       assert_received {:final_content_received, "Response"}
@@ -593,7 +593,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "First"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Get the LiveView state
       state = :sys.get_state(view.pid)
@@ -604,7 +604,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Second"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.llm_context == :context_v3
@@ -623,7 +623,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Error"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Context should remain unchanged on error
       state = :sys.get_state(view.pid)
@@ -658,7 +658,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Markdown test"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Markdown should be rendered to HTML
       html = render(view)
@@ -750,7 +750,7 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "Quick"})
       |> render_submit()
 
-      :timer.sleep(100)
+      :timer.sleep(1500)
 
       # Should have both user and assistant messages
       assert render(view) =~ "Quick"

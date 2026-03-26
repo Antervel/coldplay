@@ -159,6 +159,63 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       assert Enum.at(state.socket.assigns.llm_context.messages, 2).role == :user
     end
 
+    test "can delete a user message and it is removed from context", %{conn: conn} do
+      stub(Cara.AI.ChatMock, :new_context, fn _prompt -> Context.new([Context.system("S")]) end)
+
+      stub(Cara.AI.ChatMock, :reset_context, fn ctx ->
+        Context.new(Enum.filter(ctx.messages, fn msg -> msg.role == :system end))
+      end)
+
+      stub(Cara.AI.ChatMock, :send_message_stream, fn message, context, _opts ->
+        builder = fn content ->
+          context |> Context.append(Context.user(message)) |> Context.append(Context.assistant(content))
+        end
+
+        stream_response = %StreamResponse{
+          context: context,
+          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          cancel: fn -> :ok end,
+          stream: [ReqLLM.StreamChunk.text("R-#{message}")],
+          metadata_task: Task.async(fn -> %{} end)
+        }
+
+        {:ok, stream_response, builder, []}
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/chat")
+
+      # Send a message
+      view |> form("form", chat: %{message: "User Message"}) |> render_submit()
+      :timer.sleep(100)
+
+      # chat_messages: [welcome, User Message, R-User Message]
+      # indices: 0, 1, 2
+      state = :sys.get_state(view.pid)
+      assert length(state.socket.assigns.chat_messages) == 3
+      user_msg_id = Enum.at(state.socket.assigns.chat_messages, 1).id
+
+      # Delete user message (idx 1)
+      view |> render_hook("delete_message", %{"id" => user_msg_id})
+
+      # Verify it's marked as deleted
+      state = :sys.get_state(view.pid)
+      assert Enum.at(state.socket.assigns.chat_messages, 1).deleted == true
+
+      # llm_context should only have system and assistant message?
+      # Wait, if we delete the user message, the assistant message that responded to it probably should also be deleted
+      # or at least it might be orphaned in context.
+      # The current implementation of rebuild context:
+      # new_llm_context =
+      #   updated_chat_messages
+      #   |> Enum.drop(1)
+      #   |> Enum.filter(fn msg -> !msg.deleted end)
+      #   |> Enum.reduce(chat_module().reset_context(socket.assigns.llm_context), fn msg, acc -> ... end)
+
+      # So llm_context should be [system, assistant]
+      assert length(state.socket.assigns.llm_context.messages) == 2
+      assert Enum.at(state.socket.assigns.llm_context.messages, 1).role == :assistant
+    end
+
     test "message wrapper has correct data attributes", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _prompt -> Context.new([Context.system("S")]) end)
       {:ok, view, _html} = live(conn, ~p"/chat")
