@@ -238,6 +238,16 @@ Hooks.MessageContextMenu = {
           hideContextMenu();
         };
       }
+
+      const branchButton = contextMenu.querySelector('[data-action="branch"]');
+      if (branchButton) {
+        branchButton.onclick = (e) => {
+          e.stopPropagation();
+          const id = currentMessageEl.dataset.id;
+          this.pushEvent("branch_off", { id: id });
+          hideContextMenu();
+        };
+      }
     };
 
     this.el.addEventListener('click', showContextMenu);
