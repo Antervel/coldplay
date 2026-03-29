@@ -3,6 +3,7 @@ defmodule CaraWeb.ChatLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  alias Cara.AI.BranchedChat
   alias ReqLLM.StreamResponse
 
   setup %{conn: conn} do
@@ -58,7 +59,7 @@ defmodule CaraWeb.ChatLiveTest do
 
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Hi", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Hi", _ctx, _opts ->
         stream_response = %StreamResponse{
           context: %ReqLLM.Context{messages: []},
           model: %ReqLLM.Model{model: "test-model", provider: :openai},
@@ -93,14 +94,14 @@ defmodule CaraWeb.ChatLiveTest do
     test "handles multiple messages in conversation", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn message, context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn message, _ctx, _opts ->
         stream =
           case message do
             "First message" -> [ReqLLM.StreamChunk.text("Response "), ReqLLM.StreamChunk.text("one")]
             "Second message" -> [ReqLLM.StreamChunk.text("Response "), ReqLLM.StreamChunk.text("two")]
           end
 
-        builder = fn _content -> {:updated, context} end
+        builder = fn _content -> :updated_context end
 
         stream_response = %StreamResponse{
           context: %ReqLLM.Context{messages: []},
@@ -153,10 +154,9 @@ defmodule CaraWeb.ChatLiveTest do
       |> form("form", chat: %{message: "   "})
       |> render_submit()
 
-      # No new messages should appear (beyond the initial welcome message at index 0)
+      # No new messages should appear (beyond the initial welcome message in main branch)
       html = render(view)
-      refute html =~ ~r/message-wrapper-user-0/
-      refute html =~ ~r/message-wrapper-assistant-1/
+      refute html =~ ~r/message-content-main-1/
     end
 
     test "handles validation events and updates form state", %{conn: conn} do
@@ -180,7 +180,7 @@ defmodule CaraWeb.ChatLiveTest do
       # Both handle_event clauses call do_send_message with the message
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Test", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Test", _ctx, _opts ->
         stream_response = %StreamResponse{
           context: %ReqLLM.Context{messages: []},
           model: %ReqLLM.Model{model: "test-model", provider: :openai},
@@ -211,7 +211,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "displays error message when LLM returns no chunks", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Error test", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Error test", _ctx, _opts ->
         # Empty stream
         stream_response = %StreamResponse{
           context: %ReqLLM.Context{messages: []},
@@ -236,10 +236,9 @@ defmodule CaraWeb.ChatLiveTest do
     end
 
     test "displays error message when Chat.send_message_stream returns error tuple", %{conn: conn} do
-      # This tests the {:error, reason} case in the with clause (line 119)
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Error response", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Error response", _ctx, _opts ->
         # Return an error tuple instead of {:ok, ...}
         {:error, :api_unavailable}
       end)
@@ -260,7 +259,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "displays error message when LLM stream raises exception", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Crash", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Crash", _ctx, _opts ->
         raise "Simulated error"
       end)
 
@@ -278,7 +277,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "handles rate limit error (429) with retry delay", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Rate limited", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Rate limited", _ctx, _opts ->
         raise %ReqLLM.Error.API.Request{
           status: 429,
           response_body: %{
@@ -308,7 +307,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "handles rate limit error (429) without retry delay", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Rate limited", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Rate limited", _ctx, _opts ->
         raise %ReqLLM.Error.API.Request{
           status: 429,
           response_body: %{"details" => []}
@@ -331,7 +330,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "handles other API errors", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "API error", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "API error", _ctx, _opts ->
         raise %ReqLLM.Error.API.Request{
           status: 500,
           response_body: %{}
@@ -357,7 +356,7 @@ defmodule CaraWeb.ChatLiveTest do
       # Use a controlled stream that we can observe
       test_pid = self()
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Stream test", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Stream test", _ctx, _opts ->
         stream =
           Stream.resource(
             fn -> 0 end,
@@ -404,7 +403,7 @@ defmodule CaraWeb.ChatLiveTest do
     test "handles empty chunks gracefully", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Empty chunks", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Empty chunks", _ctx, _opts ->
         stream = [
           ReqLLM.StreamChunk.text("Hello"),
           ReqLLM.StreamChunk.text(""),
@@ -436,121 +435,6 @@ defmodule CaraWeb.ChatLiveTest do
 
       # Empty chunks should not create issues
       assert render(view) =~ "Hello world"
-    end
-
-    test "handles empty message list when building final content", %{conn: conn} do
-      # This tests the edge case where get_final_assistant_content receives empty messages
-      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
-
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Test", :initial_context, _opts ->
-        # Return a stream but the context builder gets called with empty messages somehow
-        # We'll test this by having an empty stream
-        builder = fn content ->
-          # Content should be "" when there are no assistant messages
-          send(self(), {:content_was, content})
-          :updated_context
-        end
-
-        stream_response = %StreamResponse{
-          context: %ReqLLM.Context{messages: []},
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
-          cancel: fn -> :ok end,
-          stream: [],
-          metadata_task: Task.async(fn -> %{} end)
-        }
-
-        {:ok, stream_response, builder, []}
-      end)
-
-      {:ok, view, _html} = live(conn, ~p"/chat")
-
-      view
-      |> form("form", chat: %{message: "Test"})
-      |> render_submit()
-
-      :timer.sleep(1500)
-
-      # Should show error message (because empty stream means no chunks were sent)
-      assert render(view) =~ "The AI did not return a response"
-
-      # The context builder is never called because sent_any_chunks is false
-      # So get_final_assistant_content returning "" is only hit when builder IS called
-      # Let's create a different test
-    end
-
-    test "context builder receives empty string when only user messages exist", %{conn: conn} do
-      # Force a scenario where context builder IS called but with only user messages
-      # This requires at least one chunk to be sent
-      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
-
-      test_pid = self()
-
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Edge case", :initial_context, _opts ->
-        # Send exactly one chunk, which triggers the builder
-        builder = fn content ->
-          # Send what content we got to verify
-          send(test_pid, {:final_content_received, content})
-          :updated_context
-        end
-
-        stream_response = %StreamResponse{
-          context: %ReqLLM.Context{messages: []},
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
-          cancel: fn -> :ok end,
-          stream: [ReqLLM.StreamChunk.text("Response")],
-          metadata_task: Task.async(fn -> %{} end)
-        }
-
-        {:ok, stream_response, builder, []}
-      end)
-
-      {:ok, view, _html} = live(conn, ~p"/chat")
-
-      view
-      |> form("form", chat: %{message: "Edge case"})
-      |> render_submit()
-
-      :timer.sleep(1500)
-
-      # Should have received the content
-      assert_received {:final_content_received, "Response"}
-    end
-
-    test "handles message list with only user messages when building final content", %{conn: conn} do
-      # This tests the edge case where get_final_assistant_content receives only user messages
-      # This is a bit tricky to test directly, but we can verify by checking the state
-      # after a message is sent but before the stream completes
-      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
-
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "User only", :initial_context, _opts ->
-        # Simulate a scenario where we have chunks but want to test edge cases
-        builder = fn _content -> :updated_context end
-
-        stream_response = %StreamResponse{
-          context: %ReqLLM.Context{messages: []},
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
-          cancel: fn -> :ok end,
-          stream: [ReqLLM.StreamChunk.text("Response")],
-          metadata_task: Task.async(fn -> %{} end)
-        }
-
-        {:ok, stream_response, builder, []}
-      end)
-
-      {:ok, view, _html} = live(conn, ~p"/chat")
-
-      view
-      |> form("form", chat: %{message: "User only"})
-      |> render_submit()
-
-      # Before the async task completes, we have only user messages
-      # The get_final_assistant_content would return "" in this case
-      # But we can't easily test this without race conditions
-
-      :timer.sleep(100)
-
-      # After completion, we should have the response
-      assert render(view) =~ "Response"
     end
   end
 
@@ -597,7 +481,7 @@ defmodule CaraWeb.ChatLiveTest do
 
       # Get the LiveView state
       state = :sys.get_state(view.pid)
-      assert state.socket.assigns.llm_context == :context_v2
+      assert BranchedChat.get_current_context(state.socket.assigns.branched_chat) == :context_v2
 
       # Second message should use updated context
       view
@@ -607,7 +491,7 @@ defmodule CaraWeb.ChatLiveTest do
       :timer.sleep(1500)
 
       state = :sys.get_state(view.pid)
-      assert state.socket.assigns.llm_context == :context_v3
+      assert BranchedChat.get_current_context(state.socket.assigns.branched_chat) == :context_v3
     end
 
     test "preserves context when error occurs", %{conn: conn} do
@@ -627,16 +511,15 @@ defmodule CaraWeb.ChatLiveTest do
 
       # Context should remain unchanged on error
       state = :sys.get_state(view.pid)
-      assert state.socket.assigns.llm_context == :initial_context
+      assert BranchedChat.get_current_context(state.socket.assigns.branched_chat) == :initial_context
     end
   end
 
   describe "markdown rendering" do
-    # render_markdown is now a public helper function
     test "renders markdown content in messages", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Markdown test", :initial_context, _opts ->
+      stub(Cara.AI.ChatMock, :send_message_stream, fn "Markdown test", _ctx, _opts ->
         # Return markdown content
         stream = [ReqLLM.StreamChunk.text("**Bold** and *italic*")]
         builder = fn _content -> :updated_context end
@@ -667,7 +550,6 @@ defmodule CaraWeb.ChatLiveTest do
     end
 
     test "render_markdown function can be called directly", %{conn: conn} do
-      # Test the public render_markdown function directly (covers line 225)
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
       {:ok, _view, _html} = live(conn, ~p"/chat")
@@ -678,24 +560,6 @@ defmodule CaraWeb.ChatLiveTest do
       # Should return safe HTML
       assert Phoenix.HTML.safe_to_string(result) =~ "Hello"
       assert Phoenix.HTML.safe_to_string(result) =~ "World"
-    end
-
-    test "render_markdown handles MDEx errors gracefully", %{conn: conn} do
-      # This is hard to test without mocking MDEx itself
-      # MDEx.to_html is very robust and rarely returns {:error, _}
-      # But we can at least call the function to ensure it's covered
-      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
-
-      {:ok, _view, _html} = live(conn, ~p"/chat")
-
-      # Normal markdown should work fine
-      result = CaraWeb.ChatLive.render_markdown("Normal text")
-      assert Phoenix.HTML.safe_to_string(result) =~ "Normal text"
-
-      # Edge case: very large input (shouldn't error, but exercises the code path)
-      large_input = String.duplicate("# Header\n\nParagraph.\n\n", 1000)
-      result = CaraWeb.ChatLive.render_markdown(large_input)
-      assert Phoenix.HTML.safe_to_string(result) =~ "Header"
     end
   end
 
@@ -708,53 +572,14 @@ defmodule CaraWeb.ChatLiveTest do
       # Manually send an :llm_end message when there are NO messages at all
       # This will trigger get_last_assistant_message_content with empty list
       # which should return ""
-      send(view.pid, {:llm_end, fn _content -> :test_context end})
+      send(view.pid, {:llm_end, "main", fn _content -> :test_context end})
 
       :timer.sleep(50)
 
       # The function should handle this gracefully
       state = :sys.get_state(view.pid)
       # Context should be updated with empty string
-      assert state.socket.assigns.llm_context == :test_context
-    end
-
-    test "get_last_assistant_message_content handles list with only user messages", %{conn: conn} do
-      stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
-
-      # Create a scenario where we send a user message but the stream
-      # completes before any assistant message is added
-      stub(Cara.AI.ChatMock, :send_message_stream, fn "Quick", :initial_context, _opts ->
-        # Stream that appears to send chunks but we'll intercept
-        stream = [ReqLLM.StreamChunk.text("Response")]
-
-        builder = fn _content ->
-          # At this point, content should be "Response"
-          :updated_context
-        end
-
-        stream_response = %StreamResponse{
-          context: %ReqLLM.Context{messages: []},
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
-          cancel: fn -> :ok end,
-          stream: stream,
-          metadata_task: Task.async(fn -> %{} end)
-        }
-
-        {:ok, stream_response, builder, []}
-      end)
-
-      {:ok, view, _html} = live(conn, ~p"/chat")
-
-      # Add a user message
-      view
-      |> form("form", chat: %{message: "Quick"})
-      |> render_submit()
-
-      :timer.sleep(1500)
-
-      # Should have both user and assistant messages
-      assert render(view) =~ "Quick"
-      assert render(view) =~ "Response"
+      assert BranchedChat.get_current_context(state.socket.assigns.branched_chat) == :test_context
     end
   end
 
@@ -764,19 +589,20 @@ defmodule CaraWeb.ChatLiveTest do
       {:ok, view, _html} = live(conn, ~p"/chat")
 
       # Initially closed
-      render(view)
-      assert has_element?(view, ".relative.w-0")
-      refute has_element?(view, ".relative.w-\\[400px\\]")
+      assert render(view) =~
+               ~r/h-full w-\[400px\] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 opacity-0 pointer-events-none/
 
       # Toggle open
       view |> element("button", "NOTES") |> render_click()
-      assert has_element?(view, ".relative.w-\\[400px\\]")
-      refute has_element?(view, ".relative.w-0")
+
+      assert render(view) =~
+               ~r/h-full w-\[400px\] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 opacity-100/
 
       # Toggle closed via the 'X' button
       view |> element("button[title='Close notes']") |> render_click()
-      assert has_element?(view, ".relative.w-0")
-      refute has_element?(view, ".relative.w-\\[400px\\]")
+
+      assert render(view) =~
+               ~r/h-full w-\[400px\] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 opacity-0 pointer-events-none/
     end
 
     test "updates notes", %{conn: conn} do

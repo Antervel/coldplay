@@ -15,7 +15,8 @@ defmodule Cara.AI.ChatOrchestrator do
           live_view_pid: pid(),
           llm_tools: list(),
           chat_mod: module(),
-          tool_usage_counts: map()
+          tool_usage_counts: map(),
+          branch_id: String.t()
         }
 
   @doc """
@@ -31,7 +32,7 @@ defmodule Cara.AI.ChatOrchestrator do
               :ok
 
             {:error, reason} ->
-              send(params.live_view_pid, {:llm_status, "Retrying..."})
+              send(params.live_view_pid, {:llm_status, params.branch_id, "Retrying..."})
               {:error, reason}
           end
         after
@@ -45,7 +46,7 @@ defmodule Cara.AI.ChatOrchestrator do
           :ok
 
         {:error, reason} ->
-          send(params.live_view_pid, {:llm_error, reason})
+          send(params.live_view_pid, {:llm_error, params.branch_id, reason})
       end
     end)
   end
@@ -89,12 +90,19 @@ defmodule Cara.AI.ChatOrchestrator do
          tool_calls,
          %{
            live_view_pid: live_view_pid,
-           tool_usage_counts: tool_usage_counts
+           tool_usage_counts: tool_usage_counts,
+           branch_id: branch_id
          } = llm_call_params
        ) do
     if Enum.empty?(tool_calls) do
       # No tool calls, process the stream normally
-      if process_stream(stream_response, live_view_pid, llm_context_builder, tool_usage_counts) do
+      if process_stream(
+           stream_response,
+           live_view_pid,
+           llm_context_builder,
+           tool_usage_counts,
+           branch_id
+         ) do
         :ok
       else
         {:error, "The AI did not return a response. Please try again."}
@@ -115,11 +123,12 @@ defmodule Cara.AI.ChatOrchestrator do
            llm_tools: llm_tools,
            chat_mod: chat_mod,
            tool_usage_counts: tool_usage_counts,
-           live_view_pid: live_view_pid
+           live_view_pid: live_view_pid,
+           branch_id: branch_id
          } = llm_call_params
        ) do
     tool_names = Enum.map_join(tool_calls, ", ", &ReqLLM.ToolCall.name/1)
-    send(live_view_pid, {:llm_status, "Using #{tool_names}..."})
+    send(live_view_pid, {:llm_status, branch_id, "Using #{tool_names}..."})
 
     {tool_calls_to_execute, tool_results_for_limited_tools, new_tool_usage_counts} =
       Enum.reduce(tool_calls, {[], [], tool_usage_counts}, fn tool_call, {exec_acc, limited_acc, counts_acc} ->
@@ -130,7 +139,9 @@ defmodule Cara.AI.ChatOrchestrator do
         if current_count < 10 do
           {[tool_call | exec_acc], limited_acc, Map.put(counts_acc, tool_name_atom, current_count + 1)}
         else
-          tool_result = Context.tool_result(tool_call.id, "Tool limit reached. Summarize with what you have")
+          tool_result =
+            Context.tool_result(tool_call.id, "Tool limit reached. Summarize with what you have")
+
           {exec_acc, [tool_result | limited_acc], counts_acc}
         end
       end)
@@ -167,9 +178,16 @@ defmodule Cara.AI.ChatOrchestrator do
           ReqLLM.StreamResponse.t(),
           pid(),
           (String.t() -> ReqLLM.Context.t()),
-          map()
+          map(),
+          String.t()
         ) :: boolean()
-  defp process_stream(stream_response, live_view_pid, llm_context_builder, tool_usage_counts) do
+  defp process_stream(
+         stream_response,
+         live_view_pid,
+         llm_context_builder,
+         tool_usage_counts,
+         branch_id
+       ) do
     send(live_view_pid, {:update_tool_usage_counts, tool_usage_counts})
 
     start_time = :erlang.monotonic_time(:millisecond)
@@ -178,7 +196,7 @@ defmodule Cara.AI.ChatOrchestrator do
       stream_response
       |> ReqLLM.StreamResponse.tokens()
       |> Enum.reduce_while(false, fn chunk, _acc ->
-        send(live_view_pid, {:llm_chunk, chunk})
+        send(live_view_pid, {:llm_chunk, branch_id, chunk})
         {:cont, true}
       end)
 
@@ -189,7 +207,7 @@ defmodule Cara.AI.ChatOrchestrator do
     Logger.info("LLM stream complete metadata: #{inspect(metadata)}")
 
     if sent_any_chunks do
-      send(live_view_pid, {:llm_end, llm_context_builder})
+      send(live_view_pid, {:llm_end, branch_id, llm_context_builder})
     end
 
     sent_any_chunks

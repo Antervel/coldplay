@@ -3,6 +3,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  alias Cara.AI.BranchedChat
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
@@ -74,10 +75,14 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
       # Check state
       state = :sys.get_state(view.pid)
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+      current_context = BranchedChat.get_current_context(branched_chat)
+
       # chat_messages: [welcome, user, assistant]
-      assert length(state.socket.assigns.chat_messages) == 3
+      assert length(current_messages) == 3
       # llm_context: [system, user, assistant]
-      assert length(state.socket.assigns.llm_context.messages) == 3
+      assert length(current_context.messages) == 3
 
       # Now delete the assistant message (idx 2)
       view
@@ -90,14 +95,18 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
       # Verify it's marked as deleted in state
       state = :sys.get_state(view.pid)
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+      current_context = BranchedChat.get_current_context(branched_chat)
+
       # chat_messages still has 3 messages, but one is deleted: true
-      assert length(state.socket.assigns.chat_messages) == 3
-      assert Enum.at(state.socket.assigns.chat_messages, 2).deleted == true
+      assert length(current_messages) == 3
+      assert Enum.at(current_messages, 2).deleted == true
 
       # llm_context should be [system, user]
-      assert length(state.socket.assigns.llm_context.messages) == 2
-      assert Enum.at(state.socket.assigns.llm_context.messages, 1).role == :user
-      assert List.last(state.socket.assigns.llm_context.messages).content |> hd() |> Map.get(:text) == "Hello AI"
+      assert length(current_context.messages) == 2
+      assert Enum.at(current_context.messages, 1).role == :user
+      assert List.last(current_context.messages).content |> hd() |> Map.get(:text) == "Hello AI"
     end
 
     test "can delete multiple assistant messages", %{conn: conn} do
@@ -133,30 +142,42 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
       # chat_messages: [welcome, M1, R-M1, M2, R-M2] (indices 0, 1, 2, 3, 4)
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 5
-      assert length(state.socket.assigns.llm_context.messages) == 5
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+      current_context = BranchedChat.get_current_context(branched_chat)
+
+      assert length(current_messages) == 5
+      assert length(current_context.messages) == 5
 
       # Delete R-M1 (idx 2)
       view |> render_hook("delete_message", %{"idx" => 2})
 
       # chat_messages: [welcome, M1, R-M1, M2, R-M2] (indices 0, 1, 2, 3, 4)
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 5
-      assert Enum.at(state.socket.assigns.chat_messages, 2).deleted == true
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+      current_context = BranchedChat.get_current_context(branched_chat)
+
+      assert length(current_messages) == 5
+      assert Enum.at(current_messages, 2).deleted == true
       # llm_context should be [S, M1, M2, R-M2]
-      assert length(state.socket.assigns.llm_context.messages) == 4
+      assert length(current_context.messages) == 4
 
       # Delete R-M2 (idx 4)
       view |> render_hook("delete_message", %{"idx" => 4})
 
       # chat_messages: [welcome, M1, R-M1, M2, R-M2]
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 5
-      assert Enum.at(state.socket.assigns.chat_messages, 4).deleted == true
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+      current_context = BranchedChat.get_current_context(branched_chat)
+
+      assert length(current_messages) == 5
+      assert Enum.at(current_messages, 4).deleted == true
       # llm_context should be [S, M1, M2]
-      assert length(state.socket.assigns.llm_context.messages) == 3
-      assert Enum.at(state.socket.assigns.llm_context.messages, 1).role == :user
-      assert Enum.at(state.socket.assigns.llm_context.messages, 2).role == :user
+      assert length(current_context.messages) == 3
+      assert Enum.at(current_context.messages, 1).role == :user
+      assert Enum.at(current_context.messages, 2).role == :user
     end
 
     test "can delete a user message and it is removed from context", %{conn: conn} do
@@ -191,36 +212,34 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       # chat_messages: [welcome, User Message, R-User Message]
       # indices: 0, 1, 2
       state = :sys.get_state(view.pid)
-      assert length(state.socket.assigns.chat_messages) == 3
-      user_msg_id = Enum.at(state.socket.assigns.chat_messages, 1).id
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+
+      assert length(current_messages) == 3
+      user_msg_id = Enum.at(current_messages, 1).id
 
       # Delete user message (idx 1)
       view |> render_hook("delete_message", %{"id" => user_msg_id})
 
       # Verify it's marked as deleted
       state = :sys.get_state(view.pid)
-      assert Enum.at(state.socket.assigns.chat_messages, 1).deleted == true
+      branched_chat = state.socket.assigns.branched_chat
+      current_messages = BranchedChat.get_current_messages(branched_chat)
+      current_context = BranchedChat.get_current_context(branched_chat)
+
+      assert Enum.at(current_messages, 1).deleted == true
 
       # llm_context should only have system and assistant message?
-      # Wait, if we delete the user message, the assistant message that responded to it probably should also be deleted
-      # or at least it might be orphaned in context.
-      # The current implementation of rebuild context:
-      # new_llm_context =
-      #   updated_chat_messages
-      #   |> Enum.drop(1)
-      #   |> Enum.filter(fn msg -> !msg.deleted end)
-      #   |> Enum.reduce(chat_module().reset_context(socket.assigns.llm_context), fn msg, acc -> ... end)
-
-      # So llm_context should be [system, assistant]
-      assert length(state.socket.assigns.llm_context.messages) == 2
-      assert Enum.at(state.socket.assigns.llm_context.messages, 1).role == :assistant
+      assert length(current_context.messages) == 2
+      assert Enum.at(current_context.messages, 1).role == :assistant
     end
 
     test "message wrapper has correct data attributes", %{conn: conn} do
       stub(Cara.AI.ChatMock, :new_context, fn _prompt -> Context.new([Context.system("S")]) end)
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      # Welcome message is at index 0, sender assistant
+      # Welcome message is in branch 'main' at index 0, sender assistant
+      # The data attributes are now on the wrapper div
       assert has_element?(view, "#message-wrapper-assistant-0[data-idx='0'][data-sender='assistant'][data-id]")
     end
   end
