@@ -2,6 +2,7 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   require Logger
 
+  alias Cara.AI.BranchedChat
   alias Cara.AI.ChatOrchestrator
   alias Cara.AI.Prompt
   alias Cara.AI.Tools
@@ -49,6 +50,11 @@ defmodule CaraWeb.ChatLive do
         ui_config = Application.get_env(:cara, :ui, %{})
         bubble_width = Map.get(ui_config, :bubble_width, "40%")
 
+        initial_messages = [welcome_message_for_student(info)]
+        initial_context = chat_module().new_context(system_prompt)
+
+        branched_chat = BranchedChat.new(chat_module(), initial_messages, initial_context)
+
         if connected?(socket) and monitoring_enabled?() do
           Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
 
@@ -61,21 +67,17 @@ defmodule CaraWeb.ChatLive do
 
         {:ok,
          assign(socket,
-           chat_messages: [welcome_message_for_student(info)],
-           llm_context: chat_module().new_context(system_prompt),
+           branched_chat: branched_chat,
+           show_branches: false,
            message_data: %{"message" => ""},
            app_version: app_version(),
            student_info: info,
            llm_tools: llm_tools,
-           tool_status: nil,
            bubble_width: bubble_width,
            tool_usage_counts:
              Enum.reduce(llm_tools, %{}, fn tool, acc ->
                Map.put(acc, tool.name, 0)
              end),
-           active_task: nil,
-           pending_messages: [],
-           current_user_message: nil,
            show_notes: false,
            notes: ""
          )
@@ -97,6 +99,51 @@ defmodule CaraWeb.ChatLive do
     end
 
     :ok
+  end
+
+  @impl true
+  def handle_event("toggle_branches", _params, socket) do
+    {:noreply, assign(socket, show_branches: !socket.assigns.show_branches)}
+  end
+
+  @impl true
+  def handle_event("switch_branch", %{"id" => id}, socket) do
+    branched_chat = BranchedChat.switch_branch(socket.assigns.branched_chat, id)
+
+    if branched_chat.current_branch_id != socket.assigns.branched_chat.current_branch_id do
+      maybe_broadcast_monitoring(
+        socket,
+        {:chat_state,
+         %{
+           id: socket.assigns.chat_id,
+           student: socket.assigns.student_info,
+           messages: BranchedChat.get_current_messages(branched_chat)
+         }}
+      )
+    end
+
+    {:noreply, assign(socket, branched_chat: branched_chat)}
+  end
+
+  @impl true
+  def handle_event("branch_off", %{"id" => id}, socket) do
+    branched_chat = BranchedChat.branch_off(socket.assigns.branched_chat, id)
+
+    if branched_chat.current_branch_id != socket.assigns.branched_chat.current_branch_id do
+      maybe_broadcast_monitoring(
+        socket,
+        {:chat_state,
+         %{
+           id: socket.assigns.chat_id,
+           student: socket.assigns.student_info,
+           messages: BranchedChat.get_current_messages(branched_chat)
+         }}
+      )
+
+      {:noreply, assign(socket, branched_chat: branched_chat, show_branches: true)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -127,49 +174,20 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_event("delete_message", %{"id" => id}, socket) do
-    updated_chat_messages =
-      Enum.map(socket.assigns.chat_messages, fn msg ->
-        if msg.id == id do
-          %{msg | deleted: true}
-        else
-          msg
-        end
-      end)
+    branched_chat = BranchedChat.delete_message(socket.assigns.branched_chat, id)
 
-    if monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(
-        Cara.PubSub,
-        "teacher:monitor",
-        {:message_deleted, %{chat_id: socket.assigns.chat_id, message_id: id}}
-      )
-    end
+    maybe_broadcast_monitoring(
+      socket,
+      {:message_deleted, %{chat_id: socket.assigns.chat_id, message_id: id}}
+    )
 
-    # Rebuild llm_context from updated_chat_messages
-    # We skip the first message because it's the welcome message (not in llm_context)
-    # We use chat_module().reset_context(socket.assigns.llm_context) to get a fresh context
-    # with just the system prompt.
-    new_llm_context =
-      updated_chat_messages
-      |> Enum.drop(1)
-      |> Enum.filter(fn msg -> !msg.deleted end)
-      |> Enum.reduce(chat_module().reset_context(socket.assigns.llm_context), fn msg, acc ->
-        case msg.sender do
-          :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
-          :assistant -> ReqLLM.Context.append(acc, ReqLLM.Context.assistant(msg.content))
-        end
-      end)
-
-    {:noreply,
-     assign(socket,
-       chat_messages: updated_chat_messages,
-       llm_context: new_llm_context
-     )}
+    {:noreply, assign(socket, branched_chat: branched_chat)}
   end
 
   # Fallback for old clients (should not happen if refreshed, but for safety)
   def handle_event("delete_message", %{"idx" => idx}, socket) do
     idx = if is_binary(idx), do: String.to_integer(idx), else: idx
-    msg_to_delete = Enum.at(socket.assigns.chat_messages, idx)
+    msg_to_delete = Enum.at(BranchedChat.get_current_messages(socket.assigns.branched_chat), idx)
 
     if msg_to_delete do
       handle_event("delete_message", %{"id" => msg_to_delete.id}, socket)
@@ -180,113 +198,112 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_event("cancel", _params, socket) do
-    if pid = socket.assigns.active_task do
+    branched_chat = socket.assigns.branched_chat
+    current_branch_id = branched_chat.current_branch_id
+    branch = branched_chat.branches[current_branch_id]
+
+    if pid = branch.active_task do
       Process.exit(pid, :kill)
     end
 
-    {updated_llm_context, updated_chat_messages} =
-      if user_msg = socket.assigns.current_user_message do
-        {partial_content, updated_messages} =
-          case List.last(socket.assigns.chat_messages) do
-            %{sender: :assistant, content: content} ->
-              {content, socket.assigns.chat_messages}
+    current_messages = branch.messages
 
-            _ ->
-              cancelled_msg = %{
-                sender: :assistant,
-                content: "*Cancelled*",
-                id: Ecto.UUID.generate(),
-                deleted: false
-              }
+    {updated_chat_messages, cancelled_msg_obj} =
+      if _user_msg = branch.current_user_message do
+        case List.last(current_messages) do
+          %{sender: :assistant, content: _content} = last ->
+            {current_messages, last}
 
-              {"*Cancelled*", socket.assigns.chat_messages ++ [cancelled_msg]}
-          end
+          _ ->
+            cancelled_msg = %{
+              sender: :assistant,
+              content: "*Cancelled*",
+              id: Ecto.UUID.generate(),
+              deleted: false
+            }
 
-        # If we appended a "Cancelled" message, we should broadcast it
-        cancelled_msg_obj = List.last(updated_messages)
-
-        if cancelled_msg_obj.content == "*Cancelled*" and monitoring_enabled?() do
-          Phoenix.PubSub.broadcast(
-            Cara.PubSub,
-            "teacher:monitor",
-            {:new_message, %{chat_id: socket.assigns.chat_id, message: cancelled_msg_obj}}
-          )
+            {current_messages ++ [cancelled_msg], cancelled_msg}
         end
-
-        new_ctx =
-          socket.assigns.llm_context
-          |> ReqLLM.Context.append(ReqLLM.Context.user(user_msg))
-          |> ReqLLM.Context.append(ReqLLM.Context.assistant(partial_content))
-
-        {new_ctx, updated_messages}
       else
-        {socket.assigns.llm_context, socket.assigns.chat_messages}
+        {current_messages, nil}
       end
 
-    {:noreply,
-     assign(socket,
-       active_task: nil,
-       pending_messages: [],
-       tool_status: nil,
-       current_user_message: nil,
-       llm_context: updated_llm_context,
-       chat_messages: updated_chat_messages
-     )}
+    if cancelled_msg_obj && cancelled_msg_obj.content == "*Cancelled*" do
+      maybe_broadcast_monitoring(
+        socket,
+        {:new_message, %{chat_id: socket.assigns.chat_id, message: cancelled_msg_obj}}
+      )
+    end
+
+    # Rebuild context for the branch after cancellation
+    new_context = rebuild_context_from_messages(updated_chat_messages, branched_chat)
+
+    updated_branch = %{
+      branch
+      | messages: updated_chat_messages,
+        context: new_context,
+        active_task: nil,
+        pending_messages: [],
+        tool_status: nil,
+        current_user_message: nil
+    }
+
+    branches = Map.put(branched_chat.branches, current_branch_id, updated_branch)
+    branched_chat = %{branched_chat | branches: branches}
+
+    {:noreply, assign(socket, branched_chat: branched_chat)}
   end
 
   @impl true
   def handle_info({:teacher_joined, _}, socket) do
-    if monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(
-        Cara.PubSub,
-        "teacher:monitor",
-        {:chat_state,
-         %{
-           id: socket.assigns.chat_id,
-           student: socket.assigns.student_info,
-           messages: socket.assigns.chat_messages
-         }}
-      )
-    end
+    maybe_broadcast_monitoring(
+      socket,
+      {:chat_state,
+       %{
+         id: socket.assigns.chat_id,
+         student: socket.assigns.student_info,
+         messages: BranchedChat.get_current_messages(socket.assigns.branched_chat)
+       }}
+    )
 
     {:noreply, socket}
   end
 
   # Handle streamed chunks from the LLM
   @impl true
-  def handle_info({:llm_chunk, chunk}, socket) when is_binary(chunk) do
-    updated_messages = append_chunk_to_messages(chunk, socket.assigns.chat_messages)
-    {:noreply, assign(socket, chat_messages: updated_messages, tool_status: nil)}
+  def handle_info({:llm_chunk, branch_id, chunk}, socket) when is_binary(chunk) do
+    branched_chat = BranchedChat.append_chunk(socket.assigns.branched_chat, branch_id, chunk)
+    {:noreply, assign(socket, branched_chat: branched_chat)}
   end
 
   # Handle end of LLM stream. Send the `llm_end` event to javascript so Mermaid runs
   @impl true
-  def handle_info({:llm_end, llm_context_builder}, socket) when is_function(llm_context_builder, 1) do
-    final_content = get_last_assistant_message_content(socket.assigns.chat_messages)
-    updated_llm_context = llm_context_builder.(final_content)
+  def handle_info({:llm_end, branch_id, llm_context_builder}, socket)
+      when is_function(llm_context_builder, 1) do
+    branched_chat =
+      BranchedChat.finish_ai_response(socket.assigns.branched_chat, branch_id, llm_context_builder)
 
     # Broadcast the completed AI message
-    final_message = List.last(socket.assigns.chat_messages)
+    final_message = List.last(branched_chat.branches[branch_id].messages)
 
-    if monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(
-        Cara.PubSub,
-        "teacher:monitor",
-        {:new_message, %{chat_id: socket.assigns.chat_id, message: final_message}}
-      )
-    end
+    maybe_broadcast_monitoring(
+      socket,
+      {:new_message, %{chat_id: socket.assigns.chat_id, message: final_message}}
+    )
 
     socket =
       socket
+      |> assign(branched_chat: branched_chat)
       |> push_event("llm_end", %{})
-      |> process_next_message_or_idle(updated_llm_context)
+      |> process_next_message_or_idle(branch_id)
 
     {:noreply, socket}
   end
 
   @impl true
-  def handle_info({:llm_status, status}, socket) do
-    {:noreply, assign(socket, tool_status: status)}
+  def handle_info({:llm_status, branch_id, status}, socket) do
+    branched_chat = BranchedChat.set_tool_status(socket.assigns.branched_chat, branch_id, status)
+    {:noreply, assign(socket, branched_chat: branched_chat)}
   end
 
   @impl true
@@ -298,6 +315,8 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_info({:chat_started, _}, socket), do: {:noreply, socket}
   @impl true
+  def handle_info({:chat_state, _}, socket), do: {:noreply, socket}
+  @impl true
   def handle_info({:new_message, _}, socket), do: {:noreply, socket}
   @impl true
   def handle_info({:message_deleted, _}, socket), do: {:noreply, socket}
@@ -306,47 +325,42 @@ defmodule CaraWeb.ChatLive do
 
   # Handle LLM errors
   @impl true
-  def handle_info({:llm_error, error_message}, socket) when is_binary(error_message) do
-    error_message_obj = %{
-      sender: :assistant,
-      content: error_message,
-      id: Ecto.UUID.generate(),
-      deleted: false
-    }
+  def handle_info({:llm_error, branch_id, error_message}, socket) when is_binary(error_message) do
+    branched_chat = BranchedChat.add_error_message(socket.assigns.branched_chat, branch_id, error_message)
+    error_message_obj = List.last(branched_chat.branches[branch_id].messages)
 
-    if monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(
-        Cara.PubSub,
-        "teacher:monitor",
-        {:new_message, %{chat_id: socket.assigns.chat_id, message: error_message_obj}}
-      )
-    end
+    maybe_broadcast_monitoring(
+      socket,
+      {:new_message, %{chat_id: socket.assigns.chat_id, message: error_message_obj}}
+    )
 
-    socket = assign(socket, chat_messages: socket.assigns.chat_messages ++ [error_message_obj])
-    {:noreply, process_next_message_or_idle(socket)}
+    socket
+    |> assign(branched_chat: branched_chat)
+    |> process_next_message_or_idle(branch_id)
+    |> then(&{:noreply, &1})
   end
 
   ## Private Functions
 
-  defp process_next_message_or_idle(socket, updated_llm_context \\ nil) do
-    socket = if updated_llm_context, do: assign(socket, llm_context: updated_llm_context), else: socket
+  defp process_next_message_or_idle(socket, branch_id) do
+    branched_chat = socket.assigns.branched_chat
+    {next_message, branched_chat} = BranchedChat.dequeue_message(branched_chat, branch_id)
 
-    case socket.assigns.pending_messages do
-      [next_message | rest] ->
-        socket = add_user_message_to_chat(socket, next_message)
+    if next_message do
+      maybe_broadcast_monitoring(
+        socket,
+        {:new_message,
+         %{
+           chat_id: socket.assigns.chat_id,
+           message: List.last(branched_chat.branches[branch_id].messages)
+         }}
+      )
 
-        # Broadcast the user message
-        maybe_broadcast_monitoring(
-          socket,
-          {:new_message, %{chat_id: socket.assigns.chat_id, message: List.last(socket.assigns.chat_messages)}}
-        )
-
-        socket
-        |> assign(pending_messages: rest, current_user_message: next_message, tool_status: "Thinking...")
-        |> start_llm_stream(next_message)
-
-      [] ->
-        assign(socket, active_task: nil, current_user_message: nil, tool_status: nil)
+      socket
+      |> assign(branched_chat: branched_chat)
+      |> start_llm_stream(branch_id, next_message)
+    else
+      socket |> assign(branched_chat: branched_chat)
     end
   end
 
@@ -358,29 +372,6 @@ defmodule CaraWeb.ChatLive do
     socket
   end
 
-  ## Message Processing Helpers
-
-  @spec append_chunk_to_messages(String.t(), [chat_message()]) :: [chat_message()]
-  defp append_chunk_to_messages("", messages), do: messages
-
-  defp append_chunk_to_messages(chunk, messages) do
-    case List.last(messages) do
-      %{sender: :assistant} ->
-        {last, rest} = List.pop_at(messages, -1)
-        rest ++ [%{last | content: last.content <> chunk}]
-
-      _ ->
-        messages ++
-          [%{sender: :assistant, content: chunk, id: Ecto.UUID.generate(), deleted: false}]
-    end
-  end
-
-  @spec get_last_assistant_message_content([chat_message()]) :: String.t()
-  defp get_last_assistant_message_content(messages) do
-    %{sender: :assistant, content: content} = List.last(messages)
-    content
-  end
-
   @spec do_send_message(String.t(), Phoenix.LiveView.Socket.t()) ::
           {:noreply, Phoenix.LiveView.Socket.t()}
   defp do_send_message(message, socket) do
@@ -388,21 +379,28 @@ defmodule CaraWeb.ChatLive do
       {:noreply, socket}
     else
       socket = reset_message_form(socket)
+      branched_chat = socket.assigns.branched_chat
+      current_branch_id = branched_chat.current_branch_id
 
-      if socket.assigns.active_task do
-        {:noreply, assign(socket, pending_messages: socket.assigns.pending_messages ++ [message])}
+      if BranchedChat.busy?(branched_chat, current_branch_id) do
+        branched_chat = BranchedChat.enqueue_message(branched_chat, current_branch_id, message)
+        {:noreply, assign(socket, branched_chat: branched_chat)}
       else
-        socket = add_user_message_to_chat(socket, message)
-        # Broadcast the user message
+        branched_chat = BranchedChat.add_user_message(branched_chat, message)
+
         maybe_broadcast_monitoring(
           socket,
-          {:new_message, %{chat_id: socket.assigns.chat_id, message: List.last(socket.assigns.chat_messages)}}
+          {:new_message,
+           %{
+             chat_id: socket.assigns.chat_id,
+             message: List.last(BranchedChat.get_current_messages(branched_chat))
+           }}
         )
 
         socket =
           socket
-          |> assign(tool_status: "Thinking...", current_user_message: message)
-          |> start_llm_stream(message)
+          |> assign(branched_chat: branched_chat)
+          |> start_llm_stream(current_branch_id, message)
 
         {:noreply, socket}
       end
@@ -411,39 +409,79 @@ defmodule CaraWeb.ChatLive do
 
   defp message_blank?(message), do: String.trim(message) == ""
 
-  @spec add_user_message_to_chat(Phoenix.LiveView.Socket.t(), String.t()) ::
+  @spec start_llm_stream(Phoenix.LiveView.Socket.t(), String.t(), String.t()) ::
           Phoenix.LiveView.Socket.t()
-  defp add_user_message_to_chat(socket, message) do
-    user_message = %{
-      sender: :user,
-      content: message,
-      id: Ecto.UUID.generate(),
-      deleted: false
-    }
+  defp start_llm_stream(socket, branch_id, message) do
+    branched_chat = BranchedChat.set_tool_status(socket.assigns.branched_chat, branch_id, "Thinking...")
 
-    assign(socket, chat_messages: socket.assigns.chat_messages ++ [user_message])
-  end
-
-  @spec start_llm_stream(Phoenix.LiveView.Socket.t(), String.t()) ::
-          Phoenix.LiveView.Socket.t()
-  defp start_llm_stream(socket, message) do
     llm_call_params = %{
       message: message,
-      llm_context: socket.assigns.llm_context,
+      llm_context: branched_chat.branches[branch_id].context,
       live_view_pid: self(),
       llm_tools: socket.assigns.llm_tools,
       chat_mod: chat_module(),
-      tool_usage_counts: socket.assigns.tool_usage_counts
+      tool_usage_counts: socket.assigns.tool_usage_counts,
+      branch_id: branch_id
     }
 
     {:ok, pid} = ChatOrchestrator.run(llm_call_params)
 
-    assign(socket, active_task: pid)
+    branched_chat = BranchedChat.set_active_task(branched_chat, branch_id, pid, message)
+    assign(socket, branched_chat: branched_chat)
   end
 
   @spec reset_message_form(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   defp reset_message_form(socket) do
     assign(socket, message_data: %{"message" => ""})
+  end
+
+  defp rebuild_context_from_messages(messages, branched_chat) do
+    messages
+    |> Enum.drop(1)
+    |> Enum.filter(fn msg -> !Map.get(msg, :deleted, false) end)
+    |> Enum.reduce(chat_module().reset_context(BranchedChat.get_current_context(branched_chat)), fn msg, acc ->
+      case msg.sender do
+        :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
+        :assistant -> ReqLLM.Context.append(acc, ReqLLM.Context.assistant(msg.content))
+      end
+    end)
+  end
+
+  ## Layout & Tree Helpers (Delegated to BranchedChat)
+
+  defp render_branch_tree(assigns, nodes, depth \\ 0) do
+    assigns = assign(assigns, nodes: nodes, depth: depth)
+
+    ~H"""
+    <%= for node <- @nodes do %>
+      <% branch = @branched_chat.branches[node.id] %>
+      <div class="flex flex-col">
+        <div class="flex items-center">
+          <%= if @depth > 0 do %>
+            <div class="flex-shrink-0 flex items-center h-full" style={"width: #{@depth * 20}px"}>
+              <div class="w-full border-b-2 border-l-2 border-gray-200 rounded-bl-lg h-6 -mt-6"></div>
+            </div>
+          <% end %>
+          <button
+            phx-click="switch_branch"
+            phx-value-id={node.id}
+            class={"flex-1 text-left p-2 my-1 rounded-lg transition-all border #{if node.id == @branched_chat.current_branch_id, do: "bg-blue-50 border-blue-200 text-blue-700 shadow-sm", else: "bg-white border-transparent text-gray-700 hover:bg-gray-50 hover:border-gray-200"}"}
+          >
+            <div class="flex items-start gap-2">
+              <span class={"hero-chat-bubble-bottom-center-text inline-block w-4 h-4 mt-0.5 #{if node.id == @branched_chat.current_branch_id, do: "text-blue-600", else: "text-gray-400"}"}>
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class={"text-xs font-semibold truncate #{if node.id == @branched_chat.current_branch_id, do: "text-blue-800", else: "text-gray-900"}"}>
+                  {if branch.name == "", do: "New branch...", else: branch.name}
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+        {render_branch_tree(assigns, node.children, @depth + 1)}
+      </div>
+    <% end %>
+    """
   end
 
   ## Rendering Helpers

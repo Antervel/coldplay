@@ -151,7 +151,7 @@ Hooks.MessageContextMenu = {
       contextMenu.style.top = `${triggerButtonRect.bottom + window.scrollY + 5}px`;
 
       // Check if the message is from the user or AI to adjust horizontal position
-      const isUserMessage = currentMessageEl.parentElement.classList.contains('justify-end');
+      const isUserMessage = currentMessageEl.dataset.sender === 'user';
 
       let finalLeft;
       const padding = 10; // Padding from viewport edges
@@ -235,6 +235,16 @@ Hooks.MessageContextMenu = {
           e.stopPropagation();
           const id = currentMessageEl.dataset.id;
           this.pushEvent("delete_message", { id: id });
+          hideContextMenu();
+        };
+      }
+
+      const branchButton = contextMenu.querySelector('[data-action="branch"]');
+      if (branchButton) {
+        branchButton.onclick = (e) => {
+          e.stopPropagation();
+          const id = currentMessageEl.dataset.id;
+          this.pushEvent("branch_off", { id: id });
           hideContextMenu();
         };
       }
