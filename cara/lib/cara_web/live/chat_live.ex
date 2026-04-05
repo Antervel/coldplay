@@ -103,7 +103,10 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_event("toggle_branches", _params, socket) do
-    {:noreply, assign(socket, show_branches: !socket.assigns.show_branches)}
+    new_show_branches = !socket.assigns.show_branches
+    # If opening branches, close notes
+    new_show_notes = if new_show_branches, do: false, else: socket.assigns.show_notes
+    {:noreply, assign(socket, show_branches: new_show_branches, show_notes: new_show_notes)}
   end
 
   @impl true
@@ -140,7 +143,8 @@ defmodule CaraWeb.ChatLive do
          }}
       )
 
-      {:noreply, assign(socket, branched_chat: branched_chat, show_branches: true)}
+      # Opening branches, so close notes
+      {:noreply, assign(socket, branched_chat: branched_chat, show_branches: true, show_notes: false)}
     else
       {:noreply, socket}
     end
@@ -148,7 +152,10 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_event("toggle_notes", _params, socket) do
-    {:noreply, assign(socket, show_notes: !socket.assigns.show_notes)}
+    new_show_notes = !socket.assigns.show_notes
+    # If opening notes, close branches
+    new_show_branches = if new_show_notes, do: false, else: socket.assigns.show_branches
+    {:noreply, assign(socket, show_notes: new_show_notes, show_branches: new_show_branches)}
   end
 
   @impl true

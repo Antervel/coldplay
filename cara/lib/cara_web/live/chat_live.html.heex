@@ -214,20 +214,29 @@
     </footer>
   </div>
   
-<!-- Conversations Panel -->
-  <div class={"relative h-full bg-white shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] transition-all duration-300 flex-shrink-0 #{if @show_branches, do: "w-[300px]", else: "w-0"}"}>
-    <!-- Toggle Tab -->
+<!-- Right Sidebars Container -->
+  <div class={"relative h-full bg-white shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] transition-all duration-300 flex-shrink-0 #{if @show_branches or @show_notes, do: "w-[400px]", else: "w-0"}"}>
+    <!-- Toggle Tabs (Both slide together because they are anchored to the left-0 of the same container) -->
+    <button
+      phx-click="toggle_notes"
+      class="absolute left-0 top-[40%] -translate-x-full -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none flex flex-col items-center gap-2 z-10"
+      style="writing-mode: vertical-rl; text-orientation: mixed;"
+    >
+      <span class="hero-pencil-square inline-block w-5 h-5 rotate-90"></span>
+      <span class="font-bold tracking-wider">NOTES</span>
+    </button>
+
     <button
       phx-click="toggle_branches"
-      class="absolute left-0 top-[21%] -translate-x-full -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none flex flex-col items-center gap-2 z-10"
+      class="absolute left-0 top-[60%] -translate-x-full -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none flex flex-col items-center gap-2 z-10"
       style="writing-mode: vertical-rl; text-orientation: mixed;"
     >
       <span class="hero-chat-bubble-left-right inline-block w-5 h-5 rotate-90"></span>
       <span class="font-bold tracking-wider">CONVERSATIONS</span>
     </button>
     
-<!-- Panel Content -->
-    <div class={"h-full w-[300px] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 #{if @show_branches, do: "opacity-100", else: "opacity-0 pointer-events-none"}"}>
+<!-- Conversations Panel Content -->
+    <div class={"h-full w-[400px] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 #{if @show_branches, do: "opacity-100", else: "opacity-0 pointer-events-none absolute inset-0"}"}>
       <div class="flex items-center justify-between mb-6 flex-shrink-0">
         <h2 class="text-xl font-bold text-black flex items-center gap-2">
           <span class="hero-chat-bubble-left-right inline-block w-6 h-6"></span> Conversations
@@ -249,22 +258,9 @@
         Branch off any message to start a new thread.
       </div>
     </div>
-  </div>
-  
-<!-- Notes Panel -->
-  <div class={"relative h-full bg-white shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] transition-all duration-300 flex-shrink-0 #{if @show_notes, do: "w-[400px]", else: "w-0"}"}>
-    <!-- Toggle Tab -->
-    <button
-      phx-click="toggle_notes"
-      class="absolute left-0 top-[35%] -translate-x-full -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none flex flex-col items-center gap-2 z-10"
-      style="writing-mode: vertical-rl; text-orientation: mixed;"
-    >
-      <span class="hero-pencil-square inline-block w-5 h-5 rotate-90"></span>
-      <span class="font-bold tracking-wider">NOTES</span>
-    </button>
     
-<!-- Panel Content -->
-    <div class={"h-full w-[400px] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 #{if @show_notes, do: "opacity-100", else: "opacity-0 pointer-events-none"}"}>
+<!-- Notes Panel Content -->
+    <div class={"h-full w-[400px] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 #{if @show_notes, do: "opacity-100", else: "opacity-0 pointer-events-none absolute inset-0"}"}>
       <div class="flex items-center justify-between mb-4 flex-shrink-0">
         <h2 class="text-xl font-bold text-black flex items-center gap-2">
           <span class="hero-pencil-square inline-block w-6 h-6"></span> My Notes
