@@ -498,15 +498,16 @@ defmodule CaraWeb.ChatLive do
 
   This is primarily used in templates to render chat message content.
   """
-  @spec render_markdown(String.t()) :: Phoenix.HTML.safe()
-  def render_markdown(content) do
+  @spec render_markdown(String.t(), String.t() | nil) :: Phoenix.HTML.safe()
+  def render_markdown(content, prefix \\ nil) do
     MDEx.new(markdown: content)
     |> MDExGFM.attach()
     |> MDExMermaid.attach(
       # already initialized in app.js
       mermaid_init: "",
       mermaid_pre_attrs: fn seq ->
-        ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidHook" phx-update="ignore")
+        id = if prefix, do: "mermaid-#{prefix}-#{seq}", else: "mermaid-#{seq}"
+        ~s(id="#{id}" class="mermaid" phx-hook="MermaidHook" phx-update="ignore")
       end
     )
     |> MDEx.to_html!(sanitize: MDEx.Document.default_sanitize_options())

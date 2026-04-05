@@ -64,12 +64,14 @@
               data-id={message.id}
               data-sender={message.sender}
             >
+              <% is_active = idx == last_idx && current_branch.active_task != nil %>
               <div
-                id={"message-content-#{@branched_chat.current_branch_id}-#{idx}"}
+                id={"message-content-#{message.id}"}
                 class={"#{if message.sender == :user, do: "bg-[#FFFFBC]", else: "bg-[#F5F5F5]"} text-black"}
+                phx-update={if is_active, do: nil, else: "ignore"}
                 style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
               >
-                {render_markdown(message.content)}
+                {render_markdown(message.content, message.id)}
               </div>
               <% show_stop =
                 current_branch.active_task && idx == last_idx && message.sender == :assistant &&
@@ -111,7 +113,7 @@
         <% end %>
       <% end %>
 
-      <%= for msg <- current_branch.pending_messages do %>
+      <%= for {msg, p_idx} <- Enum.with_index(current_branch.pending_messages) do %>
         <div class="flex w-full justify-end opacity-60">
           <div class="flex items-start gap-4 w-full flex-row-reverse">
             <img
@@ -124,7 +126,7 @@
                 class="bg-[#FFFFBC] text-black"
                 style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
               >
-                {render_markdown(msg)}
+                {render_markdown(msg, "pending-#{p_idx}")}
                 <div class="text-[10px] text-gray-500 mt-1 italic text-right">Queued...</div>
               </div>
             </div>
