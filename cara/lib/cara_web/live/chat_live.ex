@@ -79,7 +79,8 @@ defmodule CaraWeb.ChatLive do
                Map.put(acc, tool.name, 0)
              end),
            show_notes: false,
-           notes: ""
+           notes: "",
+           show_sidebar: false
          )
          |> assign(:chat_id, chat_id)}
 
@@ -102,7 +103,12 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
-  def handle_event("toggle_branches", _params, socket) do
+  def handle_event("toggle_sidebar", _, socket) do
+    {:noreply, assign(socket, show_sidebar: !socket.assigns.show_sidebar)}
+  end
+
+  @impl true
+  def handle_event("toggle_branches", _, socket) do
     new_show_branches = !socket.assigns.show_branches
     # If opening branches, close notes
     new_show_notes = if new_show_branches, do: false, else: socket.assigns.show_notes

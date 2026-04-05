@@ -8,4 +8,8 @@ defmodule CaraWeb.PageController do
   def sleeping(conn, _params) do
     render(conn, :sleeping)
   end
+
+  def settings(conn, _params) do
+    render(conn, :settings)
+  end
 end
