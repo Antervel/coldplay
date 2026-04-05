@@ -125,7 +125,10 @@ defmodule CaraWeb.ChatLive do
       )
     end
 
-    {:noreply, assign(socket, branched_chat: branched_chat)}
+    {:noreply,
+     socket
+     |> assign(branched_chat: branched_chat)
+     |> push_event("rendered", %{})}
   end
 
   @impl true
@@ -144,7 +147,10 @@ defmodule CaraWeb.ChatLive do
       )
 
       # Opening branches, so close notes
-      {:noreply, assign(socket, branched_chat: branched_chat, show_branches: true, show_notes: false)}
+      {:noreply,
+       socket
+       |> assign(branched_chat: branched_chat, show_branches: true, show_notes: false)
+       |> push_event("rendered", %{})}
     else
       {:noreply, socket}
     end
