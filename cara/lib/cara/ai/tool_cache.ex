@@ -47,5 +47,13 @@ defmodule Cara.AI.ToolCache do
     for {k, v} <- args, into: %{}, do: {to_string(k), v}
   end
 
-  defp normalize_args(args), do: args
+  defp normalize_args(args) when is_list(args) do
+    # If it's a list, wrap it in a map for JSONB column compatibility
+    %{"_list" => args}
+  end
+
+  defp normalize_args(args) do
+    # Wrap scalars in a map for Ecto JSONB compatibility
+    %{"_value" => args}
+  end
 end

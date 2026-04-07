@@ -54,6 +54,29 @@ defmodule Cara.AI.ToolCacheTest do
 
       assert {:ok, "new result"} = ToolCache.get_result(tool_name, args)
     end
+
+    test "handles list arguments" do
+      tool_name = "test_tool"
+      args = ["arg1", "arg2"]
+      result = "list_result"
+
+      {:ok, _} = ToolCache.save_result(tool_name, args, result)
+      assert {:ok, ^result} = ToolCache.get_result(tool_name, args)
+    end
+
+    test "handles scalar arguments" do
+      tool_name = "scalar_tool"
+      args = 123
+      result = "scalar_result"
+
+      {:ok, _} = ToolCache.save_result(tool_name, args, result)
+      assert {:ok, ^result} = ToolCache.get_result(tool_name, args)
+    end
+
+    test "returns error on save failure (validation)" do
+      # tool_name is required in ToolResult.changeset
+      assert {:error, %Ecto.Changeset{}} = ToolCache.save_result(nil, %{}, "result")
+    end
   end
 
   describe "Chat.execute_tool/2 with caching" do

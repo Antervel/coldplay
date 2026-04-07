@@ -92,4 +92,31 @@ defmodule CaraWeb.ChatLiveCoverageTest do
     :timer.sleep(1500)
     assert render(view) =~ "The AI is busy"
   end
+
+  test "redirects to /sleeping if health check fails", %{conn: conn} do
+    stub(Cara.AI.ChatMock, :health_check, fn -> :error end)
+
+    # Note: we use live/2 but expect a redirect before it finishes
+    assert {:error, {:redirect, %{to: "/sleeping"}}} = live(conn, "/chat")
+  end
+
+  test "terminate broadcasts chat_left", %{conn: conn} do
+    # Subscribe to monitor events
+    Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
+
+    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :new_context, fn _ -> Context.new([Context.system("S")]) end)
+
+    {:ok, view, _html} = live(conn, "/chat")
+
+    # Access chat_id
+    state = :sys.get_state(view.pid)
+    chat_id = state.socket.assigns.chat_id
+
+    # Gracefully stop the LiveView process to trigger terminate.
+    # We use GenServer.stop to avoid crashing the test process.
+    GenServer.stop(view.pid)
+
+    assert_receive {:chat_left, %{id: ^chat_id}}
+  end
 end

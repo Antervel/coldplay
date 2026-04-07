@@ -66,4 +66,12 @@ defmodule CaraWeb.TeacherLiveTest do
     assert html =~ "Deleted by student"
     assert html =~ "Hello Bob!"
   end
+
+  test "teacher dashboard shows disabled message when config is false", %{conn: conn} do
+    Application.put_env(:cara, :enable_teacher_monitoring, false)
+    on_exit(fn -> Application.put_env(:cara, :enable_teacher_monitoring, true) end)
+
+    {:ok, view, _html} = live(conn, "/teacher")
+    assert render(view) =~ "Monitoring is disabled"
+  end
 end
