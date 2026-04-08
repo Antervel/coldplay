@@ -17,7 +17,7 @@ defmodule Cara.SilverBulletTest do
   describe "get_page/1" do
     test "returns page content on success" do
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
-        assert url == "http://localhost:3000/My%20Page.md"
+        assert url == "http://localhost:3000/.fs/My%20Page.md"
         assert {"X-Sync-Mode", "true"} in opts[:headers]
         {:ok, %{status: 200, body: "# My Page Content"}}
       end)
@@ -27,7 +27,7 @@ defmodule Cara.SilverBulletTest do
 
     test "works with .md extension in title" do
       expect(Cara.HTTPClientMock, :get, fn url, _opts ->
-        assert url == "http://localhost:3000/My%20Page.md"
+        assert url == "http://localhost:3000/.fs/My%20Page.md"
         {:ok, %{status: 200, body: "# My Page Content"}}
       end)
 
@@ -54,7 +54,7 @@ defmodule Cara.SilverBulletTest do
   describe "save_page/2" do
     test "returns :ok on success" do
       expect(Cara.HTTPClientMock, :put, fn url, opts ->
-        assert url == "http://localhost:3000/New%20Page.md"
+        assert url == "http://localhost:3000/.fs/New%20Page.md"
         assert opts[:body] == "New Content"
         assert {"Content-Type", "text/markdown"} in opts[:headers]
         assert {"X-Sync-Mode", "true"} in opts[:headers]

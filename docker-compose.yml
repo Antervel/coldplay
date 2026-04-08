@@ -16,6 +16,7 @@ services:
     environment:
     - SB_USER=admin:cara
     - SB_AUTH_TOKEN=a-very-secret-token
+    - SB_SHELL_BACKEND=off
     volumes:
       - cara_space:/space
     ports:

@@ -6,6 +6,7 @@ defmodule CaraWeb.ChatLive do
   alias Cara.AI.ChatOrchestrator
   alias Cara.AI.Prompt
   alias Cara.AI.Tools
+  alias Cara.Hooks.SilverBullet
 
   @type chat_message :: %{
           sender: :user | :assistant,
@@ -98,6 +99,9 @@ defmodule CaraWeb.ChatLive do
         {:chat_left, %{id: socket.assigns.chat_id}}
       )
     end
+
+    # Run the on_exit hooks.
+    SilverBullet.on_exit(socket)
 
     :ok
   end

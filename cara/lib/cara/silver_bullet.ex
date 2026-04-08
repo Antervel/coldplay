@@ -20,10 +20,15 @@ defmodule Cara.SilverBullet do
   end
 
   defp headers do
-    [
-      {"Authorization", "Bearer " <> auth_token()},
-      {"Content-Type", "text/markdown"}
+    headers = [
+      {"Content-Type", "text/markdown"},
+      {"X-Sync-Mode", "true"}
     ]
+
+    case auth_token() do
+      nil -> headers
+      token -> [{"Authorization", "Bearer " <> token} | headers]
+    end
   end
 
   @doc """
@@ -88,5 +93,55 @@ defmodule Cara.SilverBullet do
     else
       "#{title}.md"
     end
+  end
+
+  @doc """
+  Get a list of pages in silverbullet
+
+  The API returns a list of pages like this:
+  ```
+  {
+    "name": "Top half & Bottom half in Linux Interrupts.md",
+    "created": 1775680188297,
+    "lastModified": 1775680188297,
+    "contentType": "text/markdown",
+    "size": 1666,
+    "perm": "rw"
+  }
+  ```
+
+  We return a list of pages:
+  ```
+  ["Top half & Bottom half in Linux Interrupts.md"]
+  ```
+  """
+  @spec list(String.t()) :: {:ok, [String.t()]} | {:error, term()}
+  def list(_search_term) do
+    start_time = :erlang.monotonic_time(:millisecond)
+
+    result =
+      case http_client().get("#{base_url()}/.fs", headers: headers()) do
+        {:ok, %{status: 200, body: body}} ->
+          {:ok,
+           body
+           |> Enum.map(fn %{"name" => name} -> name end)
+           |> Enum.filter(fn name ->
+             not String.starts_with?(name, "Library/") and not String.starts_with?(name, "Repositories/") and
+               not (name === "CONFIG.md")
+           end)}
+
+        {:ok, %{status: 404}} ->
+          {:error, "Page not found"}
+
+        {:ok, %{status: status}} ->
+          {:error, "HTTP error: #{status}"}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+
+    end_time = :erlang.monotonic_time(:millisecond)
+    Logger.info("SilverBullet list() took #{end_time - start_time}ms")
+    result
   end
 end
