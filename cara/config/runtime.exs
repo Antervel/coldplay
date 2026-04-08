@@ -29,6 +29,10 @@ config :req_llm,
     base_url: System.get_env("OLLAMA_URL", "http://host.containers.internal:11434/v1")
   ]
 
+config :cara, :silver_bullet,
+  base_url: System.get_env("SILVER_BULLET_URL", "http://localhost:3000"),
+  auth_token: System.get_env("SILVER_BULLET_AUTH_TOKEN", "a-very-secret-token")
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

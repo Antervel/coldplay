@@ -10,6 +10,17 @@ services:
       - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  silverbullet:
+    image: ghcr.io/silverbulletmd/silverbullet:latest
+    restart: unless-stopped
+    environment:
+    - SB_USER=admin:cara
+    - SB_AUTH_TOKEN=a-very-secret-token
+    volumes:
+      - cara_space:/space
+    ports:
+      - 3000:3000
 
 volumes:
   postgres_data:
+  cara_space:

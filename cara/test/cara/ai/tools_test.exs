@@ -8,10 +8,12 @@ defmodule Cara.AI.ToolsTest do
       Application.delete_env(:cara, :enabled_tools)
 
       tools = Tools.load_tools()
-      assert length(tools) == 3
+      assert length(tools) == 5
       assert Enum.any?(tools, fn t -> t.name == "calculator" end)
       assert Enum.any?(tools, fn t -> t.name == "wikipedia_search" end)
       assert Enum.any?(tools, fn t -> t.name == "wikipedia_get_article" end)
+      assert Enum.any?(tools, fn t -> t.name == "silver_bullet_get" end)
+      assert Enum.any?(tools, fn t -> t.name == "silver_bullet_save" end)
     end
 
     test "loads specific tools from config" do

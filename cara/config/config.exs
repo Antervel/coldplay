@@ -23,7 +23,15 @@ config :cara, :ai_model, "openai:cara-cpu"
 
 config :cara, :enable_teacher_monitoring, true
 
-config :cara, :enabled_tools, [:calculator, :wikipedia_search, :wikipedia_get_article]
+config :cara, :silver_bullet, base_url: "http://localhost:3000"
+
+config :cara, :enabled_tools, [
+  :calculator,
+  :wikipedia_search,
+  :wikipedia_get_article,
+  :silver_bullet_get,
+  :silver_bullet_save
+]
 
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
