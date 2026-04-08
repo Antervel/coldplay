@@ -117,4 +117,126 @@ defmodule Cara.AI.BranchedChatTest do
     assert length(context.messages) == 1
     assert hd(context.messages).role == :system
   end
+
+  test "append_chunk/3 appends a new assistant message if last wasn't assistant" do
+    chat = initial_setup()
+    # Add a user message first so last is NOT assistant
+    chat = BranchedChat.add_user_message(chat, "Hello")
+    chat = BranchedChat.append_chunk(chat, "main", "AI response")
+
+    messages = BranchedChat.get_current_messages(chat)
+    # Welcome + User + AI
+    assert length(messages) == 3
+    assert List.last(messages).content == "AI response"
+    assert List.last(messages).sender == :assistant
+  end
+
+  test "append_chunk/3 appends to existing assistant message" do
+    chat = initial_setup()
+    # Welcome message is assistant, so it should append to it
+    chat = BranchedChat.append_chunk(chat, "main", " Part 1")
+    chat = BranchedChat.append_chunk(chat, "main", " Part 2")
+
+    messages = BranchedChat.get_current_messages(chat)
+    assert length(messages) == 1
+    assert List.last(messages).content == "Welcome! Part 1 Part 2"
+  end
+
+  test "append_chunk/3 handles empty chunk" do
+    chat = initial_setup()
+    chat = BranchedChat.append_chunk(chat, "main", "")
+    assert length(BranchedChat.get_current_messages(chat)) == 1
+  end
+
+  test "finish_ai_response/3 updates context" do
+    chat = initial_setup()
+    chat = BranchedChat.append_chunk(chat, "main", " Final answer")
+
+    llm_context_builder = fn content ->
+      # content will be "Welcome! Final answer"
+      Context.append(chat.branches["main"].context, Context.assistant(content))
+    end
+
+    chat = BranchedChat.finish_ai_response(chat, "main", llm_context_builder)
+
+    main_branch = chat.branches["main"]
+    assert main_branch.active_task == nil
+    assert length(main_branch.context.messages) == 2
+    # Use pattern matching or check content properly depending on ReqLLM.Context structure
+    last_msg = List.last(main_branch.context.messages)
+    assert last_msg.role == :assistant
+  end
+
+  test "add_error_message/3 adds error and resets status" do
+    chat = initial_setup()
+    chat = BranchedChat.add_error_message(chat, "main", "Something went wrong")
+
+    messages = BranchedChat.get_current_messages(chat)
+    assert List.last(messages).content == "Something went wrong"
+    assert chat.branches["main"].active_task == nil
+  end
+
+  test "branch_off/2 handles non-existent message" do
+    chat = initial_setup()
+    new_chat = BranchedChat.branch_off(chat, "non-existent")
+    assert chat == new_chat
+  end
+
+  test "switch_branch/2 handles non-existent branch" do
+    chat = initial_setup()
+    new_chat = BranchedChat.switch_branch(chat, "invalid")
+    assert chat == new_chat
+  end
+
+  test "queueing and busy/2" do
+    chat = initial_setup()
+    assert BranchedChat.busy?(chat, "main") == false
+
+    # Use a real PID
+    chat = BranchedChat.set_active_task(chat, "main", self(), "First msg")
+    assert BranchedChat.busy?(chat, "main") == true
+
+    chat = BranchedChat.enqueue_message(chat, "main", "Second msg")
+    {msg, chat} = BranchedChat.dequeue_message(chat, "main")
+    assert msg == "Second msg"
+
+    # After dequeue_message, active_task is still set in BranchedChat?
+    # Actually dequeue_message DOES NOT reset active_task.
+    assert BranchedChat.busy?(chat, "main") == true
+
+    # Manually reset it for testing
+    chat = %{chat | branches: Map.update!(chat.branches, "main", &%{&1 | active_task: nil})}
+    assert BranchedChat.busy?(chat, "main") == false
+  end
+
+  test "set_tool_status/3" do
+    chat = initial_setup()
+    chat = BranchedChat.set_tool_status(chat, "main", "Calculating...")
+    assert chat.branches["main"].tool_status == "Calculating..."
+  end
+
+  test "build_tree/1 generates hierarchical structure" do
+    import Mox
+    stub(Cara.AI.ChatMock, :reset_context, fn _ctx -> Context.new([Context.system("S")]) end)
+
+    chat = initial_setup()
+    welcome_id = hd(BranchedChat.get_current_messages(chat)).id
+
+    # Branch 1 from welcome
+    chat = BranchedChat.branch_off(chat, welcome_id)
+    branch_1_id = chat.current_branch_id
+
+    # Branch 2 from welcome (sibling of branch 1)
+    chat = BranchedChat.switch_branch(chat, "main")
+    chat = BranchedChat.branch_off(chat, welcome_id)
+    branch_2_id = chat.current_branch_id
+
+    tree = BranchedChat.build_tree(chat)
+
+    # Structure should be: [ %{id: "main", children: [%{id: b1, children: []}, %{id: b2, children: []}] } ]
+    assert hd(tree).id == "main"
+    child_ids = Enum.map(hd(tree).children, & &1.id)
+    assert branch_1_id in child_ids
+    assert branch_2_id in child_ids
+  end
 end

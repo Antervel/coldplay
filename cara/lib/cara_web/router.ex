@@ -27,6 +27,7 @@ defmodule CaraWeb.Router do
     post "/student", StudentController, :create
     live "/chat", ChatLive, :index
     live "/teacher", TeacherLive, :index
+    get "/settings", PageController, :settings
   end
 
   # Other scopes may use custom stacks.

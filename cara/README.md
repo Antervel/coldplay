@@ -8,6 +8,8 @@ Built with Elixir and the Phoenix Framework, Cara offers a real-time, interactiv
 
 - **Personalized Learning:** Cara's personality and response style are dynamically adjusted based on the student's age, making it a more effective and engaging tutor.
 - **Real-time Interaction:** The chat interface, built with Phoenix LiveView, provides instant, streaming responses from the AI.
+- **Conversation Branching:** Explore different learning paths by branching off from any message in the history, allowing for non-linear exploration of topics.
+- **AI Tools:** The AI can use integrated tools like a **Calculator** for math problems and **Wikipedia** for factual research.
 - **Teacher Dashboard:** A dedicated control panel at `/teacher` allows teachers to oversee multiple student sessions in real-time, including viewing deleted messages.
 - **Markdown Support:** The AI's responses are rendered as Markdown, allowing for formatted text, code blocks, lists, and more.
 - **Extensible by Design:** The core AI interaction is abstracted into a behaviour, making it easy to swap out different LLM backends.
@@ -108,7 +110,9 @@ The tests for this project use a mock of the AI chat service to avoid making rea
 ## Project Structure
 
 - `lib/cara`: The core application logic, including the AI chat functionality.
-- `lib/cara/ai`: The heart of the AI interaction, including the `Chat` module and prompt generation.
+- `lib/cara/ai`: The heart of the AI interaction, including the `Chat` module, branching logic (`BranchedChat`), and prompt generation.
+- `lib/cara/ai/llm`: Low-level LLM utilities, including the `StreamParser` for interpreting AI responses.
+- `lib/cara/ai/tools`: Implementation of external tools (Calculator, Wikipedia) that the AI can use.
 - `lib/cara_web`: The web interface, including controllers, LiveView modules, and templates.
 - `lib/cara_web/live/chat_live.ex`: The main LiveView for the chat interface.
 - `priv/prompts`: EEx templates for the AI's system prompts.
