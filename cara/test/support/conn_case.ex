@@ -33,6 +33,16 @@ defmodule CaraWeb.ConnCase do
 
   setup tags do
     Cara.DataCase.setup_sandbox(tags)
+
+    # Stub SilverBullet.list for greeting prompt
+    Mox.stub(Cara.HTTPClientMock, :get, fn
+      "http://localhost:3000/.fs", _opts ->
+        {:ok, %{status: 200, body: []}}
+
+      _url, _opts ->
+        {:error, :not_found}
+    end)
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

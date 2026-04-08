@@ -9,4 +9,3 @@ defmodule Cara.Hooks.SilverBullet do
     Logger.info("Exit! #{inspect(socket.assigns)}")
   end
 end
-

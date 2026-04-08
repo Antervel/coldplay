@@ -51,11 +51,12 @@ Don't use Wikipedia for:
 - Questions where your own knowledge is clearly sufficient and reliable (e.g. "what is 2+2")
 
 SILVERBULLET
-There is a local wiki called silverbullet where can update or create summaries of the subjects in markdown. 
 There is a local wiki called silverbullet where can update or request articles to review. The current list of pages is:
 ```
 <%= 
-  {:ok, data} = Cara.SilverBullet.list("something") 
-  data |> Enum.map(fn title -> "- #{title}" end) |> Enum.join("\n")
+  case Cara.SilverBullet.list("something") do
+    {:ok, data} -> data |> Enum.map(fn title -> "- #{title}" end) |> Enum.join("\n")
+    _ -> "No pages found."
+  end
 %>
 ```
