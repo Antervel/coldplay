@@ -34,7 +34,7 @@ defmodule Cara.Wikipedia do
                format: "json"
              },
              headers: %{
-               "User-Agent" => "Cara-Educational-App/1.0"
+               "User-Agent" => "Cara-AI-Library/1.0"
              }
            ) do
         {:ok, response} ->
@@ -68,7 +68,7 @@ defmodule Cara.Wikipedia do
       case http_client().get(
              "https://en.wikipedia.org/api/rest_v1/page/summary/#{URI.encode(title)}",
              headers: %{
-               "User-Agent" => "Cara-Educational-App/1.0"
+               "User-Agent" => "Cara-AI-Library/1.0"
              }
            ) do
         {:ok, response} ->
@@ -120,7 +120,7 @@ defmodule Cara.Wikipedia do
     case http_client().get(
            "https://en.wikipedia.org/api/rest_v1/page/summary/#{URI.encode(title)}",
            headers: %{
-             "User-Agent" => "Cara-Educational-App/1.0"
+             "User-Agent" => "Cara-AI-Library/1.0"
            }
          ) do
       {:ok, response} -> {:ok, response}
@@ -160,7 +160,7 @@ defmodule Cara.Wikipedia do
              formatversion: 2
            },
            headers: %{
-             "User-Agent" => "Cara-Educational-App/1.0"
+             "User-Agent" => "Cara-AI-Library/1.0"
            }
          ) do
       {:ok, response} -> {:ok, response}

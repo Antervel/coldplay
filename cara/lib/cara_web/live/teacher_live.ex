@@ -1,13 +1,15 @@
 defmodule CaraWeb.TeacherLive do
   use CaraWeb, :live_view
 
+  alias Cara.Education.Monitoring
+
   @impl true
   def mount(_params, _session, socket) do
     monitoring_enabled = Application.get_env(:cara, :enable_teacher_monitoring, true)
 
     if connected?(socket) and monitoring_enabled do
       Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
-      Phoenix.PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:teacher_joined, nil})
+      Monitoring.teacher_joined()
     end
 
     {:ok,

@@ -33,7 +33,7 @@ defmodule Cara.WikipediaTest do
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/w/api.php"
         assert opts[:params] == %{action: "opensearch", search: "elixir", limit: 10, format: "json"}
-        assert opts[:headers]["User-Agent"] == "Cara-Educational-App/1.0"
+        assert opts[:headers]["User-Agent"] == "Cara-AI-Library/1.0"
 
         {:ok, %{status: 200, body: mock_response}}
       end)
@@ -120,7 +120,7 @@ defmodule Cara.WikipediaTest do
 
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
         assert url == "https://en.wikipedia.org/api/rest_v1/page/summary/Elixir%20(programming%20language)"
-        assert opts[:headers]["User-Agent"] == "Cara-Educational-App/1.0"
+        assert opts[:headers]["User-Agent"] == "Cara-AI-Library/1.0"
         {:ok, %{status: 200, body: mock_response}}
       end)
 

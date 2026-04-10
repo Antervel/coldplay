@@ -8,11 +8,11 @@ defmodule Cara.AI.ChatOrchestratorTest do
 
   setup :verify_on_exit!
 
-  defp mock_params(live_view_pid) do
+  defp mock_params(caller_pid) do
     %{
       message: "Hello",
       llm_context: Context.new([]),
-      live_view_pid: live_view_pid,
+      caller_pid: caller_pid,
       llm_tools: [],
       chat_mod: Cara.AI.ChatMock,
       tool_usage_counts: %{},
@@ -20,7 +20,7 @@ defmodule Cara.AI.ChatOrchestratorTest do
     }
   end
 
-  test "run/1 processes request and sends info to live_view" do
+  test "run/1 processes request and sends info to caller" do
     test_pid = self()
     params = mock_params(test_pid)
 

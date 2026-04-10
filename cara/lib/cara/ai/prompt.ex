@@ -1,6 +1,6 @@
 defmodule Cara.AI.Prompt do
   @moduledoc """
-  Central module to get prompts from templates.
+  Generic template renderer for AI prompts.
   """
 
   defp prompt_dir do
@@ -8,28 +8,19 @@ defmodule Cara.AI.Prompt do
   end
 
   @doc """
-  Renders the system prompt for a student.
-  """
-  @spec render_greeting_prompt(map()) :: String.t()
-  def render_greeting_prompt(student_info) do
-    assigns = [
-      name: student_info.name,
-      subject: student_info.subject,
-      age: student_info.age
-    ]
-
-    prompt_dir()
-    |> Path.join("greeting.eex")
-    |> EEx.eval_file(assigns)
-  end
-
-  @doc """
   Renders a specific template by name.
   """
-  def render(template_name, assigns) do
+  def render(template_name, assigns) when is_map(assigns) do
+    render(template_name, Map.to_list(assigns))
+  end
+
+  def render(template_name, assigns) when is_list(assigns) do
+    # Pass assigns as the third argument to support <%= name %>
+    # AND include :assigns in that list to support <%= @name %>
+    full_assigns = [{:assigns, Map.new(assigns)} | assigns]
+
     prompt_dir()
     |> Path.join("#{template_name}.eex")
-    |> File.read!()
-    |> EEx.eval_string(assigns: Map.to_list(assigns))
+    |> EEx.eval_file(full_assigns)
   end
 end

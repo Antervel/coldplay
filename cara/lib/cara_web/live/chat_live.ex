@@ -4,33 +4,16 @@ defmodule CaraWeb.ChatLive do
 
   alias Cara.AI.BranchedChat
   alias Cara.AI.ChatOrchestrator
-  alias Cara.AI.Prompt
-  alias Cara.AI.Tools
+  alias Cara.AI.Message
+  alias Cara.Education.Monitoring
+  alias Cara.Education.Session, as: EducationSession
   alias Cara.Hooks.SilverBullet
 
-  @type chat_message :: %{
-          sender: :user | :assistant,
-          content: String.t(),
-          id: String.t(),
-          deleted: boolean()
-        }
+  @type chat_message :: Message.t()
 
   # Get the chat module from config at runtime (allows switching to mock in tests)
   defp chat_module do
     Application.get_env(:cara, :chat_module, Cara.AI.Chat)
-  end
-
-  defp monitoring_enabled? do
-    Application.get_env(:cara, :enable_teacher_monitoring, true)
-  end
-
-  defp welcome_message_for_student(%{name: name, subject: subject}) do
-    %{
-      sender: :assistant,
-      content: "Hello **#{name}**! Let's learn about #{subject} together! 🎓",
-      id: Ecto.UUID.generate(),
-      deleted: false
-    }
   end
 
   @impl true
@@ -45,25 +28,15 @@ defmodule CaraWeb.ChatLive do
   defp do_mount(session, socket) do
     case Map.get(session, "student_info") do
       %{name: _name, subject: _subject, age: _age, chat_id: chat_id} = info ->
-        system_prompt = Prompt.render_greeting_prompt(info)
-        llm_tools = Tools.load_tools()
+        {:ok, %{branched_chat: branched_chat, llm_tools: llm_tools}} =
+          EducationSession.init_student_session(info)
 
         ui_config = Application.get_env(:cara, :ui, %{})
         bubble_width = Map.get(ui_config, :bubble_width, "40%")
 
-        initial_messages = [welcome_message_for_student(info)]
-        initial_context = chat_module().new_context(system_prompt)
-
-        branched_chat = BranchedChat.new(chat_module(), initial_messages, initial_context)
-
-        if connected?(socket) and monitoring_enabled?() do
+        if connected?(socket) do
           Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
-
-          Phoenix.PubSub.broadcast(
-            Cara.PubSub,
-            "teacher:monitor",
-            {:chat_started, %{id: chat_id, student: info}}
-          )
+          Monitoring.chat_started(chat_id, info)
         end
 
         {:ok,
@@ -92,12 +65,8 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def terminate(_reason, socket) do
-    if Map.has_key?(socket.assigns, :chat_id) and monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(
-        Cara.PubSub,
-        "teacher:monitor",
-        {:chat_left, %{id: socket.assigns.chat_id}}
-      )
+    if Map.has_key?(socket.assigns, :chat_id) do
+      Monitoring.chat_left(socket.assigns.chat_id)
     end
 
     # Run the on_exit hooks.
@@ -234,16 +203,11 @@ defmodule CaraWeb.ChatLive do
     {updated_chat_messages, cancelled_msg_obj} =
       if _user_msg = branch.current_user_message do
         case List.last(current_messages) do
-          %{sender: :assistant, content: _content} = last ->
+          %{sender: :assistant} = last ->
             {current_messages, last}
 
           _ ->
-            cancelled_msg = %{
-              sender: :assistant,
-              content: "*Cancelled*",
-              id: Ecto.UUID.generate(),
-              deleted: false
-            }
+            cancelled_msg = Message.new(:assistant, "*Cancelled*")
 
             {current_messages ++ [cancelled_msg], cancelled_msg}
         end
@@ -388,10 +352,7 @@ defmodule CaraWeb.ChatLive do
   end
 
   defp maybe_broadcast_monitoring(socket, event) do
-    if monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(Cara.PubSub, "teacher:monitor", event)
-    end
-
+    Monitoring.broadcast(event)
     socket
   end
 
@@ -440,7 +401,7 @@ defmodule CaraWeb.ChatLive do
     llm_call_params = %{
       message: message,
       llm_context: branched_chat.branches[branch_id].context,
-      live_view_pid: self(),
+      caller_pid: self(),
       llm_tools: socket.assigns.llm_tools,
       chat_mod: chat_module(),
       tool_usage_counts: socket.assigns.tool_usage_counts,
