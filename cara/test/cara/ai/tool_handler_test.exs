@@ -1,7 +1,7 @@
-defmodule Cara.AI.ToolHandlerTest do
+defmodule BranchedLLM.ToolHandlerTest do
   use Cara.DataCase, async: true
 
-  alias Cara.AI.ToolHandler
+  alias BranchedLLM.ToolHandler
   alias Cara.AI.Tools.Calculator
   alias ReqLLM.Context
 
@@ -161,13 +161,13 @@ defmodule Cara.AI.ToolHandlerTest do
   end
 
   describe "integration with real calculator tool" do
-    test "works with actual Calculator tool and Cara.AI.Chat" do
+    test "works with actual Calculator tool and BranchedLLM.Chat" do
       # This tests the real integration, not just mocks
       tool_call = ReqLLM.ToolCall.new("real_call", "calculator", Jason.encode!(%{"expression" => "(2+3)*4"}))
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
-      result = ToolHandler.handle_tool_calls([tool_call], context, tools, Cara.AI.Chat)
+      result = ToolHandler.handle_tool_calls([tool_call], context, tools, BranchedLLM.Chat)
 
       assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
@@ -181,7 +181,7 @@ defmodule Cara.AI.ToolHandlerTest do
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
-      result = ToolHandler.handle_tool_calls([tool_call], context, tools, Cara.AI.Chat)
+      result = ToolHandler.handle_tool_calls([tool_call], context, tools, BranchedLLM.Chat)
 
       assert Enum.count(result.messages) == 1
       [tool_result] = result.messages
@@ -203,7 +203,7 @@ defmodule Cara.AI.ToolHandlerTest do
       context = Context.new([])
       tools = [Calculator.calculator_tool()]
 
-      result = ToolHandler.handle_tool_calls([tool_call], context, tools, Cara.AI.Chat)
+      result = ToolHandler.handle_tool_calls([tool_call], context, tools, BranchedLLM.Chat)
 
       assert Enum.count(result.messages) == 1
       [tool_result] = result.messages

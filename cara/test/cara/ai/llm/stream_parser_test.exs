@@ -1,6 +1,6 @@
-defmodule Cara.AI.LLM.StreamParserTest do
+defmodule BranchedLLM.LLM.StreamParserTest do
   use ExUnit.Case, async: true
-  alias Cara.AI.LLM.StreamParser
+  alias BranchedLLM.LLM.StreamParser
   alias ReqLLM.StreamChunk
   alias ReqLLM.ToolCall
 

@@ -1,7 +1,7 @@
-defmodule Cara.AI.BranchedChatTest do
+defmodule BranchedLLM.BranchedChatTest do
   use ExUnit.Case, async: true
-  alias Cara.AI.BranchedChat
-  alias Cara.AI.Message
+  alias BranchedLLM.BranchedChat
+  alias BranchedLLM.Message
   alias ReqLLM.Context
 
   defp mock_chat_module do

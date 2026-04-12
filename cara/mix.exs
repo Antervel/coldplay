@@ -64,7 +64,7 @@ defmodule Cara.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14.1", only: [:dev, :test], runtime: false},
-      {:branched_llm, path: "../branched_llm"},
+      {:branched_llm, github: "dvadell/branched_llm"},
       {:req_llm, "~> 1.0.0"},
       {:mox, "~> 1.0", only: :test},
       {:mdex, "~> 0.11"},

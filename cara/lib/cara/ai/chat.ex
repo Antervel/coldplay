@@ -16,7 +16,7 @@ defmodule Cara.AI.Chat do
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
-  @behaviour Cara.AI.ChatBehaviour
+  @behaviour BranchedLLM.ChatBehaviour
   @type stream_chunk :: %{type: atom(), text: String.t()}
 
   ## Public API
@@ -25,7 +25,7 @@ defmodule Cara.AI.Chat do
   Sends a single message and returns the response without entering a loop.
   Uses streaming internally but returns the complete text.
   """
-  @impl true
+  @impl BranchedLLM.ChatBehaviour
   @spec send_message(String.t(), Context.t(), keyword()) ::
           {:ok, String.t(), Context.t()} | {:error, term()}
   def send_message(message, context, opts \\ []) do
@@ -47,7 +47,7 @@ defmodule Cara.AI.Chat do
   Sends a message and returns a stream of text chunks plus the updated context,
   and any tool calls made by the LLM.
   """
-  @impl true
+  @impl BranchedLLM.ChatBehaviour
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
           {:ok, ReqLLM.StreamResponse.t(), (String.t() -> Context.t()), list()} | {:error, term()}
   def send_message_stream(message, context, opts \\ []) do
@@ -73,7 +73,7 @@ defmodule Cara.AI.Chat do
   @doc """
   Creates a new chat context with an optional custom system prompt.
   """
-  @impl true
+  @impl BranchedLLM.ChatBehaviour
   @spec new_context(String.t()) :: Context.t()
   def new_context(system_prompt) do
     Context.new([system(system_prompt)])
@@ -90,7 +90,7 @@ defmodule Cara.AI.Chat do
   @doc """
   Clears the conversation history while keeping the system prompt.
   """
-  @impl true
+  @impl BranchedLLM.ChatBehaviour
   @spec reset_context(Context.t()) :: Context.t()
   def reset_context(context) do
     system_messages = Enum.filter(context.messages, fn msg -> msg.role == :system end)
@@ -184,7 +184,7 @@ defmodule Cara.AI.Chat do
   Executes a given tool with the provided arguments.
   Uses a caching layer to retrieve previous successful results.
   """
-  @impl true
+  @impl BranchedLLM.ChatBehaviour
   @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
   def execute_tool(tool, args) do
     OpenTelemetry.Tracer.with_span "tool_execution", %{attributes: %{tool: tool.name}} do
@@ -214,7 +214,7 @@ defmodule Cara.AI.Chat do
   @doc """
   Checks if the configured LLM provider is available.
   """
-  @impl true
+  @impl BranchedLLM.ChatBehaviour
   def health_check do
     %{health_endpoint: health_endpoint} = endpoints()
 

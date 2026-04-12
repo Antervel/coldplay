@@ -14,8 +14,8 @@ defmodule Cara.Education.Session do
 
   """
 
-  alias Cara.AI.BranchedChat
-  alias Cara.AI.Message
+  alias BranchedLLM.BranchedChat
+  alias BranchedLLM.Message
   alias Cara.AI.Tools
   alias Cara.Education.Monitoring
   alias Cara.Education.Prompts

@@ -3,7 +3,7 @@ defmodule CaraWeb.ChatLiveBranchTest do
 
   import Phoenix.LiveViewTest
   import Mox
-  alias Cara.AI.BranchedChat
+  alias BranchedLLM.BranchedChat
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 

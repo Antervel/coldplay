@@ -2,9 +2,9 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   require Logger
 
-  alias Cara.AI.BranchedChat
-  alias Cara.AI.ChatOrchestrator
-  alias Cara.AI.Message
+  alias BranchedLLM.BranchedChat
+  alias BranchedLLM.ChatOrchestrator
+  alias BranchedLLM.Message
   alias Cara.Education.Monitoring
   alias Cara.Education.Session
 

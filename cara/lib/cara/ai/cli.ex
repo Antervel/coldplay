@@ -18,8 +18,8 @@ defmodule Cara.AI.CLI do
       >> Chat ended.
   """
 
+  alias BranchedLLM.LLM.StreamParser
   alias Cara.AI.Chat
-  alias Cara.AI.LLM.StreamParser
   alias ReqLLM.Context
 
   @doc """

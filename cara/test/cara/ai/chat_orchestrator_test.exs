@@ -1,8 +1,8 @@
-defmodule Cara.AI.ChatOrchestratorTest do
+defmodule BranchedLLM.ChatOrchestratorTest do
   use ExUnit.Case, async: true
   import Mox
 
-  alias Cara.AI.ChatOrchestrator
+  alias BranchedLLM.ChatOrchestrator
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 

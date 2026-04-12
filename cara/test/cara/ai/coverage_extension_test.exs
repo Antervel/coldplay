@@ -2,7 +2,7 @@ defmodule Cara.AI.CoverageExtensionTest do
   use Cara.DataCase, async: false
   import Mox
 
-  alias Cara.AI.BranchedChat
+  alias BranchedLLM.BranchedChat
   alias Cara.AI.Chat
   alias ReqLLM.Context
 

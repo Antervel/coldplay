@@ -4,7 +4,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
   import Phoenix.LiveViewTest
   import Mox
 
-  alias Cara.AI.Message
+  alias BranchedLLM.Message
 
   setup %{conn: conn} do
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
