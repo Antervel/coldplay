@@ -4,32 +4,15 @@ defmodule CaraWeb.ChatLive do
 
   alias Cara.AI.BranchedChat
   alias Cara.AI.ChatOrchestrator
-  alias Cara.AI.Prompt
-  alias Cara.AI.Tools
+  alias Cara.AI.Message
+  alias Cara.Education.Monitoring
+  alias Cara.Education.Session
 
-  @type chat_message :: %{
-          sender: :user | :assistant,
-          content: String.t(),
-          id: String.t(),
-          deleted: boolean()
-        }
+  @type chat_message :: Message.t()
 
   # Get the chat module from config at runtime (allows switching to mock in tests)
   defp chat_module do
     Application.get_env(:cara, :chat_module, Cara.AI.Chat)
-  end
-
-  defp monitoring_enabled? do
-    Application.get_env(:cara, :enable_teacher_monitoring, true)
-  end
-
-  defp welcome_message_for_student(%{name: name, subject: subject}) do
-    %{
-      sender: :assistant,
-      content: "Hello **#{name}**! Let's learn about #{subject} together! 🎓",
-      id: Ecto.UUID.generate(),
-      deleted: false
-    }
   end
 
   @impl true
@@ -43,46 +26,11 @@ defmodule CaraWeb.ChatLive do
 
   defp do_mount(session, socket) do
     case Map.get(session, "student_info") do
-      %{name: _name, subject: _subject, age: _age, chat_id: chat_id} = info ->
-        system_prompt = Prompt.render_greeting_prompt(info)
-        llm_tools = Tools.load_tools()
-
-        ui_config = Application.get_env(:cara, :ui, %{})
-        bubble_width = Map.get(ui_config, :bubble_width, "40%")
-
-        initial_messages = [welcome_message_for_student(info)]
-        initial_context = chat_module().new_context(system_prompt)
-
-        branched_chat = BranchedChat.new(chat_module(), initial_messages, initial_context)
-
-        if connected?(socket) and monitoring_enabled?() do
-          Phoenix.PubSub.subscribe(Cara.PubSub, "teacher:monitor")
-
-          Phoenix.PubSub.broadcast(
-            Cara.PubSub,
-            "teacher:monitor",
-            {:chat_started, %{id: chat_id, student: info}}
-          )
-        end
-
+      %{name: _name, subject: _subject, age: _age, chat_id: _chat_id} = info ->
         {:ok,
-         assign(socket,
-           branched_chat: branched_chat,
-           show_branches: false,
-           message_data: %{"message" => ""},
-           app_version: app_version(),
-           student_info: info,
-           llm_tools: llm_tools,
-           bubble_width: bubble_width,
-           tool_usage_counts:
-             Enum.reduce(llm_tools, %{}, fn tool, acc ->
-               Map.put(acc, tool.name, 0)
-             end),
-           show_notes: false,
-           notes: "",
-           show_sidebar: false
-         )
-         |> assign(:chat_id, chat_id)}
+         socket
+         |> Session.assign_new_session(info, chat_module())
+         |> assign(:app_version, app_version())}
 
       _incomplete ->
         {:ok, redirect(socket, to: "/student")}
@@ -91,14 +39,7 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def terminate(_reason, socket) do
-    if Map.has_key?(socket.assigns, :chat_id) and monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(
-        Cara.PubSub,
-        "teacher:monitor",
-        {:chat_left, %{id: socket.assigns.chat_id}}
-      )
-    end
-
+    Session.broadcast_left(socket, socket.assigns.chat_id)
     :ok
   end
 
@@ -120,14 +61,11 @@ defmodule CaraWeb.ChatLive do
     branched_chat = BranchedChat.switch_branch(socket.assigns.branched_chat, id)
 
     if branched_chat.current_branch_id != socket.assigns.branched_chat.current_branch_id do
-      maybe_broadcast_monitoring(
+      Monitoring.broadcast_chat_state(
         socket,
-        {:chat_state,
-         %{
-           id: socket.assigns.chat_id,
-           student: socket.assigns.student_info,
-           messages: BranchedChat.get_current_messages(branched_chat)
-         }}
+        socket.assigns.chat_id,
+        socket.assigns.student_info,
+        BranchedChat.get_current_messages(branched_chat)
       )
     end
 
@@ -142,14 +80,11 @@ defmodule CaraWeb.ChatLive do
     branched_chat = BranchedChat.branch_off(socket.assigns.branched_chat, id)
 
     if branched_chat.current_branch_id != socket.assigns.branched_chat.current_branch_id do
-      maybe_broadcast_monitoring(
+      Monitoring.broadcast_chat_state(
         socket,
-        {:chat_state,
-         %{
-           id: socket.assigns.chat_id,
-           student: socket.assigns.student_info,
-           messages: BranchedChat.get_current_messages(branched_chat)
-         }}
+        socket.assigns.chat_id,
+        socket.assigns.student_info,
+        BranchedChat.get_current_messages(branched_chat)
       )
 
       # Opening branches, so close notes
@@ -195,9 +130,10 @@ defmodule CaraWeb.ChatLive do
   def handle_event("delete_message", %{"id" => id}, socket) do
     branched_chat = BranchedChat.delete_message(socket.assigns.branched_chat, id)
 
-    maybe_broadcast_monitoring(
+    Monitoring.broadcast_message_deleted(
       socket,
-      {:message_deleted, %{chat_id: socket.assigns.chat_id, message_id: id}}
+      socket.assigns.chat_id,
+      id
     )
 
     {:noreply, assign(socket, branched_chat: branched_chat)}
@@ -234,12 +170,7 @@ defmodule CaraWeb.ChatLive do
             {current_messages, last}
 
           _ ->
-            cancelled_msg = %{
-              sender: :assistant,
-              content: "*Cancelled*",
-              id: Ecto.UUID.generate(),
-              deleted: false
-            }
+            cancelled_msg = Message.new(:assistant, "*Cancelled*")
 
             {current_messages ++ [cancelled_msg], cancelled_msg}
         end
@@ -248,9 +179,10 @@ defmodule CaraWeb.ChatLive do
       end
 
     if cancelled_msg_obj && cancelled_msg_obj.content == "*Cancelled*" do
-      maybe_broadcast_monitoring(
+      Monitoring.broadcast_new_message(
         socket,
-        {:new_message, %{chat_id: socket.assigns.chat_id, message: cancelled_msg_obj}}
+        socket.assigns.chat_id,
+        cancelled_msg_obj
       )
     end
 
@@ -275,14 +207,11 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_info({:teacher_joined, _}, socket) do
-    maybe_broadcast_monitoring(
+    Monitoring.broadcast_chat_state(
       socket,
-      {:chat_state,
-       %{
-         id: socket.assigns.chat_id,
-         student: socket.assigns.student_info,
-         messages: BranchedChat.get_current_messages(socket.assigns.branched_chat)
-       }}
+      socket.assigns.chat_id,
+      socket.assigns.student_info,
+      BranchedChat.get_current_messages(socket.assigns.branched_chat)
     )
 
     {:noreply, socket}
@@ -305,9 +234,10 @@ defmodule CaraWeb.ChatLive do
     # Broadcast the completed AI message
     final_message = List.last(branched_chat.branches[branch_id].messages)
 
-    maybe_broadcast_monitoring(
+    Monitoring.broadcast_new_message(
       socket,
-      {:new_message, %{chat_id: socket.assigns.chat_id, message: final_message}}
+      socket.assigns.chat_id,
+      final_message
     )
 
     socket =
@@ -348,9 +278,10 @@ defmodule CaraWeb.ChatLive do
     branched_chat = BranchedChat.add_error_message(socket.assigns.branched_chat, branch_id, error_message)
     error_message_obj = List.last(branched_chat.branches[branch_id].messages)
 
-    maybe_broadcast_monitoring(
+    Monitoring.broadcast_new_message(
       socket,
-      {:new_message, %{chat_id: socket.assigns.chat_id, message: error_message_obj}}
+      socket.assigns.chat_id,
+      error_message_obj
     )
 
     socket
@@ -366,13 +297,10 @@ defmodule CaraWeb.ChatLive do
     {next_message, branched_chat} = BranchedChat.dequeue_message(branched_chat, branch_id)
 
     if next_message do
-      maybe_broadcast_monitoring(
+      Monitoring.broadcast_new_message(
         socket,
-        {:new_message,
-         %{
-           chat_id: socket.assigns.chat_id,
-           message: List.last(branched_chat.branches[branch_id].messages)
-         }}
+        socket.assigns.chat_id,
+        List.last(branched_chat.branches[branch_id].messages)
       )
 
       socket
@@ -381,14 +309,6 @@ defmodule CaraWeb.ChatLive do
     else
       socket |> assign(branched_chat: branched_chat)
     end
-  end
-
-  defp maybe_broadcast_monitoring(socket, event) do
-    if monitoring_enabled?() do
-      Phoenix.PubSub.broadcast(Cara.PubSub, "teacher:monitor", event)
-    end
-
-    socket
   end
 
   @spec do_send_message(String.t(), Phoenix.LiveView.Socket.t()) ::
@@ -407,13 +327,10 @@ defmodule CaraWeb.ChatLive do
       else
         branched_chat = BranchedChat.add_user_message(branched_chat, message)
 
-        maybe_broadcast_monitoring(
+        Monitoring.broadcast_new_message(
           socket,
-          {:new_message,
-           %{
-             chat_id: socket.assigns.chat_id,
-             message: List.last(BranchedChat.get_current_messages(branched_chat))
-           }}
+          socket.assigns.chat_id,
+          List.last(BranchedChat.get_current_messages(branched_chat))
         )
 
         socket =
@@ -436,7 +353,7 @@ defmodule CaraWeb.ChatLive do
     llm_call_params = %{
       message: message,
       llm_context: branched_chat.branches[branch_id].context,
-      live_view_pid: self(),
+      caller_pid: self(),
       llm_tools: socket.assigns.llm_tools,
       chat_mod: chat_module(),
       tool_usage_counts: socket.assigns.tool_usage_counts,
@@ -457,11 +374,12 @@ defmodule CaraWeb.ChatLive do
   defp rebuild_context_from_messages(messages, branched_chat) do
     messages
     |> Enum.drop(1)
-    |> Enum.filter(fn msg -> !Map.get(msg, :deleted, false) end)
+    |> Enum.reject(&Message.deleted?/1)
     |> Enum.reduce(chat_module().reset_context(BranchedChat.get_current_context(branched_chat)), fn msg, acc ->
-      case msg.sender do
+      case msg.role do
         :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
         :assistant -> ReqLLM.Context.append(acc, ReqLLM.Context.assistant(msg.content))
+        :system -> acc
       end
     end)
   end

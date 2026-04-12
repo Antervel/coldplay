@@ -1,35 +1,31 @@
 defmodule Cara.AI.Prompt do
   @moduledoc """
-  Central module to get prompts from templates.
+  Domain-agnostic template renderer for AI prompts.
+
+  This module provides generic template rendering utilities that know nothing
+  about any specific domain (e.g., education). Domain-specific prompts should
+  live in their own modules (e.g., `Cara.Education.Prompts`).
+
+  ## Examples
+
+      iex> Cara.AI.Prompt.render("my_template", %{name: "Alice"})
+
   """
-
-  defp prompt_dir do
-    Path.join(:code.priv_dir(:cara), "prompts")
-  end
-
-  @doc """
-  Renders the system prompt for a student.
-  """
-  @spec render_greeting_prompt(map()) :: String.t()
-  def render_greeting_prompt(student_info) do
-    assigns = [
-      name: student_info.name,
-      subject: student_info.subject,
-      age: student_info.age
-    ]
-
-    prompt_dir()
-    |> Path.join("greeting.eex")
-    |> EEx.eval_file(assigns)
-  end
 
   @doc """
   Renders a specific template by name.
+
+  The template file should exist in the prompts directory as `<template_name>.eex`.
+  The `assigns` map keys are converted to a keyword list for EEx evaluation.
   """
   def render(template_name, assigns) do
     prompt_dir()
     |> Path.join("#{template_name}.eex")
     |> File.read!()
     |> EEx.eval_string(assigns: Map.to_list(assigns))
+  end
+
+  defp prompt_dir do
+    Path.join(:code.priv_dir(:cara), "prompts")
   end
 end

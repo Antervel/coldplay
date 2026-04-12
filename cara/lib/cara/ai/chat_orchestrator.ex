@@ -1,6 +1,23 @@
 defmodule Cara.AI.ChatOrchestrator do
   @moduledoc """
   Orchestrates the LLM request/response lifecycle, including tool calls and streaming.
+
+  This module is **domain-agnostic** — it knows nothing about education, students, or teachers.
+  It communicates with a caller process (e.g., a LiveView) via a well-defined message protocol.
+
+  ## Message Protocol
+
+  The orchestrator sends the following messages to `caller_pid`:
+
+    * `{:llm_chunk, branch_id, chunk}` — A streaming text chunk from the LLM
+    * `{:llm_end, branch_id, context_builder}` — The stream is complete; `context_builder` is a
+      function `(String.t() -> ReqLLM.Context.t())` that builds the final context
+    * `{:llm_status, branch_id, status}` — A status update (e.g., "Thinking...", "Using calculator...")
+    * `{:llm_error, branch_id, error_message}` — An error occurred during the LLM request
+    * `{:update_tool_usage_counts, counts}` — Updated tool usage counts for the caller to track
+
+  The caller may also send messages back (e.g., to cancel a task), but those are handled
+  externally via the `active_task` PID in `BranchedChat`.
   """
   use Retry
   require Logger
@@ -12,7 +29,7 @@ defmodule Cara.AI.ChatOrchestrator do
   @type llm_call_params :: %{
           message: String.t(),
           llm_context: ReqLLM.Context.t(),
-          live_view_pid: pid(),
+          caller_pid: pid(),
           llm_tools: list(),
           chat_mod: module(),
           tool_usage_counts: map(),
@@ -21,6 +38,8 @@ defmodule Cara.AI.ChatOrchestrator do
 
   @doc """
   Starts the LLM request process in a separate task.
+
+  The task communicates with the caller via messages defined in the module doc.
   """
   @spec run(llm_call_params()) :: {:ok, pid()}
   def run(params) do
@@ -32,7 +51,7 @@ defmodule Cara.AI.ChatOrchestrator do
               :ok
 
             {:error, reason} ->
-              send(params.live_view_pid, {:llm_status, params.branch_id, "Retrying..."})
+              send(params.caller_pid, {:llm_status, params.branch_id, "Retrying..."})
               {:error, reason}
           end
         after
@@ -46,7 +65,7 @@ defmodule Cara.AI.ChatOrchestrator do
           :ok
 
         {:error, reason} ->
-          send(params.live_view_pid, {:llm_error, params.branch_id, reason})
+          send(params.caller_pid, {:llm_error, params.branch_id, reason})
       end
     end)
   end
@@ -56,7 +75,7 @@ defmodule Cara.AI.ChatOrchestrator do
          %{
            message: message,
            llm_context: llm_context,
-           live_view_pid: _live_view_pid,
+           caller_pid: _caller_pid,
            llm_tools: llm_tools,
            chat_mod: chat_mod
          } = llm_call_params
@@ -89,7 +108,7 @@ defmodule Cara.AI.ChatOrchestrator do
          llm_context_builder,
          tool_calls,
          %{
-           live_view_pid: live_view_pid,
+           caller_pid: caller_pid,
            tool_usage_counts: tool_usage_counts,
            branch_id: branch_id
          } = llm_call_params
@@ -98,7 +117,7 @@ defmodule Cara.AI.ChatOrchestrator do
       # No tool calls, process the stream normally
       if process_stream(
            stream_response,
-           live_view_pid,
+           caller_pid,
            llm_context_builder,
            tool_usage_counts,
            branch_id
@@ -123,12 +142,12 @@ defmodule Cara.AI.ChatOrchestrator do
            llm_tools: llm_tools,
            chat_mod: chat_mod,
            tool_usage_counts: tool_usage_counts,
-           live_view_pid: live_view_pid,
+           caller_pid: caller_pid,
            branch_id: branch_id
          } = llm_call_params
        ) do
     tool_names = Enum.map_join(tool_calls, ", ", &ReqLLM.ToolCall.name/1)
-    send(live_view_pid, {:llm_status, branch_id, "Using #{tool_names}..."})
+    send(caller_pid, {:llm_status, branch_id, "Using #{tool_names}..."})
 
     {tool_calls_to_execute, tool_results_for_limited_tools, new_tool_usage_counts} =
       Enum.reduce(tool_calls, {[], [], tool_usage_counts}, fn tool_call, {exec_acc, limited_acc, counts_acc} ->
@@ -183,12 +202,12 @@ defmodule Cara.AI.ChatOrchestrator do
         ) :: boolean()
   defp process_stream(
          stream_response,
-         live_view_pid,
+         caller_pid,
          llm_context_builder,
          tool_usage_counts,
          branch_id
        ) do
-    send(live_view_pid, {:update_tool_usage_counts, tool_usage_counts})
+    send(caller_pid, {:update_tool_usage_counts, tool_usage_counts})
 
     start_time = :erlang.monotonic_time(:millisecond)
 
@@ -196,7 +215,7 @@ defmodule Cara.AI.ChatOrchestrator do
       stream_response
       |> ReqLLM.StreamResponse.tokens()
       |> Enum.reduce_while(false, fn chunk, _acc ->
-        send(live_view_pid, {:llm_chunk, branch_id, chunk})
+        send(caller_pid, {:llm_chunk, branch_id, chunk})
         {:cont, true}
       end)
 
@@ -207,7 +226,7 @@ defmodule Cara.AI.ChatOrchestrator do
     Logger.info("LLM stream complete metadata: #{inspect(metadata)}")
 
     if sent_any_chunks do
-      send(live_view_pid, {:llm_end, branch_id, llm_context_builder})
+      send(caller_pid, {:llm_end, branch_id, llm_context_builder})
     end
 
     sent_any_chunks

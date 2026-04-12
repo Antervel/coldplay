@@ -1,6 +1,7 @@
 defmodule Cara.AI.BranchedChatTest do
   use ExUnit.Case, async: true
   alias Cara.AI.BranchedChat
+  alias Cara.AI.Message
   alias ReqLLM.Context
 
   defp mock_chat_module do
@@ -8,7 +9,7 @@ defmodule Cara.AI.BranchedChatTest do
   end
 
   defp initial_setup do
-    initial_messages = [%{id: "welcome", sender: :assistant, content: "Welcome!", deleted: false}]
+    initial_messages = [Message.new(:assistant, "Welcome!", "welcome")]
     initial_context = Context.new([Context.system("System prompt")])
     BranchedChat.new(mock_chat_module(), initial_messages, initial_context)
   end
@@ -110,7 +111,7 @@ defmodule Cara.AI.BranchedChatTest do
     chat = BranchedChat.delete_message(chat, msg_id)
 
     messages = BranchedChat.get_current_messages(chat)
-    assert Enum.find(messages, &(&1.id == msg_id)).deleted == true
+    assert Enum.find(messages, &(&1.id == msg_id)) |> Message.deleted?()
 
     # Context should only have system message now
     context = BranchedChat.get_current_context(chat)

@@ -4,6 +4,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
   import Phoenix.LiveViewTest
   import Mox
   alias Cara.AI.BranchedChat
+  alias Cara.AI.Message
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
 
@@ -101,7 +102,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
       # chat_messages still has 3 messages, but one is deleted: true
       assert length(current_messages) == 3
-      assert Enum.at(current_messages, 2).deleted == true
+      assert current_messages |> Enum.at(2) |> Message.deleted?()
 
       # llm_context should be [system, user]
       assert length(current_context.messages) == 2
@@ -159,7 +160,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       current_context = BranchedChat.get_current_context(branched_chat)
 
       assert length(current_messages) == 5
-      assert Enum.at(current_messages, 2).deleted == true
+      assert current_messages |> Enum.at(2) |> Message.deleted?()
       # llm_context should be [S, M1, M2, R-M2]
       assert length(current_context.messages) == 4
 
@@ -173,7 +174,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       current_context = BranchedChat.get_current_context(branched_chat)
 
       assert length(current_messages) == 5
-      assert Enum.at(current_messages, 4).deleted == true
+      assert current_messages |> Enum.at(4) |> Message.deleted?()
       # llm_context should be [S, M1, M2]
       assert length(current_context.messages) == 3
       assert Enum.at(current_context.messages, 1).role == :user
@@ -227,7 +228,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       current_messages = BranchedChat.get_current_messages(branched_chat)
       current_context = BranchedChat.get_current_context(branched_chat)
 
-      assert Enum.at(current_messages, 1).deleted == true
+      assert current_messages |> Enum.at(1) |> Message.deleted?()
 
       # llm_context should only have system and assistant message?
       assert length(current_context.messages) == 2

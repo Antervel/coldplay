@@ -4,6 +4,8 @@ defmodule CaraWeb.ChatLiveCoverageTest do
   import Phoenix.LiveViewTest
   import Mox
 
+  alias Cara.AI.Message
+
   setup %{conn: conn} do
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
     stub(Cara.AI.ChatMock, :new_context, fn _ -> :initial_context end)
@@ -68,14 +70,18 @@ defmodule CaraWeb.ChatLiveCoverageTest do
 
       view |> render_hook("delete_message", %{"id" => msg_id})
       state = :sys.get_state(view.pid)
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages).deleted == true
+
+      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
+             |> Message.deleted?()
     end
 
     test "delete_message with idx event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
       view |> render_hook("delete_message", %{"idx" => 0})
       state = :sys.get_state(view.pid)
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages).deleted == true
+
+      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
+             |> Message.deleted?()
     end
 
     test "delete_message with invalid idx", %{conn: conn} do
@@ -124,7 +130,9 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       {:ok, view, _html} = live(conn, ~p"/chat")
       view |> render_hook("delete_message", %{"idx" => 0})
       state = :sys.get_state(view.pid)
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages).deleted == true
+
+      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
+             |> Message.deleted?()
     end
   end
 

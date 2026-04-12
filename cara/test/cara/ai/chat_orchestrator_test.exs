@@ -8,11 +8,11 @@ defmodule Cara.AI.ChatOrchestratorTest do
 
   setup :verify_on_exit!
 
-  defp mock_params(live_view_pid) do
+  defp mock_params(caller_pid) do
     %{
       message: "Hello",
       llm_context: Context.new([]),
-      live_view_pid: live_view_pid,
+      caller_pid: caller_pid,
       llm_tools: [],
       chat_mod: Cara.AI.ChatMock,
       tool_usage_counts: %{},
@@ -54,8 +54,8 @@ defmodule Cara.AI.ChatOrchestratorTest do
 
     {:ok, _pid} = ChatOrchestrator.run(params)
 
-    # We should see retrying status
-    assert_receive {:llm_status, "main", "Retrying..."}
+    # We should see retrying status (retries happen with 100ms backoff, so wait longer)
+    assert_receive {:llm_status, "main", "Retrying..."}, 5000
     # Wait for the eventual error after retries (though we might not want to wait for all 10)
     # The test will complete when this is received
     assert_receive {:llm_error, "main", "Error: \"API Error\""}, 5000

@@ -1,7 +1,20 @@
 defmodule Cara.AI.BranchedChat do
   @moduledoc """
   Manages a tree-like conversation structure with multiple branches.
+
+  Messages are stored as `Cara.AI.Message` structs internally. The `branch_metadata`
+  type documents the shape of each branch's data.
+
+  ## Message Protocol
+
+  Each message in a branch's `messages` list is a `Cara.AI.Message` struct with:
+    * `:role` - `:user`, `:assistant`, or `:system`
+    * `:content` - The text content
+    * `:id` - Unique identifier
+    * `:metadata` - Optional map (e.g., `%{deleted: true}`)
   """
+
+  alias Cara.AI.Message
 
   defstruct [
     :branches,
@@ -13,7 +26,7 @@ defmodule Cara.AI.BranchedChat do
 
   @type branch_metadata :: %{
           name: String.t(),
-          messages: [map()],
+          messages: [Message.t()],
           context: ReqLLM.Context.t(),
           parent_branch_id: String.t() | nil,
           parent_message_id: String.t() | nil,
@@ -73,12 +86,7 @@ defmodule Cara.AI.BranchedChat do
   Adds a user message to the current branch.
   """
   def add_user_message(%__MODULE__{} = t, content) do
-    user_message = %{
-      sender: :user,
-      content: content,
-      id: Ecto.UUID.generate(),
-      deleted: false
-    }
+    user_message = Message.new(:user, content)
 
     branch = t.branches[t.current_branch_id]
 
@@ -117,13 +125,12 @@ defmodule Cara.AI.BranchedChat do
 
   defp do_append_chunk(chunk, messages) do
     case List.last(messages) do
-      %{sender: :assistant, id: _id} = last ->
+      %Message{role: :assistant} = last ->
         {_last, rest} = List.pop_at(messages, -1)
         rest ++ [%{last | content: last.content <> chunk}]
 
       _ ->
-        messages ++
-          [%{sender: :assistant, content: chunk, id: Ecto.UUID.generate(), deleted: false}]
+        messages ++ [Message.new(:assistant, chunk)]
     end
   end
 
@@ -150,7 +157,7 @@ defmodule Cara.AI.BranchedChat do
 
   defp get_last_assistant_message_content(messages) do
     case List.last(messages) do
-      %{sender: :assistant, content: content} -> content
+      %Message{role: :assistant, content: content} -> content
       _ -> ""
     end
   end
@@ -159,12 +166,7 @@ defmodule Cara.AI.BranchedChat do
   Appends an error message to a branch.
   """
   def add_error_message(%__MODULE__{} = t, branch_id, error_content) do
-    error_message_obj = %{
-      sender: :assistant,
-      content: error_content,
-      id: Ecto.UUID.generate(),
-      deleted: false
-    }
+    error_message_obj = Message.new(:assistant, error_content)
 
     branch = t.branches[branch_id]
 
@@ -233,7 +235,7 @@ defmodule Cara.AI.BranchedChat do
 
     updated_messages =
       Enum.map(branch.messages, fn msg ->
-        if msg.id == message_id, do: %{msg | deleted: true}, else: msg
+        if msg.id == message_id, do: Message.mark_deleted(msg), else: msg
       end)
 
     new_llm_context = rebuild_context_from_messages(updated_messages, t)
@@ -247,11 +249,12 @@ defmodule Cara.AI.BranchedChat do
   defp rebuild_context_from_messages(messages, t) do
     messages
     |> Enum.drop(1)
-    |> Enum.filter(fn msg -> !Map.get(msg, :deleted, false) end)
+    |> Enum.reject(&Message.deleted?/1)
     |> Enum.reduce(t.chat_module.reset_context(t.branches[t.current_branch_id].context), fn msg, acc ->
-      case msg.sender do
+      case msg.role do
         :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
         :assistant -> ReqLLM.Context.append(acc, ReqLLM.Context.assistant(msg.content))
+        :system -> acc
       end
     end)
   end

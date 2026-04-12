@@ -83,7 +83,7 @@
       <% current_branch = @branched_chat.branches[@branched_chat.current_branch_id] %>
       <% last_idx = length(current_branch.messages) - 1 %>
 
-      <%= for {message, idx} <- Enum.with_index(current_branch.messages), !Map.get(message, :deleted, false) do %>
+      <%= for {message, idx} <- Enum.with_index(current_branch.messages), !Cara.AI.Message.deleted?(message) do %>
         <div class={"flex w-full #{if message.sender == :user, do: "justify-end", else: "justify-start"}"}>
           <div class={"flex items-start gap-4 w-full #{if message.sender == :user, do: "flex-row-reverse", else: "flex-row"}"}>
             <img
