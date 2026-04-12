@@ -2,14 +2,16 @@ defmodule Cara.AI.Chat do
   @moduledoc """
   Core chat functionality for interacting with LLM APIs.
 
-  Handles message sending, streaming, and conversation context management.
+  This is a thin wrapper around `BranchedLLM.Chat` that provides
+  Cara-specific configuration defaults.
   """
   import ReqLLM.Context
 
   require Logger
   require OpenTelemetry.Tracer
 
-  alias Cara.AI.LLM.StreamParser
+  alias BranchedLLM.LLM.StreamParser
+  alias Cara.AI.ToolCache
   alias Req
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
@@ -22,15 +24,6 @@ defmodule Cara.AI.Chat do
   @doc """
   Sends a single message and returns the response without entering a loop.
   Uses streaming internally but returns the complete text.
-
-  ## Examples
-
-      iex> context = Cara.AI.Chat.new_context()
-      iex> {:ok, response, new_context} = Cara.AI.Chat.send_message("Hello!", context)
-
-  ## Options
-
-    * `:model` - The model to use (defaults to the model specified in the application config).
   """
   @impl true
   @spec send_message(String.t(), Context.t(), keyword()) ::
@@ -53,22 +46,6 @@ defmodule Cara.AI.Chat do
   @doc """
   Sends a message and returns a stream of text chunks plus the updated context,
   and any tool calls made by the LLM.
-  Perfect for web interfaces that need to stream responses to users and handle tools.
-
-  ## Examples
-
-      iex> context = Cara.AI.Chat.new_context()
-      iex> {:ok, stream, context_builder, tool_calls} = Cara.AI.Chat.send_message_stream("Hello!", context, tools: [some_tool()])
-      iex> Enum.each(stream, fn chunk -> IO.write(chunk) end)
-
-  ## Returns
-
-    * `{:ok, stream, context_builder_fn, tool_calls}` - Stream of text chunks, a function to build final context, and a list of tool calls
-
-  ## Options
-
-    * `:model` - The model to use (defaults to the model specified in the application config).
-    * `:tools` - A list of `ReqLLM.Tool` structs to provide to the LLM.
   """
   @impl true
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
@@ -95,11 +72,6 @@ defmodule Cara.AI.Chat do
 
   @doc """
   Creates a new chat context with an optional custom system prompt.
-
-  ## Examples
-
-      iex> context = Cara.AI.Chat.new_context()
-      iex> context = Cara.AI.Chat.new_context("You are a helpful coding assistant")
   """
   @impl true
   @spec new_context(String.t()) :: Context.t()
@@ -109,13 +81,6 @@ defmodule Cara.AI.Chat do
 
   @doc """
   Returns the conversation history as a list of messages.
-
-  ## Examples
-
-      iex> context = Cara.AI.Chat.new_context()
-      iex> history = Cara.AI.Chat.get_history(context)
-      iex> length(history)
-      1
   """
   @spec get_history(Context.t()) :: list()
   def get_history(context) do
@@ -124,11 +89,6 @@ defmodule Cara.AI.Chat do
 
   @doc """
   Clears the conversation history while keeping the system prompt.
-
-  ## Examples
-
-      iex> context = Cara.AI.Chat.new_context()
-      iex> context = Cara.AI.Chat.reset_context(context)
   """
   @impl true
   @spec reset_context(Context.t()) :: Context.t()
@@ -192,25 +152,18 @@ defmodule Cara.AI.Chat do
     end
   end
 
-  # Peeks at the stream to see if the LLM is calling a tool or just talking.
   defp handle_stream_for_tools(%StreamResponse{stream: stream} = stream_response) do
-    # We take chunks until we see a tool call or content with text.
     case StreamParser.consume_until_intent(stream) do
       {:tool_call, consumed_chunks, remaining_stream} ->
-        # It's a tool call! Consume the whole stream to get all arguments.
         all_chunks = consumed_chunks ++ Enum.to_list(remaining_stream)
         tool_calls = StreamParser.extract_tool_calls(all_chunks)
-
-        # We need to provide a dummy stream because the original one is consumed
         {:ok, dummy_stream_response(stream_response), tool_calls}
 
       {:content, consumed_chunks, remaining_stream} ->
-        # It's content (text). Prepend the chunks we took and return as a normal stream.
         new_stream = Stream.concat(consumed_chunks, remaining_stream)
         {:ok, %{stream_response | stream: new_stream}, []}
 
       {:empty, _consumed_chunks} ->
-        # Empty stream
         {:ok, stream_response, []}
     end
   rescue
@@ -234,8 +187,6 @@ defmodule Cara.AI.Chat do
   @impl true
   @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
   def execute_tool(tool, args) do
-    alias Cara.AI.ToolCache
-
     OpenTelemetry.Tracer.with_span "tool_execution", %{attributes: %{tool: tool.name}} do
       case ToolCache.get_result(tool.name, args) do
         {:ok, result} ->
