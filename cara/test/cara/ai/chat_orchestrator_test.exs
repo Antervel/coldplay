@@ -12,7 +12,7 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     %{
       message: "Hello",
       llm_context: Context.new([]),
-      caller_pid: caller_pid,
+      on_event: fn event -> send(caller_pid, event) end,
       llm_tools: [],
       chat_mod: Cara.AI.ChatMock,
       tool_usage_counts: %{},

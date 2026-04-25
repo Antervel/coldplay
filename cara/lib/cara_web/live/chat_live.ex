@@ -349,11 +349,12 @@ defmodule CaraWeb.ChatLive do
           Phoenix.LiveView.Socket.t()
   defp start_llm_stream(socket, branch_id, message) do
     branched_chat = BranchedChat.set_tool_status(socket.assigns.branched_chat, branch_id, "Thinking...")
+    caller_pid = self()
 
     llm_call_params = %{
       message: message,
       llm_context: branched_chat.branches[branch_id].context,
-      caller_pid: self(),
+      on_event: fn event -> send(caller_pid, event) end,
       llm_tools: socket.assigns.llm_tools,
       chat_mod: chat_module(),
       tool_usage_counts: socket.assigns.tool_usage_counts,
