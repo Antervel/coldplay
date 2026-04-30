@@ -4,7 +4,7 @@ defmodule Cara.MixProject do
   def project do
     [
       app: :cara,
-      version: "0.4.4",
+      version: "0.5.1",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -70,7 +70,7 @@ defmodule Cara.MixProject do
       {:mdex, "~> 0.11"},
       {:mdex_gfm, "~> 0.1"},
       {:mdex_mermaid, "~> 0.1"},
-      {:mdex_katex, "~> 0.1"},
+      {:mdex_katex, "~> 0.2.1"},
       {:bypass, "~> 2.1", only: :test},
       {:retry, "~> 0.18"},
       {:abacus, "~> 0.3.0"},
