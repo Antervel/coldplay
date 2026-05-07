@@ -112,10 +112,10 @@ defmodule CaraWeb.TeacherLive do
                       <%= if Map.get(message, :deleted, false) do %>
                         <div class="text-xs font-bold uppercase mb-1 opacity-70">Deleted by student</div>
                         <div class="line-through opacity-60">
-                          {render_markdown(message.content, nil, sanitize: true)}
+                          {render_markdown(message.content, "teacher-#{message.id}", sanitize: true)}
                         </div>
                       <% else %>
-                        {render_markdown(message.content, nil, sanitize: true)}
+                        {render_markdown(message.content, "teacher-#{message.id}", sanitize: true)}
                       <% end %>
                     </div>
                   </div>

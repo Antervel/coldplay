@@ -1,13 +1,7 @@
 <div class="relative flex h-screen w-full overflow-hidden bg-white">
   <div class="flex-1 flex flex-col min-w-0">
-    <.chat_header
-      student_info={@student_info}
-      app_version={@app_version}
-      show_sidebar={@show_sidebar}
-      vm={@vm}
-    />
-
-    <main id="chat-messages" phx-hook="ChatScroll" class="flex-1 overflow-y-auto p-4 space-y-4 text-black">
+    <.chat_header student_info={@student_info} app_version={@app_version} show_sidebar={@show_sidebar} vm={@vm} />
+    <main id="chat-messages" phx-hook="MessageContextMenu" class="flex-1 overflow-y-auto p-4 space-y-4 text-black">
       <%= for {message, idx} <- Enum.with_index(@vm.current_messages), !BranchedLLM.Message.deleted?(message) do %>
         <.chat_message
           message={message}
@@ -17,7 +11,6 @@
           tool_status={@vm.current_branch.tool_status}
           bubble_width={@bubble_width}
         />
-
         <%= if Map.has_key?(@branched_chat.child_branches, message.id) do %>
           <div class={"flex w-full mb-4 #{if message.sender == :user, do: "justify-end", else: "justify-start"} pr-14 pl-14"}>
             <div class="flex flex-wrap gap-2 items-center">
@@ -37,35 +30,28 @@
           </div>
         <% end %>
       <% end %>
-
       <%= for {msg, p_idx} <- Enum.with_index(@vm.current_branch.pending_messages) do %>
         <div class="flex w-full justify-end opacity-60">
           <div class="flex items-start gap-4 w-full flex-row-reverse">
-            <img
-              src={~p"/images/student.svg"}
-              class="w-12 h-12 flex-shrink-0 mt-1 object-cover"
-              alt="Student Avatar"
-            />
+            <img src={~p"/images/student.svg"} class="w-12 h-12 flex-shrink-0 mt-1 object-cover" alt="Student Avatar" />
             <div class="relative flex-1 flex items-center justify-end">
               <div
                 class="bg-[#FFFFBC] text-black"
                 style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
               >
-                {render_markdown(msg, "pending-#{p_idx}")}
+                {render_markdown(
+                  msg,
+                  "pending-#{p_idx}-#{if @branched_chat, do: @branched_chat.current_branch_id, else: "main"}"
+                )}
                 <div class="text-[10px] text-gray-500 mt-1 italic text-right">Queued...</div>
               </div>
             </div>
           </div>
         </div>
       <% end %>
-
       <%= if @vm.current_branch.tool_status do %>
         <div class="flex justify-start items-start gap-4 w-full">
-          <img
-            src={~p"/images/robot.svg"}
-            class="w-12 h-12 flex-shrink-0 mt-1 object-cover"
-            alt="Robot Avatar"
-          />
+          <img src={~p"/images/robot.svg"} class="w-12 h-12 flex-shrink-0 mt-1 object-cover" alt="Robot Avatar" />
           <div class="flex-1 flex justify-start items-center gap-2">
             <div
               class="flex items-center space-x-2 bg-[#F5F5F5] animate-pulse text-black"
@@ -86,45 +72,8 @@
         </div>
       <% end %>
     </main>
-
-    <div
-      id="message-context-menu"
-      class="hidden absolute z-10 bg-white rounded-md shadow-lg p-1 transition-all duration-300 ease-out opacity-0 scale-95 origin-top-left text-black"
-    >
-      <button
-        class="flex items-center w-full text-left px-3 py-1 text-black hover:bg-blue-500 hover:text-white rounded-md"
-        data-action="copy"
-      >
-        <span class="hero-clipboard inline-block w-4 h-4 mr-2"></span>Copy
-      </button>
-      <button
-        class="flex items-center w-full text-left px-3 py-1 text-black hover:bg-blue-500 hover:text-white rounded-md"
-        data-action="play"
-      >
-        <span class="hero-speaker-wave inline-block w-4 h-4 mr-2"></span>Play
-      </button>
-      <button
-        class="flex items-center w-full text-left px-3 py-1 text-black hover:bg-blue-500 hover:text-white rounded-md border-t border-gray-100 mt-1"
-        data-action="branch"
-      >
-        <span class="hero-arrow-uturn-right inline-block w-4 h-4 mr-2"></span>Branch off
-      </button>
-      <button
-        id="delete-message-button"
-        class="flex items-center w-full text-left px-3 py-1 text-red-600 hover:bg-red-600 hover:text-white rounded-md"
-        data-action="delete"
-      >
-        <span class="hero-trash inline-block w-4 h-4 mr-2"></span>Delete
-      </button>
-    </div>
-
-    <.live_component
-      module={CaraWeb.ChatLive.FooterComponent}
-      id="chat-footer"
-      message_data={@message_data}
-    />
+    <.live_component module={CaraWeb.ChatLive.FooterComponent} id="chat-footer" message_data={@message_data} />
   </div>
-
   <.right_panels
     show_branches={@show_branches}
     show_notes={@show_notes}
@@ -133,3 +82,41 @@
     vm={@vm}
   />
 </div>
+
+<script>
+  (function() {
+    const container = document.getElementById("chat-messages");
+    if (!container) return;
+    
+    let isAtBottom = true;
+    
+    // Check if the user is at the bottom
+    const checkAtBottom = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      return scrollTop + clientHeight >= scrollHeight - 1;
+    };
+    
+    // Scroll to bottom if the user was already at the bottom
+    const scrollIfAtBottom = () => {
+      if (isAtBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+    
+    // Update scroll state on user scroll
+    const handleScroll = () => {
+      isAtBottom = checkAtBottom();
+    };
+    
+    // Use MutationObserver to detect DOM changes
+    const observer = new MutationObserver(() => {
+      scrollIfAtBottom();
+    });
+    
+    observer.observe(container, { childList: true, subtree: true });
+    container.addEventListener("scroll", handleScroll);
+    
+    // Initialize
+    isAtBottom = checkAtBottom();
+  })();
+</script>

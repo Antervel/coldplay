@@ -1,7 +1,5 @@
 defmodule CaraWeb.ChatComponents do
-  @moduledoc """
-  Components specifically for the Chat interface.
-  """
+  @moduledoc "Components specifically for the Chat interface."
   use CaraWeb, :html
 
   attr :message, :map, required: true
@@ -10,6 +8,7 @@ defmodule CaraWeb.ChatComponents do
   attr :active_task, :any, default: nil
   attr :tool_status, :string, default: nil
   attr :bubble_width, :string, default: "40%"
+  attr :branched_chat, :map, default: nil
 
   def chat_message(assigns) do
     ~H"""
@@ -21,36 +20,79 @@ defmodule CaraWeb.ChatComponents do
           alt={if @message.sender == :user, do: "Student Avatar", else: "Robot Avatar"}
         />
         <div
-          class={"relative flex-1 flex items-center group #{if @message.sender == :user, do: "justify-end", else: "justify-start"}"}
+          class={"relative flex-1 flex items-center #{if @message.sender == :user, do: "justify-end", else: "justify-start"}"}
           id={"message-wrapper-#{@message.sender}-#{@idx}"}
-          phx-hook="MessageContextMenu"
           data-idx={@idx}
-          data-message-id={@message.id}
+          data-id={@message.id}
           data-sender={@message.sender}
         >
           <% is_active = @idx == @last_idx && @active_task != nil %>
           <div
-            phx-hook="MessageContentSync" id={"message-content-#{@message.id}"}
+            phx-hook="MessageContentSync"
+            id={"message-content-#{@message.id}"}
             class={"#{if @message.sender == :user, do: "bg-[#FFFFBC]", else: "bg-[#F5F5F5]"} text-black"}
             phx-update={if is_active, do: nil, else: "ignore"}
             style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
           >
-            {render_markdown(@message.content, @message.id)}
+            {render_markdown(
+              @message.content,
+              "#{@message.id}-#{if @branched_chat, do: @branched_chat.current_branch_id, else: "main"}"
+            )}
           </div>
           <% show_stop = @active_task && @idx == @last_idx && @message.sender == :assistant && is_nil(@tool_status) %>
-          <button
-            type="button"
-            class={"ml-2 p-1 rounded-full text-black hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 #{if show_stop, do: "bg-red-200 hover:bg-red-300", else: "bg-gray-200"}"}
-            data-action={if show_stop, do: "cancel", else: "open-context-menu"}
-            phx-click={if show_stop, do: "cancel", else: nil}
-            title={if show_stop, do: "Stop generating", else: "Options"}
-          >
-            <%= if show_stop do %>
-              <span class="hero-stop inline-block w-5 h-5 text-red-600"></span>
-            <% else %>
-              <span class="hero-ellipsis-vertical inline-block w-5 h-5"></span>
+          <div class="relative ml-2">
+            <button
+              type="button"
+              class={"p-1 rounded-full text-black hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 #{if show_stop, do: "bg-red-200 hover:bg-red-300", else: "bg-gray-200"}"}
+              data-action={if show_stop, do: "cancel", else: "open-context-menu"}
+              phx-click={if show_stop, do: "cancel", else: nil}
+              title={if show_stop, do: "Stop generating", else: "Options"}
+            >
+              <%= if show_stop do %>
+                <span class="hero-stop inline-block w-5 h-5 text-red-600"></span>
+              <% else %>
+                <span class="hero-ellipsis-vertical inline-block w-5 h-5"></span>
+              <% end %>
+            </button>
+            <%= unless show_stop do %>
+              <div
+                id={"context-menu-#{@message.id}"}
+                class="hidden absolute z-50 bg-white rounded-md shadow-lg p-1 transition-all duration-200 ease-out text-black min-w-[160px]"
+                style={"top: 100%; #{if @message.sender == :user, do: "right: 0;", else: "left: 0;"}"}
+              >
+                <button
+                  class="flex items-center w-full text-left px-3 py-1.5 text-sm text-black hover:bg-blue-500 hover:text-white rounded-md"
+                  data-action="copy"
+                  data-id={@message.id}
+                  data-message-content={@message.content}
+                >
+                  <span class="hero-clipboard inline-block w-4 h-4 mr-2"></span> Copy
+                </button>
+                <button
+                  class="flex items-center w-full text-left px-3 py-1.5 text-sm text-black hover:bg-blue-500 hover:text-white rounded-md"
+                  data-action="play"
+                  data-id={@message.id}
+                  data-message-content={@message.content}
+                >
+                  <span class="hero-speaker-wave inline-block w-4 h-4 mr-2"></span> Play
+                </button>
+                <button
+                  class="flex items-center w-full text-left px-3 py-1.5 text-sm text-black hover:bg-blue-500 hover:text-white rounded-md border-t border-gray-100 mt-1"
+                  data-action="branch"
+                  data-id={@message.id}
+                >
+                  <span class="hero-arrow-uturn-right inline-block w-4 h-4 mr-2"></span> Branch off
+                </button>
+                <button
+                  class="flex items-center w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-600 hover:text-white rounded-md"
+                  data-action="delete"
+                  data-id={@message.id}
+                >
+                  <span class="hero-trash inline-block w-4 h-4 mr-2"></span> Delete
+                </button>
+              </div>
             <% end %>
-          </button>
+          </div>
         </div>
       </div>
     </div>
@@ -76,8 +118,6 @@ defmodule CaraWeb.ChatComponents do
             >
               <span class="hero-bars-3 block w-6 h-6"></span>
             </button>
-
-            <%!-- Dropdown Menu --%>
             <div
               :if={@show_sidebar}
               phx-click-away={JS.push("toggle", value: %{what: "sidebar"})}
@@ -88,7 +128,6 @@ defmodule CaraWeb.ChatComponents do
                 <p class="font-bold text-blue-600">{@student_info.name}</p>
                 <p class="text-xs text-gray-500">{@student_info.subject} (Age {@student_info.age})</p>
               </div>
-
               <a
                 href="/settings"
                 class="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-blue-50 transition-colors group"
@@ -96,7 +135,6 @@ defmodule CaraWeb.ChatComponents do
                 <span class="hero-cog-6-tooth block w-5 h-5 text-gray-400 group-hover:text-blue-500"></span>
                 <span class="font-medium text-sm">Settings</span>
               </a>
-
               <div class="mt-2 pt-2 border-t border-gray-100">
                 <a
                   href="/student"
@@ -109,7 +147,6 @@ defmodule CaraWeb.ChatComponents do
               </div>
             </div>
           </div>
-
           <h1 class="flex items-baseline gap-2" style="font-size: 22px; line-height: 100%; letter-spacing: 0%;">
             <span style="font-family: 'Permanent Marker', cursive; font-weight: 400;">Cara</span>
             <span class="text-sm font-sans opacity-80">v.{@app_version}</span>
@@ -117,15 +154,8 @@ defmodule CaraWeb.ChatComponents do
           <%= if !@vm.is_main_branch do %>
             <div class="flex items-center gap-2 ml-4 px-3 py-1 bg-blue-700/50 rounded-full border border-blue-400/30 text-xs">
               <span class="opacity-60">Path:</span>
-              <span class="font-semibold truncate max-w-[200px]">
-                {@vm.current_branch_name}
-              </span>
-              <button
-                phx-click="switch_branch"
-                phx-value-id="main"
-                class="ml-1 hover:text-blue-200"
-                title="Return to Main"
-              >
+              <span class="font-semibold truncate max-w-[200px]">{@vm.current_branch_name}</span>
+              <button phx-click="switch_branch" phx-value-id="main" class="ml-1 hover:text-blue-200" title="Return to Main">
                 <span class="hero-arrow-uturn-left inline-block w-3 h-3"></span>
               </button>
             </div>
@@ -189,7 +219,6 @@ defmodule CaraWeb.ChatComponents do
   def right_panels(assigns) do
     ~H"""
     <div class={"relative h-full bg-white shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] transition-all duration-300 flex-shrink-0 #{if @vm.show_any_right_panel, do: "w-[400px]", else: "w-0"}"}>
-      <!-- Toggle Tabs (Both slide together because they are anchored to the left-0 of the same container) -->
       <button
         phx-click={JS.push("toggle", value: %{what: "notes"})}
         class="absolute left-0 top-[46%] -translate-x-full -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none flex flex-col items-center gap-2 z-10"
@@ -198,7 +227,6 @@ defmodule CaraWeb.ChatComponents do
         <span class="hero-pencil-square inline-block w-5 h-5 rotate-90"></span>
         <span class="font-bold tracking-wider">NOTES</span>
       </button>
-
       <button
         phx-click={JS.push("toggle", value: %{what: "branches"})}
         class="absolute left-0 top-[60%] -translate-x-full -translate-y-1/2 bg-blue-600 text-white px-2 py-4 rounded-l-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none flex flex-col items-center gap-2 z-10"
@@ -207,8 +235,6 @@ defmodule CaraWeb.ChatComponents do
         <span class="hero-chat-bubble-left-right inline-block w-5 h-5 rotate-90"></span>
         <span class="font-bold tracking-wider">CONVERSATIONS</span>
       </button>
-      
-    <!-- Conversations Panel Content -->
       <div class={"h-full w-[400px] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 #{if @show_branches, do: "opacity-100", else: "opacity-0 pointer-events-none absolute inset-0"}"}>
         <div class="flex items-center justify-between mb-6 flex-shrink-0">
           <h2 class="text-xl font-bold text-black flex items-center gap-2">
@@ -222,20 +248,13 @@ defmodule CaraWeb.ChatComponents do
             <span class="hero-x-mark inline-block w-6 h-6"></span>
           </button>
         </div>
-
         <div class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-          <.branch_tree
-            nodes={BranchedLLM.BranchedChat.build_tree(@branched_chat)}
-            branched_chat={@branched_chat}
-          />
+          <.branch_tree nodes={BranchedLLM.BranchedChat.build_tree(@branched_chat)} branched_chat={@branched_chat} />
         </div>
-
         <div class="mt-4 pt-4 border-t border-gray-100 text-[10px] text-gray-400 italic">
           Branch off any message to start a new thread.
         </div>
       </div>
-      
-    <!-- Notes Panel Content -->
       <div class={"h-full w-[400px] flex flex-col p-4 border-l border-gray-200 overflow-hidden transition-opacity duration-300 #{if @show_notes, do: "opacity-100", else: "opacity-0 pointer-events-none absolute inset-0"}"}>
         <div class="flex items-center justify-between mb-4 flex-shrink-0">
           <h2 class="text-xl font-bold text-black flex items-center gap-2">
