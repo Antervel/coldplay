@@ -555,7 +555,7 @@ defmodule CaraWeb.ChatLiveTest do
       {:ok, _view, _html} = live(conn, ~p"/chat")
 
       # Call render_markdown directly
-      result = CaraWeb.ChatLive.render_markdown("# Hello **World**")
+      result = CaraWeb.MarkdownHelpers.render_markdown("# Hello **World**")
 
       # Should return safe HTML
       assert Phoenix.HTML.safe_to_string(result) =~ "Hello"

@@ -65,8 +65,7 @@ defmodule Cara.LaTeXPreprocessor do
     # We use a split that includes the matched blocks
     parts = String.split(text, ~r/(```[\s\S]*?```)/, include_captures: true)
 
-    parts
-    |> Enum.map(fn part ->
+    Enum.map_join(parts, "", fn part ->
       if String.starts_with?(part, "```") do
         # Inside code block, return as is
         part
@@ -75,7 +74,6 @@ defmodule Cara.LaTeXPreprocessor do
         process_text(part)
       end
     end)
-    |> Enum.join("")
   end
 
   defp process_text(text) do

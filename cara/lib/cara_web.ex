@@ -86,6 +86,7 @@ defmodule CaraWeb do
       import Phoenix.HTML
       # Core UI components
       import CaraWeb.CoreComponents
+      import CaraWeb.MarkdownHelpers
 
       # Common modules used in templates
       alias CaraWeb.Layouts

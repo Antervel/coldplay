@@ -28,7 +28,8 @@ export default {
       }
 
       currentMessageEl = this.el; // Still need the message element for data-message-content
-      const messageContent = currentMessageEl.dataset.messageContent;
+      const messageId = currentMessageEl.dataset.messageId;
+    const messageContent = window.MessageContentMap ? window.MessageContentMap.get(messageId) : currentMessageEl.dataset.messageContent;
 
       // Make visible first (remove display: none), then allow browser to paint, then apply transition classes
       contextMenu.classList.remove('hidden');
@@ -126,7 +127,7 @@ export default {
       if (deleteButton) {
         deleteButton.onclick = (e) => {
           e.stopPropagation();
-          const id = currentMessageEl.dataset.id;
+          const id = messageId;
           this.pushEvent("delete_message", { id: id });
           hideContextMenu();
         };
@@ -136,7 +137,7 @@ export default {
       if (branchButton) {
         branchButton.onclick = (e) => {
           e.stopPropagation();
-          const id = currentMessageEl.dataset.id;
+          const id = messageId;
           this.pushEvent("branch_off", { id: id });
           hideContextMenu();
         };
