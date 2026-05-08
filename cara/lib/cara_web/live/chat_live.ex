@@ -9,10 +9,13 @@ defmodule CaraWeb.ChatLive do
   alias Cara.Education.Monitoring
   alias Cara.Education.Session
   alias CaraWeb.ChatLive.ViewModel
+  alias CaraWeb.MarkdownHelpers
 
   import CaraWeb.ChatComponents
 
   @type chat_message :: Message.t()
+  defp extract_html({:safe, html}), do: html
+  defp extract_html(_), do: ""
 
   # Get the chat module from config at runtime (allows switching to mock in tests)
   defp chat_module do
@@ -180,8 +183,37 @@ defmodule CaraWeb.ChatLive do
   # Handle streamed chunks from the LLM
   @impl true
   def handle_info({:llm_chunk, branch_id, chunk}, socket) when is_binary(chunk) do
-    branched_chat = BranchedChat.append_chunk(socket.assigns.branched_chat, branch_id, chunk)
-    {:noreply, socket |> assign_branched_chat(branched_chat)}
+    branched_chat = socket.assigns.branched_chat
+
+    # Append the chunk to the branched chat first
+    branched_chat = BranchedChat.append_chunk(branched_chat, branch_id, chunk)
+
+    # Get the current streaming message ID and its updated content
+    streaming_message_id = get_streaming_message_id(branched_chat, branch_id)
+    message_content = get_streaming_message_content(branched_chat, branch_id)
+
+    # Generate a unique prefix for this message to avoid ID collisions
+    prefix = if streaming_message_id, do: "#{streaming_message_id}-#{branched_chat.current_branch_id}", else: "main"
+
+    # Render the full message content as HTML
+    rendered_html =
+      if message_content do
+        MarkdownHelpers.render_markdown(message_content, prefix)
+      else
+        ""
+      end
+
+    # Push event to JavaScript with the full rendered HTML
+    socket =
+      socket
+      |> assign_branched_chat(branched_chat)
+      |> push_event("llm_chunk", %{
+        message_id: streaming_message_id,
+        branch_id: branch_id,
+        rendered_html: extract_html(rendered_html)
+      })
+
+    {:noreply, socket}
   end
 
   # Handle end of LLM stream. Send the `llm_end` event to javascript so Mermaid runs
@@ -317,5 +349,32 @@ defmodule CaraWeb.ChatLive do
   @spec app_version() :: String.t()
   defp app_version do
     Application.spec(:cara, :vsn) |> to_string
+  end
+
+  # Helper function to get the last assistant message from a branch
+  defp get_last_assistant_message(branched_chat, branch_id) do
+    case branched_chat.branches[branch_id] do
+      %{messages: messages} ->
+        messages
+        |> Enum.reverse()
+        |> Enum.find(&(&1.role == :assistant))
+
+      _ ->
+        nil
+    end
+  end
+
+  # Helper function to get the ID of the message currently being streamed for a branch
+  # Returns the ID of the last assistant message in the branch, or nil if none exists
+  defp get_streaming_message_id(branched_chat, branch_id) do
+    get_last_assistant_message(branched_chat, branch_id)
+    |> then(&(&1 && &1.id))
+  end
+
+  # Helper function to get the content of the message currently being streamed for a branch
+  # Returns the content of the last assistant message in the branch, or nil if none exists
+  defp get_streaming_message_content(branched_chat, branch_id) do
+    get_last_assistant_message(branched_chat, branch_id)
+    |> then(&(&1 && &1.content))
   end
 end

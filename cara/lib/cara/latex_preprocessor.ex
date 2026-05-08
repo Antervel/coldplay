@@ -78,6 +78,7 @@ defmodule Cara.LaTeXPreprocessor do
 
   defp process_text(text) do
     text
+    |> fix_dollar_spaces()
     |> convert_display_brackets()
     |> convert_inline_parens()
     |> convert_bare_brackets()
@@ -100,5 +101,30 @@ defmodule Cara.LaTeXPreprocessor do
 
   defp convert_bare_parens(text) do
     Regex.replace(@bare_paren_re, text, fn _, inner -> "$#{String.trim(inner)}$" end)
+  end
+
+  defp fix_dollar_spaces(text) do
+    # Fix spaces between $ delimiters and content for inline math
+    # Pattern: $<whitespace>content<whitespace>$ -> $content$
+    # We need to be careful to only match actual math delimiters, not currency symbols
+    # Strategy: only process $...$ that contain math-like content (backslashes or letters that look like commands)
+    regex1 = ~r/\$(\s+)([^\$]*?[\\a-zA-Z][^\$]*?)\s+\$/s
+    text = Regex.replace(regex1, text, "$\\2$")
+
+    # Fix spaces between $$ delimiters and content for display math
+    # Pattern: $$<whitespace>content<whitespace>$$ -> $$content$$
+    regex2 = ~r/\$\$(\s+)([^\$]*?[\\a-zA-Z][^\$]*?)\s+\$\$/s
+    text = Regex.replace(regex2, text, "$$\\2$$")
+
+    fix_left_right_dollar(text)
+  end
+
+  defp fix_left_right_dollar(text) do
+    # Fix invalid LaTeX: \left$...\right$ -> \left(...\right)
+    # This handles the case where users mistakenly use $ as delimiters for \left/\right
+    regex1 = ~r/\\left\$/
+    regex2 = ~r/\\right\$/
+    text = Regex.replace(regex1, text, "\\left(")
+    Regex.replace(regex2, text, "\\right)")
   end
 end

@@ -26,12 +26,12 @@ defmodule CaraWeb.ChatComponents do
           data-id={@message.id}
           data-sender={@message.sender}
         >
-          <% is_active = @idx == @last_idx && @active_task != nil %>
+          <% _is_active = @idx == @last_idx && @active_task != nil %>
           <div
             phx-hook="MessageContentSync"
             id={"message-content-#{@message.id}"}
             class={"#{if @message.sender == :user, do: "bg-[#FFFFBC]", else: "bg-[#F5F5F5]"} text-black"}
-            phx-update={if is_active, do: nil, else: "ignore"}
+            phx-update="ignore"
             style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
           >
             {render_markdown(

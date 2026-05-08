@@ -5,6 +5,8 @@ import ChatInput from "./chat_input"
 import MessageContextMenu from "./message_context_menu"
 import MessageContentSync from "./message_content_sync"
 import MessageContentMap from "./message_content_map"
+import LLMChunkAppender from "./llm_chunk_appender"
+import CombinedHooks from "./combined_hooks"
 
 export default {
   MermaidHook,
@@ -12,7 +14,9 @@ export default {
   KatexHook,
   ChatInput,
   MessageContextMenu,
-  MessageContentSync
+  MessageContentSync,
+  LLMChunkAppender,
+  CombinedHooks
 }
 
 export { MessageContentMap }
