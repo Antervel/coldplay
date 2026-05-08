@@ -9,6 +9,7 @@ defmodule Cara.AI.Chat do
 
   require Logger
   require OpenTelemetry.Tracer
+  alias OpenTelemetry.Tracer
 
   alias BranchedLLM.LLM.StreamParser
   alias Cara.AI.ToolCache
@@ -127,7 +128,7 @@ defmodule Cara.AI.Chat do
   @spec call_llm(String.t(), Context.t(), list()) ::
           {:ok, StreamResponse.t(), list()} | {:error, term()}
   defp call_llm(model, context, tools) do
-    OpenTelemetry.Tracer.with_span "llm_call", %{attributes: %{model: model}} do
+    Tracer.with_span "llm_call", %{attributes: %{model: model}} do
       Logger.info("LLM call_llm starting with context: #{inspect(context)}")
       start_time = :erlang.monotonic_time(:millisecond)
 
@@ -187,16 +188,16 @@ defmodule Cara.AI.Chat do
   @impl BranchedLLM.ChatBehaviour
   @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
   def execute_tool(tool, args) do
-    OpenTelemetry.Tracer.with_span "tool_execution", %{attributes: %{tool: tool.name}} do
+    Tracer.with_span "tool_execution", %{attributes: %{tool: tool.name}} do
       case ToolCache.get_result(tool.name, args) do
         {:ok, result} ->
           Logger.info("Tool '#{tool.name}' result retrieved from cache.")
-          OpenTelemetry.Tracer.set_attributes(%{"db.cache_hit" => true})
+          Tracer.set_attributes(%{"db.cache_hit" => true})
           :telemetry.execute([:cara, :ai, :tool, :cache, :hit], %{count: 1}, %{tool: tool.name})
           {:ok, result}
 
         :error ->
-          OpenTelemetry.Tracer.set_attributes(%{"db.cache_hit" => false})
+          Tracer.set_attributes(%{"db.cache_hit" => false})
           :telemetry.execute([:cara, :ai, :tool, :cache, :miss], %{count: 1}, %{tool: tool.name})
 
           case ReqLLM.Tool.execute(tool, args) do

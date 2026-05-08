@@ -5,6 +5,7 @@ defmodule Cara.Education.ChatService do
   alias BranchedLLM.BranchedChat
   alias BranchedLLM.Message
   alias Cara.Education.Monitoring
+  alias ReqLLM.Context
 
   @doc """
   Processes a new message from the user.
@@ -177,8 +178,8 @@ defmodule Cara.Education.ChatService do
     |> Enum.reject(&Message.deleted?/1)
     |> Enum.reduce(chat_mod.reset_context(BranchedChat.get_current_context(branched_chat)), fn msg, acc ->
       case msg.role do
-        :user -> ReqLLM.Context.append(acc, ReqLLM.Context.user(msg.content))
-        :assistant -> ReqLLM.Context.append(acc, ReqLLM.Context.assistant(msg.content))
+        :user -> Context.append(acc, Context.user(msg.content))
+        :assistant -> Context.append(acc, Context.assistant(msg.content))
         :system -> acc
       end
     end)

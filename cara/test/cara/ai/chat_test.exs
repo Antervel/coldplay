@@ -135,7 +135,6 @@ defmodule Cara.AI.ChatTest do
       assert is_binary(response)
       assert response =~ "Hello"
       assert %Context{} = new_context
-      # system + user + assistant
       assert length(new_context.messages) == 3
     end
 
@@ -260,7 +259,6 @@ defmodule Cara.AI.ChatTest do
 
       assert is_function(context_builder, 1)
 
-      # Consume the stream
       chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
       assert not Enum.empty?(chunks)
       assert Enum.all?(chunks, &is_binary/1)
@@ -325,14 +323,11 @@ defmodule Cara.AI.ChatTest do
       {:ok, stream_response, context_builder, _tool_calls} =
         Chat.send_message_stream("Hello", context, model: "openai:test-model")
 
-      # Consume the stream
-      full_text = stream_response |> StreamResponse.tokens() |> Enum.join("")
+      full_text = stream_response |> StreamResponse.tokens() |> Enum.join()
 
-      # Build the final context
       final_context = context_builder.(full_text)
 
       assert %Context{} = final_context
-      # system + user + assistant
       assert length(final_context.messages) == 3
 
       assistant_messages = Enum.filter(final_context.messages, fn msg -> msg.role == :assistant end)
@@ -357,7 +352,7 @@ defmodule Cara.AI.ChatTest do
         Chat.send_message_stream("Hello", context, model: "openai:test-model")
 
       chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
-      full_text = Enum.join(chunks, "")
+      full_text = Enum.join(chunks)
 
       assert full_text == "First Second Third"
     end

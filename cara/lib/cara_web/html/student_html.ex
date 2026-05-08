@@ -1,6 +1,6 @@
 defmodule CaraWeb.StudentHTML do
   @moduledoc """
-  This module contains pages rendered by StudentController.
+  Provides HTML rendering for student pages.
 
   See the `student_html` directory for all templates available.
   """

@@ -121,12 +121,10 @@ defmodule BranchedLLM.BranchedChatTest do
 
   test "append_chunk/3 appends a new assistant message if last wasn't assistant" do
     chat = initial_setup()
-    # Add a user message first so last is NOT assistant
     chat = BranchedChat.add_user_message(chat, "Hello")
     chat = BranchedChat.append_chunk(chat, "main", "AI response")
 
     messages = BranchedChat.get_current_messages(chat)
-    # Welcome + User + AI
     assert length(messages) == 3
     assert List.last(messages).content == "AI response"
     assert List.last(messages).sender == :assistant

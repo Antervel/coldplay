@@ -11,9 +11,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
     # Stub health check
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
 
-    # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
-    # Fetch the session
     conn = fetch_session(conn)
     student_info = %{name: "Test Student", age: "20", subject: "Elixir", chat_id: "test-chat-id"}
     conn = put_session(conn, :student_info, student_info)
@@ -26,7 +24,6 @@ defmodule CaraWeb.ChatLiveStatusTest do
   test "shows 'Thinking...' immediately after submitting", %{conn: conn} do
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> Context.new([]) end)
 
-    # We use a long-running mock to capture the status
     parent = self()
 
     stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->

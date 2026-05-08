@@ -38,13 +38,11 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       state = :sys.get_state(view.pid)
       msg_id = hd(state.socket.assigns.branched_chat.branches["main"].messages).id
 
-      # First we need another branch to switch to
       view |> render_hook("branch_off", %{"id" => msg_id})
       state = :sys.get_state(view.pid)
       new_branch_id = state.socket.assigns.branched_chat.current_branch_id
       assert new_branch_id != "main"
 
-      # Switch back to main
       view |> render_hook("switch_branch", %{"id" => "main"})
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.branched_chat.current_branch_id == "main"

@@ -4,7 +4,7 @@ defmodule Cara.MixProject do
   def project do
     [
       app: :cara,
-      version: "0.5.1",
+      version: "0.5.2",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -81,7 +81,9 @@ defmodule Cara.MixProject do
       {:opentelemetry_req, "~> 0.2"},
       {:opentelemetry_logger_metadata, "~> 0.2"},
       {:opentelemetry_api_experimental, "~> 0.5"},
-      {:opentelemetry_experimental, "~> 0.5"}
+      {:opentelemetry_experimental, "~> 0.5"},
+      {:ex_slop, "~> 0.1", only: [:dev, :test], runtime: false},
+      {:credo_contrib, "~> 0.2.0", only: [:dev, :test], runtime: false}
     ]
   end
 

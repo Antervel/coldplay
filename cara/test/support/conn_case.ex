@@ -1,7 +1,6 @@
 defmodule CaraWeb.ConnCase do
   @moduledoc """
-  This module defines the test case to be used by
-  tests that require setting up a connection.
+  Provides test case for connection-based tests.
 
   Such tests rely on `Phoenix.ConnTest` and also
   import other functionality to make it easier

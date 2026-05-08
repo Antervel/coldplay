@@ -12,9 +12,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
     # Stub health check by default
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
 
-    # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
-    # Fetch the session
     conn = fetch_session(conn)
     student_info = %{name: "Test Student", age: "20", subject: "Elixir", chat_id: "test-chat-id"}
     conn = put_session(conn, :student_info, student_info)

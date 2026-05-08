@@ -1,7 +1,6 @@
 defmodule CaraWeb.Layouts do
   @moduledoc """
-  This module holds layouts and related functionality
-  used by your application.
+  Provides layout templates and rendering for the application.
   """
   use CaraWeb, :html
 

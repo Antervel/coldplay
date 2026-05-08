@@ -10,9 +10,7 @@ defmodule CaraWeb.ChatLiveTest do
     # Stub health check by default
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
 
-    # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
-    # Fetch the session
     conn = fetch_session(conn)
     student_info = %{name: "Test Student", age: "20", subject: "Elixir", chat_id: "test-chat-id"}
     conn = put_session(conn, :student_info, student_info)
@@ -239,7 +237,6 @@ defmodule CaraWeb.ChatLiveTest do
       stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :initial_context end)
 
       stub(Cara.AI.ChatMock, :send_message_stream, fn "Error response", _ctx, _opts ->
-        # Return an error tuple instead of {:ok, ...}
         {:error, :api_unavailable}
       end)
 
@@ -479,11 +476,9 @@ defmodule CaraWeb.ChatLiveTest do
 
       :timer.sleep(1500)
 
-      # Get the LiveView state
       state = :sys.get_state(view.pid)
       assert BranchedChat.get_current_context(state.socket.assigns.branched_chat) == :context_v2
 
-      # Second message should use updated context
       view
       |> form("form", chat: %{message: "Second"})
       |> render_submit()

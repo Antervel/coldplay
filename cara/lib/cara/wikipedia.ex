@@ -104,11 +104,8 @@ defmodule Cara.Wikipedia do
     result =
       with {:ok, summary_response} <- fetch_article_summary(title),
            {:ok, _article_url} <- extract_article_url(summary_response),
-           {:ok, content_response} <- fetch_article_content(title),
-           {:ok, parsed_article} <- parse_full_article(summary_response, content_response) do
-        {:ok, parsed_article}
-      else
-        error -> error
+           {:ok, content_response} <- fetch_article_content(title) do
+        parse_full_article(summary_response, content_response)
       end
 
     end_time = :erlang.monotonic_time(:millisecond)
@@ -117,15 +114,12 @@ defmodule Cara.Wikipedia do
   end
 
   defp fetch_article_summary(title) do
-    case http_client().get(
-           "https://en.wikipedia.org/api/rest_v1/page/summary/#{URI.encode(title)}",
-           headers: %{
-             "User-Agent" => "Cara-Educational-App/1.0"
-           }
-         ) do
-      {:ok, response} -> {:ok, response}
-      error -> error
-    end
+    http_client().get(
+      "https://en.wikipedia.org/api/rest_v1/page/summary/#{URI.encode(title)}",
+      headers: %{
+        "User-Agent" => "Cara-Educational-App/1.0"
+      }
+    )
   end
 
   defp extract_article_url(summary_response) do
@@ -148,24 +142,21 @@ defmodule Cara.Wikipedia do
   end
 
   defp fetch_article_content(title) do
-    case http_client().get(
-           "https://en.wikipedia.org/w/api.php",
-           params: %{
-             action: "query",
-             prop: "extracts",
-             titles: title,
-             explaintext: 1,
-             exsectionformat: "plain",
-             format: "json",
-             formatversion: 2
-           },
-           headers: %{
-             "User-Agent" => "Cara-Educational-App/1.0"
-           }
-         ) do
-      {:ok, response} -> {:ok, response}
-      error -> error
-    end
+    http_client().get(
+      "https://en.wikipedia.org/w/api.php",
+      params: %{
+        action: "query",
+        prop: "extracts",
+        titles: title,
+        explaintext: 1,
+        exsectionformat: "plain",
+        format: "json",
+        formatversion: 2
+      },
+      headers: %{
+        "User-Agent" => "Cara-Educational-App/1.0"
+      }
+    )
   end
 
   defp parse_full_article(summary_response, content_response) do

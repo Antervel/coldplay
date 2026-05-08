@@ -21,7 +21,6 @@ defmodule CaraWeb.ChatLiveBranchTest do
       Context.new([system_msg])
     end)
 
-    # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
     conn = fetch_session(conn)
     student_info = %{name: "Test Student", age: "10", subject: "Math", chat_id: "test-chat-id"}
@@ -52,8 +51,6 @@ defmodule CaraWeb.ChatLiveBranchTest do
 
     assert render(view) =~ "Hi there!"
 
-    # 3. Find a message ID to branch off from
-    # Let's look at the messages in assigns
     state = :sys.get_state(view.pid)
     branched_chat = state.socket.assigns.branched_chat
     chat_messages = BranchedChat.get_current_messages(branched_chat)

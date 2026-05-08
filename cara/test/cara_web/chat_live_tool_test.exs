@@ -11,9 +11,7 @@ defmodule CaraWeb.ChatLiveToolTest do
     # Stub health check
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
 
-    # Initialize test session
     conn = Plug.Test.init_test_session(conn, %{})
-    # Fetch the session
     conn = fetch_session(conn)
     student_info = %{name: "Test Student", age: "20", subject: "Elixir", chat_id: "test-chat-id"}
     conn = put_session(conn, :student_info, student_info)
@@ -24,13 +22,11 @@ defmodule CaraWeb.ChatLiveToolTest do
   setup :verify_on_exit!
 
   test "handles tool calls and preserves user message in context", %{conn: conn} do
-    # Initial context with system prompt
     initial_context = Context.new([Context.system("You are helpful")])
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> initial_context end)
 
     test_pid = self()
 
-    # Define the sequence of LLM calls
     # 1. First call: user message "Who is X?", returns a tool call
     # 2. Second call: empty message, returns the final answer
 

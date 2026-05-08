@@ -1,6 +1,6 @@
 defmodule CaraWeb.PageHTML do
   @moduledoc """
-  This module contains pages rendered by PageController.
+  Provides HTML rendering for static pages.
 
   See the `page_html` directory for all templates available.
   """

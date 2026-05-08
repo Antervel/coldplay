@@ -1,7 +1,5 @@
 Ecto.Adapters.SQL.Sandbox.mode(Cara.Repo, :manual)
 
-# Define the mock
-
 Mox.defmock(Cara.HTTPClientMock, for: Cara.HTTPClientBehaviour)
 Mox.defmock(Cara.AI.ChatMock, for: BranchedLLM.ChatBehaviour)
 

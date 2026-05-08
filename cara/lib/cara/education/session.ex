@@ -66,10 +66,7 @@ defmodule Cara.Education.Session do
 
     branched_chat = BranchedChat.new(chat_module, initial_messages, initial_context)
 
-    tool_usage_counts =
-      Enum.reduce(llm_tools, %{}, fn tool, acc ->
-        Map.put(acc, tool.name, 0)
-      end)
+    tool_usage_counts = for tool <- llm_tools, into: %{}, do: {tool.name, 0}
 
     %__MODULE__{
       student_info: student_info,
