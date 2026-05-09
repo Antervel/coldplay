@@ -25,6 +25,27 @@ config :cara, :enable_teacher_monitoring, true
 
 config :cara, :enabled_tools, [:calculator, :wikipedia_search, :wikipedia_get_article]
 
+config :cara, :guard,
+  enabled: false,
+  model: "llama-guard3:1b",
+  apply_to: :all,
+  send_history: false,
+  violation_messages: %{
+    s1: "Violent Crimes",
+    s2: "Non-Violent Crimes",
+    s3: "Sex-Related Crimes",
+    s4: "Child Sexual Exploitation",
+    s5: "Defamation",
+    s6: "Specialized Advice",
+    s7: "Privacy",
+    s8: "Intellectual Property",
+    s9: "Indiscriminate Weapons",
+    s10: "Hate",
+    s11: "Suicide & Self-Harm",
+    s12: "Sorry, I can't answer about this topic. What else do you want to know about?",
+    s13: "Elections"
+  }
+
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
   url: [host: "localhost"],
