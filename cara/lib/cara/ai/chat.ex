@@ -12,7 +12,6 @@ defmodule Cara.AI.Chat do
   alias OpenTelemetry.Tracer
 
   alias BranchedLLM.LLM.StreamParser
-  alias Cara.AI.Guard
   alias Cara.AI.ToolCache
   alias Req
   alias ReqLLM.Context
@@ -32,24 +31,16 @@ defmodule Cara.AI.Chat do
           {:ok, String.t(), Context.t()} | {:error, term()}
   def send_message(message, context, opts \\ []) do
     config = build_config(opts)
+    updated_context = add_user_message(context, message)
 
-    case guard_message(:student, message, context) do
-      {:violation, violation_msg} ->
-        updated_context = add_user_message(context, message)
-        final_context = add_assistant_message(updated_context, violation_msg)
-        {:ok, violation_msg, final_context}
+    case call_llm(config.model, updated_context, config.tools) do
+      {:ok, stream_response, _tool_calls} ->
+        final_text = StreamParser.consume_to_text(stream_response.stream)
+        final_context = add_assistant_message(updated_context, final_text)
+        {:ok, final_text, final_context}
 
-      :ok ->
-        updated_context = add_user_message(context, message)
-
-        case call_llm(config.model, updated_context, config.tools) do
-          {:ok, stream_response, _tool_calls} ->
-            final_text = StreamParser.consume_to_text(stream_response.stream)
-            guard_response(:llm, final_text, updated_context)
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -63,22 +54,20 @@ defmodule Cara.AI.Chat do
   def send_message_stream(message, context, opts \\ []) do
     config = build_config(opts)
 
-    case guard_message(:student, message, context) do
-      {:violation, violation_msg} ->
-        updated_context =
-          if message != nil and message != "" do
-            add_user_message(context, message)
-          else
-            context
-          end
+    updated_context =
+      if message != nil and message != "" do
+        add_user_message(context, message)
+      else
+        context
+      end
 
-        final_context = add_assistant_message(updated_context, violation_msg)
-        stream = violation_stream(violation_msg)
-        context_builder = fn _final_text -> final_context end
-        {:ok, stream, context_builder, []}
+    case call_llm(config.model, updated_context, config.tools) do
+      {:ok, stream_response, tool_calls} ->
+        context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
+        {:ok, stream_response, context_builder, tool_calls}
 
-      :ok ->
-        do_send_message_stream(message, context, opts, config)
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -118,115 +107,6 @@ defmodule Cara.AI.Chat do
   end
 
   ## Private Functions
-
-  defp do_send_message_stream(message, context, _opts, config) do
-    updated_context =
-      if message != nil and message != "" do
-        add_user_message(context, message)
-      else
-        context
-      end
-
-    case call_llm(config.model, updated_context, config.tools) do
-      {:ok, stream_response, tool_calls} ->
-        if guard_applies?(:llm) do
-          guard_message_stream(stream_response, updated_context, tool_calls)
-        else
-          return_stream(stream_response, updated_context, tool_calls)
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp return_stream(%StreamResponse{} = stream_response, updated_context, tool_calls) do
-    context_builder = fn final_text -> add_assistant_message(updated_context, final_text) end
-    {:ok, stream_response, context_builder, tool_calls}
-  end
-
-  defp guard_message_stream(stream_response, updated_context, tool_calls) do
-    if tool_calls != [] do
-      # If there are tool calls, guard the content stream
-      # after tool calls complete, the final text will be in the stream
-      return_stream(stream_response, updated_context, tool_calls)
-    else
-      check_stream_content(stream_response, updated_context, tool_calls)
-    end
-  end
-
-  defp check_stream_content(stream_response, updated_context, tool_calls) do
-    final_text = StreamParser.consume_to_text(stream_response.stream)
-
-    case Guard.check(final_text, context: updated_context) do
-      :safe ->
-        return_stream(stream_response, updated_context, tool_calls)
-
-      {:unsafe, violation} ->
-        guarded_stream = violation_stream(violation)
-        context_builder = fn _final_text -> add_assistant_message(updated_context, violation) end
-        {:ok, guarded_stream, context_builder, []}
-    end
-  end
-
-  defp guard_message(role, message, context) do
-    if guard_applies?(role) and is_binary(message) do
-      case Guard.check(message, context: context) do
-        :safe -> :ok
-        {:unsafe, violation} -> {:violation, violation}
-      end
-    else
-      :ok
-    end
-  end
-
-  defp guard_applies?(role) do
-    config =
-      case Application.get_env(:cara, :guard, %{}) do
-        map when is_map(map) -> map
-        list when is_list(list) -> Map.new(list)
-        _ -> %{}
-      end
-
-    apply_to = Map.get(config, :apply_to, :all)
-    enabled = Map.get(config, :enabled, false)
-
-    if enabled do
-      case {apply_to, role} do
-        {:all, _} -> true
-        {same, same} -> true
-        {_, _} -> false
-      end
-    else
-      false
-    end
-  end
-
-  defp guard_response(_role, text, context) do
-    if guard_applies?(:llm) do
-      case Guard.check(text, context: context) do
-        :safe ->
-          {:ok, text, add_assistant_message(context, text)}
-
-        {:unsafe, violation} ->
-          {:ok, violation, add_assistant_message(context, violation)}
-      end
-    else
-      {:ok, text, add_assistant_message(context, text)}
-    end
-  end
-
-  defp violation_stream(violation) do
-    model = ReqLLM.Model.from("ollama:guard")
-
-    %StreamResponse{
-      stream: [ReqLLM.StreamChunk.text(violation)],
-      context: ReqLLM.Context.new([ReqLLM.Context.system("Guard")]),
-      model: model,
-      cancel: fn -> :ok end,
-      metadata_task: Task.async(fn -> %{} end)
-    }
-  end
 
   defp build_config(opts) do
     %{
