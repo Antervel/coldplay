@@ -318,6 +318,9 @@ defmodule CaraWeb.ChatLive do
             |> start_llm_stream(current_branch_id, user_message_obj.content)
 
           {:noreply, socket}
+
+        {:blocked, branched_chat} ->
+          {:noreply, socket |> assign_branched_chat(branched_chat)}
       end
     end
   end

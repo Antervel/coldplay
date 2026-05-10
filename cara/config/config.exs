@@ -25,6 +25,22 @@ config :cara, :enable_teacher_monitoring, true
 
 config :cara, :enabled_tools, [:calculator, :wikipedia_search, :wikipedia_get_article]
 
+# Content Classifier API configuration
+config :cara, :classifier_api,
+  host: System.get_env("CLASSIFIER_API_HOST", "localhost"),
+  port: System.get_env("CLASSIFIER_API_PORT", "8002"),
+  sexual_score_threshold: 0.5,
+  toxicity_threshold: 0.5,
+  severe_toxicity_threshold: 0.3,
+  obscene_threshold: 0.5,
+  threat_threshold: 0.5
+
+config :cara, :content_classifier_settings,
+  enabled: false,
+  target: :all,
+  scope: :latest_message,
+  blocked_message: "Sorry, I can't answer about this topic. What else do you want to know about?"
+
 # Configure the endpoint
 config :cara, CaraWeb.Endpoint,
   url: [host: "localhost"],

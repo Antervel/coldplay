@@ -4,6 +4,7 @@ defmodule Cara.Education.ChatService do
   """
   alias BranchedLLM.BranchedChat
   alias BranchedLLM.Message
+  alias Cara.AI.Guard
   alias Cara.Education.Monitoring
   alias ReqLLM.Context
 
@@ -13,6 +14,7 @@ defmodule Cara.Education.ChatService do
   Returns:
     * `{:enqueue, branched_chat}` - If AI is busy, message was queued.
     * `{:send, branched_chat, user_message_obj}` - If AI is idle, message was added and can be processed.
+    * `{:blocked, branched_chat}` - If message was blocked by content classifier.
   """
   def send_message(branched_chat, message, socket) do
     current_branch_id = branched_chat.current_branch_id
@@ -20,16 +22,30 @@ defmodule Cara.Education.ChatService do
     if BranchedChat.busy?(branched_chat, current_branch_id) do
       {:enqueue, BranchedChat.enqueue_message(branched_chat, current_branch_id, message)}
     else
-      branched_chat = BranchedChat.add_user_message(branched_chat, message)
-      user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
+      if Guard.should_classify?(:student) and Guard.unsafe?(message, :student, branched_chat) do
+        # Add user message
+        branched_chat = BranchedChat.add_user_message(branched_chat, message)
+        user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
 
-      Monitoring.broadcast_new_message(
-        socket,
-        socket.assigns.chat_id,
-        user_message_obj
-      )
+        Monitoring.broadcast_new_message(socket, socket.assigns.chat_id, user_message_obj)
 
-      {:send, branched_chat, user_message_obj}
+        # Add blocked assistant message
+        blocked_text = Guard.blocked_message()
+        branched_chat = add_assistant_message(branched_chat, current_branch_id, blocked_text, socket)
+
+        {:blocked, branched_chat}
+      else
+        branched_chat = BranchedChat.add_user_message(branched_chat, message)
+        user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
+
+        Monitoring.broadcast_new_message(
+          socket,
+          socket.assigns.chat_id,
+          user_message_obj
+        )
+
+        {:send, branched_chat, user_message_obj}
+      end
     end
   end
 
@@ -93,11 +109,50 @@ defmodule Cara.Education.ChatService do
     # Broadcast the completed AI message
     final_message = List.last(branched_chat.branches[branch_id].messages)
 
-    Monitoring.broadcast_new_message(
-      socket,
-      socket.assigns.chat_id,
-      final_message
-    )
+    if Guard.should_classify?(:llm) and Guard.unsafe?(final_message.content, :llm, branched_chat) do
+      blocked_text = Guard.blocked_message()
+
+      # Replace content in BranchedChat
+      branch = branched_chat.branches[branch_id]
+      messages = branch.messages
+      {last, rest} = List.pop_at(messages, -1)
+      updated_message = %{last | content: blocked_text}
+      updated_messages = rest ++ [updated_message]
+
+      new_context = rebuild_context_from_messages(updated_messages, branched_chat)
+
+      updated_branch = %{branch | messages: updated_messages, context: new_context}
+      branched_chat = %{branched_chat | branches: Map.put(branched_chat.branches, branch_id, updated_branch)}
+
+      Monitoring.broadcast_new_message(
+        socket,
+        socket.assigns.chat_id,
+        updated_message
+      )
+
+      branched_chat
+    else
+      Monitoring.broadcast_new_message(
+        socket,
+        socket.assigns.chat_id,
+        final_message
+      )
+
+      branched_chat
+    end
+  end
+
+  defp add_assistant_message(branched_chat, branch_id, content, socket) do
+    branched_chat = BranchedChat.append_chunk(branched_chat, branch_id, content)
+
+    # We need a context builder. We keep the existing context.
+    branched_chat =
+      BranchedChat.finish_ai_response(branched_chat, branch_id, fn _ ->
+        BranchedChat.get_current_context(branched_chat)
+      end)
+
+    final_message = List.last(branched_chat.branches[branch_id].messages)
+    Monitoring.broadcast_new_message(socket, socket.assigns.chat_id, final_message)
 
     branched_chat
   end
