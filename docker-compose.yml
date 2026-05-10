@@ -10,6 +10,18 @@ services:
       - "15432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  classifier-api:
+    build: classifier-api
+    container_name: classifier-api
+    ports:
+      - "8002:8002"
+    volumes:
+      - model_cache:/models
+    environment:
+      - TRANSFORMERS_CACHE=/models
+      - HF_HOME=/models
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  model_cache:
