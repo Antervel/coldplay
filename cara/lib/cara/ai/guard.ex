@@ -6,6 +6,7 @@ defmodule Cara.AI.Guard do
   alias BranchedLLM.Message
   alias Cara.ContentClassifier
 
+
   @doc """
   Returns true if classification is enabled for the given role.
   Role can be :student or :llm.
@@ -34,10 +35,18 @@ defmodule Cara.AI.Guard do
   defp target_matches?(_, _), do: false
 
   @doc """
-  Classifies the content based on the configured scope.
-  Returns :safe or :unsafe.
+  Classifies the content and returns both status and max score.
+  Returns {:safe, score} or {:unsafe, score}.
   """
-  def classify(text, _role, branched_chat) do
+  def get_classification_and_score(text, role, branched_chat) do
+    if Application.get_env(:cara, :disable_guard_globally, false) do
+      {:safe, 0.0}
+    else
+      do_get_classification_and_score(text, role, branched_chat)
+    end
+  end
+
+  defp do_get_classification_and_score(text, _role, branched_chat) do
     settings = get_settings()
     scope = settings[:scope] || :latest_message
 
@@ -48,11 +57,25 @@ defmodule Cara.AI.Guard do
         text
       end
 
-    if ContentClassifier.safe?(text_to_classify) do
-      :safe
-    else
-      :unsafe
+    case ContentClassifier.classify(text_to_classify) do
+      {:ok, result} ->
+        status = if ContentClassifier.safe_result?(result), do: :safe, else: :unsafe
+        score = ContentClassifier.get_max_score(result)
+        {status, score}
+
+      error ->
+        IO.inspect("ContentClassifier returned error: #{inspect(error)}")
+        {:unsafe, 1.0}
     end
+  end
+
+  @doc """
+  Classifies the content based on the configured scope.
+  Returns :safe or :unsafe.
+  """
+  def classify(text, role, branched_chat) do
+    {status, _score} = get_classification_and_score(text, role, branched_chat)
+    status
   end
 
   @doc """

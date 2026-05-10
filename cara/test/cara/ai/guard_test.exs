@@ -100,6 +100,31 @@ defmodule Cara.AI.GuardTest do
       assert Guard.classify("bad stuff", :student, nil) == :unsafe
     end
 
+    test "get_classification_and_score returns status and max score" do
+      expect(Cara.HTTPClientMock, :post, 1, fn _url, _opts ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             # score becomes 0.8
+             sexual: %{label: "SFW", score: 0.2},
+             detoxify: %{
+               toxicity: 0.5,
+               severe_toxicity: 0.1,
+               obscene: 0.1,
+               threat: 0.1,
+               insult: 0.1,
+               identity_attack: 0.1
+             }
+           }
+         }}
+      end)
+
+      # sexual_score = 0.2, toxicity_score = 0.5. Max is 0.5.
+      # thresholds are usually 0.5, so toxicity_score 0.5 is unsafe.
+      assert Guard.get_classification_and_score("maybe bad", :student, nil) == {:unsafe, 0.5}
+    end
+
     test "uses whole conversation when configured" do
       Application.put_env(:cara, :content_classifier_settings, enabled: true, scope: :whole_conversation)
 

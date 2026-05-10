@@ -33,6 +33,33 @@ defmodule CaraWeb.TeacherLiveTest do
     refute render(view) =~ "Alice"
   end
 
+  test "teacher dashboard updates border color based on safety score", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/teacher")
+
+    chat_id = "color-chat-id"
+    student = %{name: "Peter", subject: "Science", age: "14"}
+
+    PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:chat_started, %{id: chat_id, student: student}})
+
+    # Default/Safe (0.0)
+    assert render(view) =~ "border-green-500"
+
+    # Safe question (0.1)
+    message1 = %{sender: :user, content: "What is integrals?", id: "msg-1", metadata: %{safety_score: 0.1}}
+    PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:new_message, %{chat_id: chat_id, message: message1}})
+    assert render(view) =~ "border-green-500"
+
+    # Inconvenient question (0.5)
+    message2 = %{sender: :user, content: "How are babies born?", id: "msg-2", metadata: %{safety_score: 0.5}}
+    PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:new_message, %{chat_id: chat_id, message: message2}})
+    assert render(view) =~ "border-yellow-400"
+
+    # Escalation (0.9)
+    message3 = %{sender: :user, content: "Bad stuff", id: "msg-3", metadata: %{safety_score: 0.9}}
+    PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:new_message, %{chat_id: chat_id, message: message3}})
+    assert render(view) =~ "border-red-500"
+  end
+
   test "teacher dashboard requests state on mount", %{conn: conn} do
     # Subscribe to monitor teacher joined events
     PubSub.subscribe(Cara.PubSub, "teacher:monitor")

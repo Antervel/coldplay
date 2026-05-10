@@ -23,7 +23,7 @@ defmodule CaraWeb.TeacherLive do
     # If chat already exists, we might want to keep the history
     # instead of clearing it (student reloaded, but we have history)
     chats =
-      Map.update(socket.assigns.chats, id, %{id: id, student: student, messages: []}, fn chat ->
+      Map.update(socket.assigns.chats, id, %{id: id, student: student, messages: [], max_score: 0.0}, fn chat ->
         %{chat | student: student}
       end)
 
@@ -42,7 +42,8 @@ defmodule CaraWeb.TeacherLive do
     new_chat = %{
       id: id,
       student: student,
-      messages: messages
+      messages: messages,
+      max_score: calculate_max_score(messages)
     }
 
     chats = Map.put(socket.assigns.chats, id, new_chat)
@@ -53,10 +54,11 @@ defmodule CaraWeb.TeacherLive do
   def handle_info({:new_message, %{chat_id: chat_id, message: message}}, socket) do
     chats =
       Map.update(socket.assigns.chats, chat_id, nil, fn chat ->
-        # Avoid duplicate messages if we get them via state sync + new_message
-        # But here we just append. To be safe, we could check ID.
-        # For now, simple append.
-        %{chat | messages: chat.messages ++ [message]}
+        new_messages = chat.messages ++ [message]
+        new_score = get_message_score(message)
+        max_score = max(chat.max_score, new_score)
+
+        %{chat | messages: new_messages, max_score: max_score}
       end)
 
     # If chat didn't exist (race condition), we ignore or could ask for state?
@@ -80,6 +82,29 @@ defmodule CaraWeb.TeacherLive do
   @impl true
   def handle_info({:teacher_joined, _}, socket), do: {:noreply, socket}
 
+  defp calculate_max_score(messages) do
+    messages
+    |> Enum.map(&get_message_score/1)
+    |> case do
+      [] -> 0.0
+      scores -> Enum.max(scores)
+    end
+  end
+
+  defp get_message_score(message) do
+    message |> Map.get(:metadata, %{}) |> Map.get(:safety_score, 0.0)
+  end
+
+  defp border_class(chat) do
+    score = Map.get(chat, :max_score, 0.0)
+
+    cond do
+      score >= 0.7 -> "border-red-500"
+      score >= 0.3 -> "border-yellow-400"
+      true -> "border-green-500"
+    end
+  end
+
   defp mark_deleted(messages, message_id) do
     Enum.map(messages, fn msg ->
       if msg.id == message_id do
@@ -99,7 +124,7 @@ defmodule CaraWeb.TeacherLive do
       <%= if @monitoring_enabled do %>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <%= for {chat_id, chat} <- @chats do %>
-            <div class="bg-white rounded-lg shadow-md flex flex-col h-[500px] overflow-hidden">
+            <div class={"bg-white rounded-lg shadow-md flex flex-col h-[500px] overflow-hidden border-4 #{border_class(chat)}"}>
               <div class="bg-blue-600 text-white p-4">
                 <h2 class="font-bold text-lg">{chat.student.name}</h2>
                 <p class="text-sm opacity-80">{chat.student.subject} • {chat.student.age} years old</p>

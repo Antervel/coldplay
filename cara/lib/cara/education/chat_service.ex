@@ -22,10 +22,21 @@ defmodule Cara.Education.ChatService do
     if BranchedChat.busy?(branched_chat, current_branch_id) do
       {:enqueue, BranchedChat.enqueue_message(branched_chat, current_branch_id, message)}
     else
-      if Guard.should_classify?(:student) and Guard.unsafe?(message, :student, branched_chat) do
+      monitoring_enabled = Monitoring.monitoring_enabled?()
+      should_classify = Guard.should_classify?(:student)
+
+      {status, score} =
+        if should_classify or monitoring_enabled do
+          Guard.get_classification_and_score(message, :student, branched_chat)
+        else
+          {:safe, 0.0}
+        end
+
+      if should_classify and status == :unsafe do
         # Add user message
         branched_chat = BranchedChat.add_user_message(branched_chat, message)
         user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
+        user_message_obj = %{user_message_obj | metadata: Map.put(user_message_obj.metadata, :safety_score, score)}
 
         Monitoring.broadcast_new_message(socket, socket.assigns.chat_id, user_message_obj)
 
@@ -37,6 +48,7 @@ defmodule Cara.Education.ChatService do
       else
         branched_chat = BranchedChat.add_user_message(branched_chat, message)
         user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
+        user_message_obj = %{user_message_obj | metadata: Map.put(user_message_obj.metadata, :safety_score, score)}
 
         Monitoring.broadcast_new_message(
           socket,
@@ -109,7 +121,19 @@ defmodule Cara.Education.ChatService do
     # Broadcast the completed AI message
     final_message = List.last(branched_chat.branches[branch_id].messages)
 
-    if Guard.should_classify?(:llm) and Guard.unsafe?(final_message.content, :llm, branched_chat) do
+    monitoring_enabled = Monitoring.monitoring_enabled?()
+    should_classify = Guard.should_classify?(:llm)
+
+    {status, score} =
+      if should_classify or monitoring_enabled do
+        Guard.get_classification_and_score(final_message.content, :llm, branched_chat)
+      else
+        {:safe, 0.0}
+      end
+
+    IO.inspect({status, score}, label: "DMV finish_ai_response status and score")
+
+    if should_classify and status == :unsafe do
       blocked_text = Guard.blocked_message()
 
       # Replace content in BranchedChat
@@ -117,6 +141,7 @@ defmodule Cara.Education.ChatService do
       messages = branch.messages
       {last, rest} = List.pop_at(messages, -1)
       updated_message = %{last | content: blocked_text}
+      updated_message = %{updated_message | metadata: Map.put(updated_message.metadata, :safety_score, score)}
       updated_messages = rest ++ [updated_message]
 
       new_context = rebuild_context_from_messages(updated_messages, branched_chat)
@@ -132,6 +157,8 @@ defmodule Cara.Education.ChatService do
 
       branched_chat
     else
+      final_message = %{final_message | metadata: Map.put(final_message.metadata, :safety_score, score)}
+
       Monitoring.broadcast_new_message(
         socket,
         socket.assigns.chat_id,

@@ -89,7 +89,7 @@ defmodule Cara.ContentClassifier do
     severe_toxicity_score = get_score(result, "detoxify", "severe_toxicity")
     obscene_score = get_score(result, "detoxify", "obscene")
     threat_score = get_score(result, "detoxify", "threat")
-  
+
     Logger.info("safe_result?: classified as #{inspect(result)}")
 
     # Content is safe only if ALL scores are below their respective thresholds
@@ -100,20 +100,48 @@ defmodule Cara.ContentClassifier do
       threat_score < threat_threshold
   end
 
-  # %{"detoxify" => %{"identity_attack" => 1.3580473023466766e-4, "insult" => 1.737400161800906e-4, "obscene" => 1.7864888650365174e-4, "severe_toxicity" => 1.1416593042667955e-4, "threat" => 1.2119747407268733e-4, "toxicity" => 7.189386524260044e-4}, "input" => "explain integrals to me", "sexual" => %{"label" => "SFW", "score" => 0.9208148121833801}}
-
-  
-  defp get_score(%{"sexual" => %{"label" => "SFW", "score" => score}}, "sexual" , "score") do
-    1 - score
-  end 
-
-  defp get_score(%{"sexual" => %{"label" => "NSFW", "score" => score}}, "sexual" , "score") do
-    score
-  end 
-
-  defp get_score(%{"detoxify" => scores}, "detoxify", key_name) do
-    Map.get(scores, key_name, 0.0)
+  @doc """
+  Calculates the maximum score among all safety categories.
+  """
+  @spec get_max_score(classification_result()) :: float()
+  def get_max_score(result) do
+    [
+      get_score(result, "sexual", "score"),
+      get_score(result, "detoxify", "toxicity"),
+      get_score(result, "detoxify", "severe_toxicity"),
+      get_score(result, "detoxify", "obscene"),
+      get_score(result, "detoxify", "threat")
+    ]
+    |> Enum.max()
   end
+
+  defp get_score(result, "sexual", _key_name) do
+    data = Map.get(result, "sexual") || Map.get(result, :sexual)
+    sexual_score(data)
+  end
+
+  defp get_score(result, "detoxify", key_name) do
+    data = Map.get(result, "detoxify") || Map.get(result, :detoxify)
+    detoxify_score(data, key_name)
+  end
+
+  defp get_score(_, _, _), do: 0.0
+
+  defp sexual_score(%{"label" => "NSFW", "score" => score}) do
+    score
+  end
+
+  defp sexual_score(%{"label" => "SFW", "score" => score}) do
+    1 - score
+  end
+
+  defp sexual_score(_), do: 0.0
+
+  defp detoxify_score(scores, key_name) when is_map(scores) do
+    Map.get(scores, key_name) || Map.get(scores, String.to_atom(key_name)) || 0.0
+  end
+
+  defp detoxify_score(_, _), do: 0.0
 
   @doc """
   Returns the classification API endpoint URL.
