@@ -116,22 +116,22 @@ defmodule Cara.ContentClassifier do
   end
 
   defp get_score(result, "sexual", _key_name) do
-    data = Map.get(result, "sexual") || Map.get(result, :sexual)
+    data = Map.get(result, :sexual)
     sexual_score(data)
   end
 
   defp get_score(result, "detoxify", key_name) do
-    data = Map.get(result, "detoxify") || Map.get(result, :detoxify)
+    data = Map.get(result, :detoxify)
     detoxify_score(data, key_name)
   end
 
   defp get_score(_, _, _), do: 0.0
 
-  defp sexual_score(%{"label" => "NSFW", "score" => score}) do
+  defp sexual_score(%{label: "NSFW", score: score}) do
     score
   end
 
-  defp sexual_score(%{"label" => "SFW", "score" => score}) do
+  defp sexual_score(%{label: "SFW", score: score}) do
     1 - score
   end
 

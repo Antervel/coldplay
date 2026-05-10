@@ -101,7 +101,6 @@ if config_env() == :prod do
   # We also recommend setting `force_ssl` in your config/prod.exs,
   # ensuring no data is ever sent via http, always redirecting to https:
   #
-  config :cara, CaraWeb.Endpoint, force_ssl: [hsts: true]
 
   config :cara, :content_classifier_settings, enabled: true
   #

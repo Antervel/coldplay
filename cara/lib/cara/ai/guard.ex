@@ -6,7 +6,6 @@ defmodule Cara.AI.Guard do
   alias BranchedLLM.Message
   alias Cara.ContentClassifier
 
-
   @doc """
   Returns true if classification is enabled for the given role.
   Role can be :student or :llm.
@@ -63,8 +62,7 @@ defmodule Cara.AI.Guard do
         score = ContentClassifier.get_max_score(result)
         {status, score}
 
-      error ->
-        IO.inspect("ContentClassifier returned error: #{inspect(error)}")
+      _error ->
         {:unsafe, 1.0}
     end
   end

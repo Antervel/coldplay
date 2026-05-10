@@ -131,8 +131,6 @@ defmodule Cara.Education.ChatService do
         {:safe, 0.0}
       end
 
-    IO.inspect({status, score}, label: "DMV finish_ai_response status and score")
-
     if should_classify and status == :unsafe do
       blocked_text = Guard.blocked_message()
 

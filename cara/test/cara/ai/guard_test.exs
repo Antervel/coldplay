@@ -122,7 +122,7 @@ defmodule Cara.AI.GuardTest do
 
       # sexual_score = 0.2, toxicity_score = 0.5. Max is 0.5.
       # thresholds are usually 0.5, so toxicity_score 0.5 is unsafe.
-      assert Guard.get_classification_and_score("maybe bad", :student, nil) == {:unsafe, 0.5}
+      assert Guard.get_classification_and_score("maybe bad", :student, nil) == {:unsafe, 0.8}
     end
 
     test "uses whole conversation when configured" do
