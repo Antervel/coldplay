@@ -20,7 +20,8 @@ export default {
         const messageWrapper = menuButton.closest('[id^="message-wrapper-"]');
         if (messageWrapper) {
           const messageId = messageWrapper.dataset.id;
-          const contextMenu = document.getElementById(`context-menu-${messageId}`);
+          const branchId = messageWrapper.dataset.branchId || 'main';
+          const contextMenu = document.getElementById(`context-menu-${messageId}-${branchId}`);
           if (contextMenu) {
             // If this menu is already open, close it
             if (!contextMenu.classList.contains('hidden')) {

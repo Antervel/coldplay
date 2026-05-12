@@ -7,4 +7,8 @@ Mox.defmock(Cara.AI.ChatMock, for: BranchedLLM.ChatBehaviour)
 Application.put_env(:cara, :chat_module, Cara.AI.ChatMock)
 Application.put_env(:cara, :disable_guard_globally, true)
 
+# Disable audit fire-and-forget inserts by default in tests
+# (AuditPluginTest overrides this with a synchronous insert fn)
+Application.put_env(:cara, :audit_insert_fn, fn _attrs -> :ok end)
+
 ExUnit.start()

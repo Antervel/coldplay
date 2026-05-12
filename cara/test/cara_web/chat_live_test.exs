@@ -154,7 +154,7 @@ defmodule CaraWeb.ChatLiveTest do
 
       # No new messages should appear (beyond the initial welcome message in main branch)
       html = render(view)
-      refute html =~ ~r/message-content-main-1/
+      refute html =~ ~r/message-content-main-1-main/
     end
 
     test "handles validation events and updates form state", %{conn: conn} do

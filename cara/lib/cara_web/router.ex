@@ -28,6 +28,8 @@ defmodule CaraWeb.Router do
     live "/chat", ChatLive, :index
     live "/teacher", TeacherLive, :index
     get "/settings", PageController, :settings
+    get "/logs", LogsController, :index
+    get "/logs/:chat_id/:branch_id", LogsController, :show
   end
 
   # Other scopes may use custom stacks.

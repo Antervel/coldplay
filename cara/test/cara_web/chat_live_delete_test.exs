@@ -239,7 +239,10 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
       # Welcome message is in branch 'main' at index 0, sender assistant
       # The data attributes are now on the wrapper div
-      assert has_element?(view, "#message-wrapper-assistant-0[data-idx='0'][data-sender='assistant'][data-id]")
+      assert has_element?(
+               view,
+               "#message-wrapper-assistant-0-main[data-idx='0'][data-sender='assistant'][data-id][data-branch-id='main']"
+             )
     end
   end
 end

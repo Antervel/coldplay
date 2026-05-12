@@ -34,11 +34,11 @@ export default {
     }
 
     // Find the message content element
-    const contentEl = document.getElementById(`message-content-${message_id}`);
+    const contentEl = document.getElementById(`message-content-${message_id}-${branch_id}`);
     
     if (!contentEl) {
       console.warn(
-        `LLMChunkAppender: Could not find element with ID message-content-${message_id} for branch ${branch_id}`
+        `LLMChunkAppender: Could not find element with ID message-content-${message_id}-${branch_id} for branch ${branch_id}`
       );
       return;
     }

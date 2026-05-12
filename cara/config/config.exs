@@ -117,6 +117,13 @@ config :phoenix, :json_library, Jason
 
 config :opentelemetry_logger_metadata, metadata_keys: [:trace_id, :span_id]
 
+# Message processing pipeline plugins
+config :cara, :message_pipeline, [
+  Cara.Plugins.SafetyPlugin,
+  Cara.Plugins.MonitoringPlugin,
+  Cara.Plugins.AuditPlugin
+]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
