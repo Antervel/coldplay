@@ -1,0 +1,111 @@
+<Layouts.app flash={@flash} current_scope={%{}}>
+  <div class="px-4 py-10 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-base-content">Chat Logs</h1>
+      <span class="text-sm text-base-content/60">{@total_count} conversations</span>
+    </div>
+
+    <%!-- Search bar --%>
+    <.form for={%{}} action={~p"/logs"} method="get" class="mb-6">
+      <div class="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          value={@search}
+          placeholder="Search by student name or message content..."
+          class="input input-bordered flex-1"
+        />
+        <button type="submit" class="btn btn-primary">Search</button>
+        <%= if @search do %>
+          <.link href={~p"/logs"} class="btn btn-ghost">Clear</.link>
+        <% end %>
+      </div>
+    </.form>
+
+    <%!-- Branch list table --%>
+    <div class="overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Subject</th>
+            <th>Branch</th>
+            <th>Preview</th>
+            <th>Messages</th>
+            <th>Last Active</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for branch <- @branches do %>
+            <tr>
+              <td class="font-medium">
+                {if branch.student_name, do: branch.student_name, else: "Unknown"}
+                <%= if branch.student_age do %>
+                  <span class="text-base-content/50 text-sm">(age {branch.student_age})</span>
+                <% end %>
+              </td>
+              <td>{branch.student_subject || "—"}</td>
+              <td>
+                <%= if branch.branch_id == "main" do %>
+                  <span class="badge badge-ghost badge-sm">main</span>
+                <% else %>
+                  <span class="badge badge-outline badge-sm font-mono text-xs">
+                    {String.slice(branch.branch_id, 0, 8)}…
+                  </span>
+                <% end %>
+              </td>
+              <td class="max-w-xs truncate text-sm text-base-content/70">
+                {branch.first_user_content}
+              </td>
+              <td>{branch.message_count}</td>
+              <td class="text-sm text-base-content/60">
+                <%= if branch.last_active do %>
+                  {Calendar.strftime(branch.last_active, "%Y-%m-%d %H:%M")}
+                <% else %>
+                  —
+                <% end %>
+              </td>
+              <td>
+                <.link href={branch_url(branch.chat_id, branch.branch_id)} class="btn btn-sm btn-ghost">
+                  View <.icon name="hero-arrow-right" class="w-4 h-4" />
+                </.link>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= if @branches == [] do %>
+      <div class="text-center py-12 text-base-content/50">
+        <%= if @search do %>
+          No conversations found matching "{@search}"
+        <% else %>
+          No conversations recorded yet
+        <% end %>
+      </div>
+    <% end %>
+
+    <%!-- Pagination --%>
+    <%= if @total_pages > 1 do %>
+      <div class="flex justify-center gap-2 mt-6">
+        <%= if @page > 1 do %>
+          <.link href={logs_url(@page - 1, @search)} class="btn btn-sm btn-outline">
+            ← Prev
+          </.link>
+        <% end %>
+
+        <span class="btn btn-sm btn-disabled">
+          Page {@page} of {@total_pages}
+        </span>
+
+        <%= if @page < @total_pages do %>
+          <.link href={logs_url(@page + 1, @search)} class="btn btn-sm btn-outline">
+            Next →
+          </.link>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</Layouts.app>

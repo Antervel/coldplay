@@ -14,6 +14,7 @@
           active_task={@vm.current_branch.active_task}
           tool_status={@vm.current_branch.tool_status}
           bubble_width={@bubble_width}
+          branched_chat={@branched_chat}
         />
         <%= if Map.has_key?(@branched_chat.child_branches, message.id) do %>
           <div class={"flex w-full mb-4 #{if message.sender == :user, do: "justify-end", else: "justify-start"} pr-14 pl-14"}>

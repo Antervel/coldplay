@@ -92,7 +92,8 @@ defmodule Cara.AI.Guard do
   end
 
   defp get_settings do
-    Application.get_env(:cara, :content_classifier_settings, [])
+    settings = Application.get_env(:cara, :content_classifier_settings, [])
+    settings
   end
 
   defp build_conversation_text(branched_chat, latest_text) do

@@ -96,6 +96,43 @@ defmodule Cara.Education.ChatServiceTest do
     end
   end
 
+  describe "handle_chunk/4" do
+    test "appends chunk to branched chat" do
+      chat = BranchedChat.new(Cara.AI.Chat, [], Context.new([]))
+      chat = BranchedChat.add_user_message(chat, "Hello")
+
+      {updated_chat, returned_chunk} = ChatService.handle_chunk(chat, "main", "world", "chat-1")
+
+      assert returned_chunk == "world"
+      messages = BranchedChat.get_current_messages(updated_chat)
+      last_msg = List.last(messages)
+      assert last_msg.role == :assistant
+      assert last_msg.content == "world"
+    end
+
+    test "accumulates multiple chunks" do
+      chat = BranchedChat.new(Cara.AI.Chat, [], Context.new([]))
+      chat = BranchedChat.add_user_message(chat, "Hello")
+
+      {chat, _} = ChatService.handle_chunk(chat, "main", "Hel", "chat-1")
+      {chat, _} = ChatService.handle_chunk(chat, "main", "lo ", "chat-1")
+      {updated_chat, _} = ChatService.handle_chunk(chat, "main", "world", "chat-1")
+
+      messages = BranchedChat.get_current_messages(updated_chat)
+      last_msg = List.last(messages)
+      assert last_msg.content == "Hello world"
+    end
+
+    test "returns unmodified chunk when no plugin modifies it" do
+      chat = BranchedChat.new(Cara.AI.Chat, [], Context.new([]))
+      chat = BranchedChat.add_user_message(chat, "Hello")
+
+      {_, returned_chunk} = ChatService.handle_chunk(chat, "main", "unchanged", "chat-1")
+
+      assert returned_chunk == "unchanged"
+    end
+  end
+
   describe "finish_ai_response/4 with classification" do
     test "replaces unsafe LLM response", %{socket: socket} do
       Application.put_env(:cara, :content_classifier_settings, enabled: true, target: :llm)

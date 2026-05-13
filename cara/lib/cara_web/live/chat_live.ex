@@ -183,10 +183,13 @@ defmodule CaraWeb.ChatLive do
   # Handle streamed chunks from the LLM
   @impl true
   def handle_info({:llm_chunk, branch_id, chunk}, socket) when is_binary(chunk) do
-    branched_chat = socket.assigns.branched_chat
-
-    # Append the chunk to the branched chat first
-    branched_chat = BranchedChat.append_chunk(branched_chat, branch_id, chunk)
+    {branched_chat, _chunk} =
+      ChatService.handle_chunk(
+        socket.assigns.branched_chat,
+        branch_id,
+        chunk,
+        socket.assigns.chat_id
+      )
 
     # Get the current streaming message ID and its updated content
     streaming_message_id = get_streaming_message_id(branched_chat, branch_id)

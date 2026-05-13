@@ -71,7 +71,8 @@ export default {
         const messageWrapper = menuButton.closest('[id^="message-wrapper-"]');
         if (messageWrapper) {
           const messageId = messageWrapper.dataset.id;
-          const contextMenu = document.getElementById(`context-menu-${messageId}`);
+          const branchId = messageWrapper.dataset.branchId || 'main';
+          const contextMenu = document.getElementById(`context-menu-${messageId}-${branchId}`);
           if (contextMenu) {
             // If this menu is already open, close it
             if (!contextMenu.classList.contains('hidden')) {
@@ -213,10 +214,10 @@ export default {
     }
 
     // Find the message content element
-    const contentEl = document.getElementById(`message-content-${message_id}`);
+    const contentEl = document.getElementById(`message-content-${message_id}-${branch_id}`);
     if (!contentEl) {
       console.warn(
-        `CombinedHook: Could not find element with ID message-content-${message_id} for branch ${branch_id}`
+        `CombinedHook: Could not find element with ID message-content-${message_id}-${branch_id} for branch ${branch_id}`
       );
       return;
     }

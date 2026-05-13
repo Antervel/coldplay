@@ -5,6 +5,7 @@ defmodule Cara.Education.ChatService do
   alias BranchedLLM.BranchedChat
   alias BranchedLLM.Message
   alias Cara.AI.Guard
+  alias Cara.Education.MessagePipeline
   alias Cara.Education.Monitoring
   alias ReqLLM.Context
 
@@ -22,23 +23,26 @@ defmodule Cara.Education.ChatService do
     if BranchedChat.busy?(branched_chat, current_branch_id) do
       {:enqueue, BranchedChat.enqueue_message(branched_chat, current_branch_id, message)}
     else
-      monitoring_enabled = Monitoring.monitoring_enabled?()
-      should_classify = Guard.should_classify?(:student)
+      # Add user message first to get the object
+      branched_chat = BranchedChat.add_user_message(branched_chat, message)
+      user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
 
-      {status, score} =
-        if should_classify or monitoring_enabled do
-          Guard.get_classification_and_score(message, :student, branched_chat)
-        else
-          {:safe, 0.0}
-        end
+      # Run pipeline
+      pipeline_data = %{
+        content: message,
+        role: :student,
+        branched_chat: branched_chat,
+        socket: socket,
+        chat_id: socket.assigns.chat_id,
+        assigns: %{message_obj: user_message_obj}
+      }
 
-      if should_classify and status == :unsafe do
-        # Add user message
-        branched_chat = BranchedChat.add_user_message(branched_chat, message)
-        user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
-        user_message_obj = %{user_message_obj | metadata: Map.put(user_message_obj.metadata, :safety_score, score)}
+      context = MessagePipeline.run(:on_message, pipeline_data)
+      user_message_obj = context.assigns.message_obj
 
-        Monitoring.broadcast_new_message(socket, socket.assigns.chat_id, user_message_obj)
+      if context.status == :blocked do
+        # Replace message in BranchedChat with enriched metadata (score)
+        branched_chat = update_message_in_branch(branched_chat, current_branch_id, user_message_obj)
 
         # Add blocked assistant message
         blocked_text = Guard.blocked_message()
@@ -46,15 +50,8 @@ defmodule Cara.Education.ChatService do
 
         {:blocked, branched_chat}
       else
-        branched_chat = BranchedChat.add_user_message(branched_chat, message)
-        user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
-        user_message_obj = %{user_message_obj | metadata: Map.put(user_message_obj.metadata, :safety_score, score)}
-
-        Monitoring.broadcast_new_message(
-          socket,
-          socket.assigns.chat_id,
-          user_message_obj
-        )
+        # Update branched_chat with enriched metadata
+        branched_chat = update_message_in_branch(branched_chat, current_branch_id, user_message_obj)
 
         {:send, branched_chat, user_message_obj}
       end
@@ -113,39 +110,59 @@ defmodule Cara.Education.ChatService do
   end
 
   @doc """
+  Handles a streaming chunk from the LLM.
+
+  Runs the `:on_chunk` pipeline (which may modify the chunk content),
+  then appends the chunk to the branched chat. Returns the updated
+  branched_chat and the (possibly modified) chunk, so the LiveView
+  can render the accumulated content.
+
+  This is the domain-layer entry point for streaming chunks —
+  all pipeline logic lives here, keeping the LiveView focused on
+  presentation (rendering Markdown to HTML and pushing to the client).
+  """
+  def handle_chunk(branched_chat, branch_id, chunk, chat_id) do
+    pipeline_data = %{
+      content: chunk,
+      role: :llm,
+      branched_chat: branched_chat,
+      chat_id: chat_id
+    }
+
+    context = MessagePipeline.run(:on_chunk, pipeline_data)
+    chunk = context.content
+
+    branched_chat = BranchedChat.append_chunk(branched_chat, branch_id, chunk)
+
+    {branched_chat, chunk}
+  end
+
+  @doc """
   Finalizes an AI response and broadcasts it.
   """
   def finish_ai_response(branched_chat, branch_id, llm_context_builder, socket) do
     branched_chat = BranchedChat.finish_ai_response(branched_chat, branch_id, llm_context_builder)
-
-    # Broadcast the completed AI message
     final_message = List.last(branched_chat.branches[branch_id].messages)
 
-    monitoring_enabled = Monitoring.monitoring_enabled?()
-    should_classify = Guard.should_classify?(:llm)
+    # Run pipeline
+    pipeline_data = %{
+      content: final_message.content,
+      role: :llm,
+      branched_chat: branched_chat,
+      socket: socket,
+      chat_id: socket.assigns.chat_id,
+      assigns: %{message_obj: final_message}
+    }
 
-    {status, score} =
-      if should_classify or monitoring_enabled do
-        Guard.get_classification_and_score(final_message.content, :llm, branched_chat)
-      else
-        {:safe, 0.0}
-      end
+    context = MessagePipeline.run(:on_message, pipeline_data)
+    final_message = context.assigns.message_obj
 
-    if should_classify and status == :unsafe do
+    if context.status == :blocked do
       blocked_text = Guard.blocked_message()
 
-      # Replace content in BranchedChat
-      branch = branched_chat.branches[branch_id]
-      messages = branch.messages
-      {last, rest} = List.pop_at(messages, -1)
-      updated_message = %{last | content: blocked_text}
-      updated_message = %{updated_message | metadata: Map.put(updated_message.metadata, :safety_score, score)}
-      updated_messages = rest ++ [updated_message]
-
-      new_context = rebuild_context_from_messages(updated_messages, branched_chat)
-
-      updated_branch = %{branch | messages: updated_messages, context: new_context}
-      branched_chat = %{branched_chat | branches: Map.put(branched_chat.branches, branch_id, updated_branch)}
+      # Replace content in BranchedChat and rebuild context
+      updated_message = %{final_message | content: blocked_text}
+      branched_chat = replace_last_message_and_rebuild_context(branched_chat, branch_id, updated_message)
 
       Monitoring.broadcast_new_message(
         socket,
@@ -155,16 +172,34 @@ defmodule Cara.Education.ChatService do
 
       branched_chat
     else
-      final_message = %{final_message | metadata: Map.put(final_message.metadata, :safety_score, score)}
-
-      Monitoring.broadcast_new_message(
-        socket,
-        socket.assigns.chat_id,
-        final_message
-      )
-
-      branched_chat
+      # Update branched_chat with enriched metadata
+      update_message_in_branch(branched_chat, branch_id, final_message)
     end
+  end
+
+  defp update_message_in_branch(branched_chat, branch_id, updated_message) do
+    branch = branched_chat.branches[branch_id]
+    messages = branch.messages
+
+    updated_messages =
+      Enum.map(messages, fn msg ->
+        if msg.id == updated_message.id, do: updated_message, else: msg
+      end)
+
+    updated_branch = %{branch | messages: updated_messages}
+    %{branched_chat | branches: Map.put(branched_chat.branches, branch_id, updated_branch)}
+  end
+
+  defp replace_last_message_and_rebuild_context(branched_chat, branch_id, updated_message) do
+    branch = branched_chat.branches[branch_id]
+    messages = branch.messages
+    {_last, rest} = List.pop_at(messages, -1)
+    updated_messages = rest ++ [updated_message]
+
+    new_context = rebuild_context_from_messages(updated_messages, branched_chat)
+
+    updated_branch = %{branch | messages: updated_messages, context: new_context}
+    %{branched_chat | branches: Map.put(branched_chat.branches, branch_id, updated_branch)}
   end
 
   defp add_assistant_message(branched_chat, branch_id, content, socket) do
@@ -189,11 +224,16 @@ defmodule Cara.Education.ChatService do
     branched_chat = BranchedChat.add_error_message(branched_chat, branch_id, error_message)
     error_message_obj = List.last(branched_chat.branches[branch_id].messages)
 
-    Monitoring.broadcast_new_message(
-      socket,
-      socket.assigns.chat_id,
-      error_message_obj
-    )
+    pipeline_data = %{
+      content: error_message,
+      role: :llm,
+      branched_chat: branched_chat,
+      socket: socket,
+      chat_id: socket.assigns.chat_id,
+      assigns: %{message_obj: error_message_obj}
+    }
+
+    MessagePipeline.run(:on_error, pipeline_data)
 
     branched_chat
   end

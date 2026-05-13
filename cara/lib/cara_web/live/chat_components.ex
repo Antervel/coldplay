@@ -21,15 +21,16 @@ defmodule CaraWeb.ChatComponents do
         />
         <div
           class={"relative flex-1 flex items-center #{if @message.sender == :user, do: "justify-end", else: "justify-start"}"}
-          id={"message-wrapper-#{@message.sender}-#{@idx}"}
+          id={"message-wrapper-#{@message.sender}-#{@idx}-#{if @branched_chat, do: @branched_chat.current_branch_id, else: "main"}"}
           data-idx={@idx}
           data-id={@message.id}
+          data-branch-id={if @branched_chat, do: @branched_chat.current_branch_id, else: "main"}
           data-sender={@message.sender}
         >
           <% _is_active = @idx == @last_idx && @active_task != nil %>
           <div
             phx-hook="MessageContentSync"
-            id={"message-content-#{@message.id}"}
+            id={"message-content-#{@message.id}-#{if @branched_chat, do: @branched_chat.current_branch_id, else: "main"}"}
             class={"#{if @message.sender == :user, do: "bg-[#FFFFBC]", else: "bg-[#F5F5F5]"} text-black"}
             phx-update="ignore"
             style={"max-width: #{@bubble_width}; box-shadow: 0px 2px 6px 0px #00000040; border-radius: 8px; padding: 12px 16px; transform: rotate(0deg); opacity: 1;"}
@@ -56,7 +57,7 @@ defmodule CaraWeb.ChatComponents do
             </button>
             <%= unless show_stop do %>
               <div
-                id={"context-menu-#{@message.id}"}
+                id={"context-menu-#{@message.id}-#{if @branched_chat, do: @branched_chat.current_branch_id, else: "main"}"}
                 class="hidden absolute z-50 bg-white rounded-md shadow-lg p-1 transition-all duration-200 ease-out text-black min-w-[160px]"
                 style={"top: 100%; #{if @message.sender == :user, do: "right: 0;", else: "left: 0;"}"}
               >
