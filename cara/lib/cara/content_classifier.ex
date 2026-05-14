@@ -169,9 +169,11 @@ defmodule Cara.ContentClassifier do
         handle_response_body(body)
 
       {:ok, %{status: status}} ->
+        Logger.error("ContentClassifier.do_classify(text): HTTP #{status}")
         {:error, "HTTP #{status}"}
 
       {:error, reason} ->
+        Logger.error("ContentClassifier.do_classify(text): error #{inspect(reason)}")
         {:error, reason}
     end
   end
