@@ -191,30 +191,35 @@ defmodule CaraWeb.ChatLive do
         socket.assigns.chat_id
       )
 
-    # Get the current streaming message ID and its updated content
-    streaming_message_id = get_streaming_message_id(branched_chat, branch_id)
-    message_content = get_streaming_message_content(branched_chat, branch_id)
+    # ALWAYS update the server-side state
+    socket = assign_branched_chat(socket, branched_chat)
 
-    # Generate a unique prefix for this message to avoid ID collisions
-    prefix = if streaming_message_id, do: "#{streaming_message_id}-#{branched_chat.current_branch_id}", else: "main"
-
-    # Render the full message content as HTML
-    rendered_html =
-      if message_content do
-        MarkdownHelpers.render_markdown(message_content, prefix)
-      else
-        ""
-      end
-
-    # Push event to JavaScript with the full rendered HTML
+    # ONLY push events to JS if the branch is currently active
     socket =
-      socket
-      |> assign_branched_chat(branched_chat)
-      |> push_event("llm_chunk", %{
-        message_id: streaming_message_id,
-        branch_id: branch_id,
-        rendered_html: extract_html(rendered_html)
-      })
+      if branch_id == socket.assigns.branched_chat.current_branch_id do
+        streaming_message_id = get_streaming_message_id(branched_chat, branch_id)
+        message_content = get_streaming_message_content(branched_chat, branch_id)
+
+        prefix =
+          if streaming_message_id,
+            do: "#{streaming_message_id}-#{branch_id}",
+            else: "main"
+
+        rendered_html =
+          if message_content do
+            MarkdownHelpers.render_markdown(message_content, prefix)
+          else
+            ""
+          end
+
+        push_event(socket, "llm_chunk", %{
+          message_id: streaming_message_id,
+          branch_id: branch_id,
+          rendered_html: extract_html(rendered_html)
+        })
+      else
+        socket
+      end
 
     {:noreply, socket}
   end
@@ -231,10 +236,15 @@ defmodule CaraWeb.ChatLive do
         socket
       )
 
+    # ONLY push llm_end (which triggers Mermaid/KaTeX) if branch is active
     socket =
-      socket
-      |> assign_branched_chat(branched_chat)
-      |> push_event("llm_end", %{})
+      if branch_id == socket.assigns.branched_chat.current_branch_id do
+        socket
+        |> assign_branched_chat(branched_chat)
+        |> push_event("llm_end", %{})
+      else
+        assign_branched_chat(socket, branched_chat)
+      end
       |> process_next_message_or_idle(branch_id)
 
     {:noreply, socket}
