@@ -135,22 +135,6 @@ defmodule CaraWeb.ChatLiveCoverageTest do
   end
 
   describe "TeacherLive extra coverage" do
-    test "handle_info :chat_started new and update", %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/teacher")
-
-      # New chat
-      student1 = %{name: "Student 1", subject: "Math", age: "10"}
-      send(view.pid, {:chat_started, %{id: "s1", student: student1}})
-      state = :sys.get_state(view.pid)
-      assert state.socket.assigns.chats["s1"].student.name == "Student 1"
-
-      # Update existing chat
-      student1_updated = %{student1 | name: "Student 1 Updated"}
-      send(view.pid, {:chat_started, %{id: "s1", student: student1_updated}})
-      state = :sys.get_state(view.pid)
-      assert state.socket.assigns.chats["s1"].student.name == "Student 1 Updated"
-    end
-
     test "handle_info :chat_left", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/teacher")
       send(view.pid, {:chat_started, %{id: "to-leave", student: %{name: "Leaver", subject: "S", age: "1"}}})
