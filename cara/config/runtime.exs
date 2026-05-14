@@ -29,6 +29,16 @@ config :req_llm,
     base_url: System.get_env("OLLAMA_URL", "http://host.containers.internal:11434/v1")
   ]
 
+# Content Classifier API configuration
+config :cara, :classifier_api,
+  host: System.get_env("CLASSIFIER_API_HOST", "localhost"),
+  port: System.get_env("CLASSIFIER_API_PORT", "8002"),
+  sexual_score_threshold: 0.5,
+  toxicity_threshold: 0.5,
+  severe_toxicity_threshold: 0.3,
+  obscene_threshold: 0.5,
+  threat_threshold: 0.5
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
