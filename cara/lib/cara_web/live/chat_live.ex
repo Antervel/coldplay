@@ -324,7 +324,7 @@ defmodule CaraWeb.ChatLive do
         {:enqueue, branched_chat} ->
           {:noreply, socket |> assign_branched_chat(branched_chat)}
 
-        {:send, branched_chat, user_message_obj} ->
+        {:send, branched_chat, user_message_obj, socket} ->
           socket =
             socket
             |> assign_branched_chat(branched_chat)

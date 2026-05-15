@@ -18,44 +18,49 @@ defmodule Cara.Education.ChatService do
     * `{:blocked, branched_chat}` - If message was blocked by content classifier.
   """
   def send_message(branched_chat, message, socket) do
-    current_branch_id = branched_chat.current_branch_id
+    branch_id = branched_chat.current_branch_id
 
-    if BranchedChat.busy?(branched_chat, current_branch_id) do
-      {:enqueue, BranchedChat.enqueue_message(branched_chat, current_branch_id, message)}
+    if BranchedChat.busy?(branched_chat, branch_id) do
+      {:enqueue, BranchedChat.enqueue_message(branched_chat, branch_id, message)}
     else
-      # Add user message first to get the object
-      branched_chat = BranchedChat.add_user_message(branched_chat, message)
-      user_message_obj = List.last(BranchedChat.get_current_messages(branched_chat))
-
-      # Run pipeline
-      pipeline_data = %{
-        content: message,
-        role: :student,
-        branched_chat: branched_chat,
-        socket: socket,
-        chat_id: socket.assigns.chat_id,
-        assigns: %{message_obj: user_message_obj}
-      }
-
-      context = MessagePipeline.run(:on_message, pipeline_data)
-      user_message_obj = context.assigns.message_obj
-
-      if context.status == :blocked do
-        # Replace message in BranchedChat with enriched metadata (score)
-        branched_chat = update_message_in_branch(branched_chat, current_branch_id, user_message_obj)
-
-        # Add blocked assistant message
-        blocked_text = Guard.blocked_message()
-        branched_chat = add_assistant_message(branched_chat, current_branch_id, blocked_text, socket)
-
-        {:blocked, branched_chat}
-      else
-        # Update branched_chat with enriched metadata
-        branched_chat = update_message_in_branch(branched_chat, current_branch_id, user_message_obj)
-
-        {:send, branched_chat, user_message_obj}
-      end
+      branched_chat
+      |> prepare_user_message(message)
+      |> run_pipeline(message, socket)
+      |> handle_pipeline_result(branch_id)
     end
+  end
+
+  defp prepare_user_message(branched_chat, message) do
+    branched_chat = BranchedChat.add_user_message(branched_chat, message)
+    user_message = branched_chat |> BranchedChat.get_current_messages() |> List.last()
+    {branched_chat, user_message}
+  end
+
+  defp run_pipeline({branched_chat, user_message}, message, socket) do
+    pipeline_data = %{
+      content: message,
+      role: :student,
+      branched_chat: branched_chat,
+      socket: socket,
+      chat_id: socket.assigns.chat_id,
+      assigns: %{message_obj: user_message}
+    }
+
+    context = MessagePipeline.run(:on_message, pipeline_data)
+    {branched_chat, context.assigns.message_obj, context.status, socket}
+  end
+
+  defp handle_pipeline_result({branched_chat, user_message, :blocked, socket}, branch_id) do
+    branched_chat =
+      branched_chat
+      |> update_message_in_branch(branch_id, user_message)
+      |> add_assistant_message(branch_id, Guard.blocked_message(), socket)
+
+    {:blocked, branched_chat}
+  end
+
+  defp handle_pipeline_result({branched_chat, user_message, _status, socket}, branch_id) do
+    {:send, update_message_in_branch(branched_chat, branch_id, user_message), user_message, socket}
   end
 
   @doc """

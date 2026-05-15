@@ -90,7 +90,7 @@ defmodule Cara.Education.ChatServiceTest do
          }}
       end)
 
-      assert {:send, updated_chat, user_msg} = ChatService.send_message(chat, "safe message", socket)
+      assert {:send, updated_chat, user_msg, _socket} = ChatService.send_message(chat, "safe message", socket)
       assert user_msg.content == "safe message"
       assert length(BranchedChat.get_current_messages(updated_chat)) == 1
     end
