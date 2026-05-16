@@ -1,9 +1,8 @@
 defmodule Cara.Audit do
   @moduledoc """
   Context module for auditing student chat sessions and messages.
-
-  Provides functions to create sessions, list branches (unique chat_id +
-  branch_id pairs), and retrieve messages for a specific branch.
+  Provides functions to create sessions, list branches (unique chat_id + branch_id pairs),
+  and retrieve messages for a specific branch.
   """
 
   alias Cara.Audit.Message
@@ -38,18 +37,21 @@ defmodule Cara.Audit do
 
   ## Options
 
-    * `:search` — filters by student name or message content (case-insensitive)
-    * `:page` — page number (1-based, default 1)
+  * `:search` — filters by student name or message content (case-insensitive)
+  * `:page` — page number (1-based, default 1)
+  * `:sort_by` — field to sort by (:date, :student, :subject, :messages)
+  * `:sort_dir` — sort direction (:asc or :desc)
 
   Returns `{branches, total_count}` where each branch is a map with keys
-  `:chat_id`, `:branch_id`, `:student_name`, `:student_age`,
-  `:student_subject`, `:message_count`, `:first_user_content`, and
-  `:last_active`.
+  `:chat_id`, `:branch_id`, `:student_name`, `:student_age`, `:student_subject`,
+  `:message_count`, `:first_user_content`, and `:last_active`.
   """
   @spec list_branches(keyword()) :: {list(map()), integer()}
   def list_branches(opts \\ []) do
     search = Keyword.get(opts, :search)
     page = Keyword.get(opts, :page, 1)
+    sort_by = Keyword.get(opts, :sort_by, :date)
+    sort_dir = Keyword.get(opts, :sort_dir, :desc)
     offset = (max(page, 1) - 1) * @per_page
 
     base_query =
@@ -95,6 +97,8 @@ defmodule Cara.Audit do
       from(q in subquery(filtered_query), select: count(q.chat_id))
       |> Repo.one()
 
+    order_expr = build_order_expr(sort_by, sort_dir)
+
     branches_query =
       from b in subquery(filtered_query),
         left_join: s in Session,
@@ -109,13 +113,20 @@ defmodule Cara.Audit do
           first_user_content: b.first_user_content,
           last_active: b.last_active
         },
-        order_by: [desc: s.inserted_at],
+        order_by: ^order_expr,
         limit: ^@per_page,
         offset: ^offset
 
     branches = Repo.all(branches_query)
+
     {branches, total}
   end
+
+  defp build_order_expr(:date, dir), do: [{dir, dynamic([b, s], b.last_active)}]
+  defp build_order_expr(:student, dir), do: [{dir, dynamic([b, s], s.student_name)}]
+  defp build_order_expr(:subject, dir), do: [{dir, dynamic([b, s], s.student_subject)}]
+  defp build_order_expr(:messages, dir), do: [{dir, dynamic([b, s], b.message_count)}]
+  defp build_order_expr(_, dir), do: [{dir, dynamic([b, s], b.last_active)}]
 
   @doc """
   Lists all audit messages for a specific chat branch, ordered by inserted_at.

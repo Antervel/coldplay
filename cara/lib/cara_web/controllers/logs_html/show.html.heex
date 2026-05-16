@@ -1,71 +1,77 @@
-<Layouts.app flash={@flash} current_scope={%{}}>
-  <div class="px-4 py-10 sm:px-6 lg:px-8 max-w-4xl mx-auto">
-    <.link href={~p"/logs"} class="btn btn-ghost btn-sm mb-4">
-      <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Logs
-    </.link>
+<div class="px-6 py-8 max-w-5xl mx-auto">
+  <.link
+    href={~p"/logs"}
+    class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors mb-6"
+  >
+    <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Logs
+  </.link>
 
-    <%!-- Session header --%>
-    <div class="bg-base-200 rounded-lg p-6 mb-6">
-      <h1 class="text-xl font-bold text-base-content mb-2">
-        {if @session && @session.student_name, do: @session.student_name, else: "Unknown Student"}
-      </h1>
-      <div class="flex flex-wrap gap-4 text-sm text-base-content/70">
-        <%= if @session && @session.student_age do %>
-          <span>Age: {@session.student_age}</span>
+  <%!-- Session header --%>
+  <div class="rounded-xl border border-gray-200 bg-gray-50/50 p-6 mb-8">
+    <h1 class="text-xl font-bold text-gray-900 mb-3">
+      {if @session && @session.student_name, do: @session.student_name, else: "Unknown Student"}
+    </h1>
+    <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-500">
+      <%= if @session && @session.student_age do %>
+        <span>Age: <span class="text-gray-700">{@session.student_age}</span></span>
+      <% end %>
+      <%= if @session && @session.student_subject do %>
+        <span>Subject: <span class="text-gray-700">{@session.student_subject}</span></span>
+      <% end %>
+      <span>
+        Chat ID:
+        <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{String.slice(@chat_id, 0, 8)}…</code>
+      </span>
+      <span>
+        Branch:
+        <%= if @branch_id == "main" do %>
+          <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+            main
+          </span>
+        <% else %>
+          <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2 py-0.5 font-mono text-xs text-gray-500">
+            {String.slice(@branch_id, 0, 8)}…
+          </span>
         <% end %>
-        <%= if @session && @session.student_subject do %>
-          <span>Subject: {@session.student_subject}</span>
-        <% end %>
+      </span>
+      <%= if @session do %>
         <span>
-          Chat ID: <code class="text-xs bg-base-300 px-1 py-0.5 rounded">{String.slice(@chat_id, 0, 8)}…</code>
+          Started: <span class="text-gray-700">{Calendar.strftime(@session.inserted_at, "%b %d, %Y %H:%M")}</span>
         </span>
-        <span>
-          Branch:
-          <%= if @branch_id == "main" do %>
-            <span class="badge badge-ghost badge-sm">main</span>
-          <% else %>
-            <span class="badge badge-outline badge-sm font-mono text-xs">
-              {String.slice(@branch_id, 0, 8)}…
-            </span>
-          <% end %>
-        </span>
-        <%= if @session do %>
-          <span>Started: {Calendar.strftime(@session.inserted_at, "%Y-%m-%d %H:%M")}</span>
-        <% end %>
-      </div>
-    </div>
-
-    <%!-- Message list --%>
-    <div class="space-y-3">
-      <%= for msg <- @messages do %>
-        <div class={[
-          "rounded-lg p-4",
-          msg.role == "user" && "bg-blue-50 dark:bg-blue-950/30",
-          msg.role == "assistant" && "bg-base-200"
-        ]}>
-          <div class="flex items-center gap-2 mb-1">
-            <span class={[
-              "badge badge-sm",
-              msg.role == "user" && "badge-primary",
-              msg.role == "assistant" && "badge-secondary"
-            ]}>
-              {msg.role}
-            </span>
-            <span class="text-xs text-base-content/50">
-              {Calendar.strftime(msg.inserted_at, "%H:%M:%S")}
-            </span>
-          </div>
-          <div class="prose prose-sm max-w-none text-base-content">
-            {render_markdown(msg.content, "log-#{msg.id}", sanitize: true)}
-          </div>
-        </div>
       <% end %>
     </div>
+  </div>
 
-    <%= if @messages == [] do %>
-      <div class="text-center py-12 text-base-content/50">
-        No messages recorded for this branch
+  <%!-- Message list --%>
+  <div class="space-y-3">
+    <%= for msg <- @messages do %>
+      <div class={[
+        "rounded-lg border px-5 py-4",
+        msg.role == "user" && "border-blue-100 bg-blue-50/40",
+        msg.role == "assistant" && "border-gray-100 bg-white"
+      ]}>
+        <div class="flex items-center gap-2 mb-2">
+          <span class={[
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+            msg.role == "user" && "bg-blue-100 text-blue-700",
+            msg.role == "assistant" && "bg-gray-100 text-gray-600"
+          ]}>
+            {msg.role}
+          </span>
+          <span class="text-xs text-gray-400">
+            {Calendar.strftime(msg.inserted_at, "%H:%M:%S")}
+          </span>
+        </div>
+        <div class="prose prose-sm max-w-none text-gray-700">
+          {render_markdown(msg.content, "log-#{msg.id}", sanitize: true)}
+        </div>
       </div>
     <% end %>
   </div>
-</Layouts.app>
+
+  <%= if @messages == [] do %>
+    <div class="text-center py-16 text-gray-400">
+      No messages recorded for this branch
+    </div>
+  <% end %>
+</div>

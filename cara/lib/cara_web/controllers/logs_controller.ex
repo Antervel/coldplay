@@ -5,11 +5,18 @@ defmodule CaraWeb.LogsController do
 
   @per_page 50
 
+  plug :put_root_layout, html: {CaraWeb.Layouts, :logs}
+  plug :put_layout, false
+
   def index(conn, params) do
     search = params["q"]
     page = parse_page(params["page"])
+    sort_by = parse_sort(params["sort_by"])
+    sort_dir = parse_sort_dir(params["sort_dir"])
 
-    {branches, total_count} = Audit.list_branches(search: search, page: page)
+    {branches, total_count} =
+      Audit.list_branches(search: search, page: page, sort_by: sort_by, sort_dir: sort_dir)
+
     total_pages = ceil(total_count / @per_page)
 
     render(conn, :index,
@@ -17,7 +24,9 @@ defmodule CaraWeb.LogsController do
       search: search,
       page: page,
       total_pages: total_pages,
-      total_count: total_count
+      total_count: total_count,
+      sort_by: sort_by,
+      sort_dir: sort_dir
     )
   end
 
@@ -50,4 +59,14 @@ defmodule CaraWeb.LogsController do
   end
 
   defp parse_page(_), do: 1
+
+  @valid_sort_fields ~w(date student subject messages)
+  defp parse_sort(nil), do: :date
+  defp parse_sort(str) when str in @valid_sort_fields, do: String.to_atom(str)
+  defp parse_sort(_), do: :date
+
+  @valid_sort_dirs ~w(asc desc)
+  defp parse_sort_dir(nil), do: :desc
+  defp parse_sort_dir(str) when str in @valid_sort_dirs, do: String.to_atom(str)
+  defp parse_sort_dir(_), do: :desc
 end

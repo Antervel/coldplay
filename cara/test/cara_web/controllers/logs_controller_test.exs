@@ -65,6 +65,21 @@ defmodule CaraWeb.LogsControllerTest do
       conn = get(conn, ~p"/logs?page=-1")
       assert html_response(conn, 200) =~ "Chat Logs"
     end
+
+    test "accepts sort_by parameter", %{conn: conn} do
+      conn = get(conn, ~p"/logs?sort_by=student&sort_dir=asc")
+      assert html_response(conn, 200) =~ "Chat Logs"
+    end
+
+    test "defaults invalid sort_by to date", %{conn: conn} do
+      conn = get(conn, ~p"/logs?sort_by=invalid")
+      assert html_response(conn, 200) =~ "Chat Logs"
+    end
+
+    test "defaults invalid sort_dir to desc", %{conn: conn} do
+      conn = get(conn, ~p"/logs?sort_dir=invalid")
+      assert html_response(conn, 200) =~ "Chat Logs"
+    end
   end
 
   describe "GET /logs/:chat_id/:branch_id" do
