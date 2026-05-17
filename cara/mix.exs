@@ -4,7 +4,7 @@ defmodule Cara.MixProject do
   def project do
     [
       app: :cara,
-      version: "0.5.5",
+      version: "0.5.6",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -12,7 +12,7 @@ defmodule Cara.MixProject do
       deps: deps(),
       test_coverage: test_coverage(),
       dialyzer: [
-        plt_add_apps: [:mix, :ex_unit],
+        plt_add_apps: [:mix, :ex_unit, :llm_db],
         ignore_warnings: "test/support/conn_case.ex",
         ignore_warnings: "test/support/data_case.ex"
       ],
@@ -64,8 +64,8 @@ defmodule Cara.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14.1", only: [:dev, :test], runtime: false},
-      {:branched_llm, github: "dvadell/branched_llm", tag: "v0.1.1"},
-      {:req_llm, "~> 1.0.0"},
+      {:branched_llm, github: "dvadell/branched_llm", tag: "v0.1.2"},
+      {:req_llm, "~> 1.11.0"},
       {:mox, "~> 1.0", only: :test},
       {:mdex, "~> 0.11"},
       {:mdex_gfm, "~> 0.1"},

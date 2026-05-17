@@ -6,6 +6,7 @@ defmodule CaraWeb.ChatLiveBranchTest do
   alias BranchedLLM.BranchedChat
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  import Cara.Test.StreamResponseHelper
 
   setup %{conn: conn} do
     # Stub health check
@@ -40,9 +41,9 @@ defmodule CaraWeb.ChatLiveBranchTest do
        %StreamResponse{
          stream: [ReqLLM.StreamChunk.text("Hi there!")],
          context: Context.new([]),
-         model: %ReqLLM.Model{model: "test", provider: :openai},
+         model: %LLMDB.Model{id: "test", provider: :openai},
          cancel: fn -> :ok end,
-         metadata_task: Task.async(fn -> %{} end)
+         metadata_handle: start_metadata_handle()
        }, fn content -> Context.new([Context.assistant(content)]) end, []}
     end)
 
@@ -88,9 +89,9 @@ defmodule CaraWeb.ChatLiveBranchTest do
        %StreamResponse{
          stream: [ReqLLM.StreamChunk.text("It is now.")],
          context: Context.new([]),
-         model: %ReqLLM.Model{model: "test", provider: :openai},
+         model: %LLMDB.Model{id: "test", provider: :openai},
          cancel: fn -> :ok end,
-         metadata_task: Task.async(fn -> %{} end)
+         metadata_handle: start_metadata_handle()
        }, fn content -> Context.new([Context.assistant(content)]) end, []}
     end)
 

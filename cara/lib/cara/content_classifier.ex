@@ -40,6 +40,26 @@ defmodule Cara.ContentClassifier do
 
   @type classify_response :: {:ok, classification_result()} | {:error, term()}
 
+  # Key mappings for normalizing string-keyed JSON responses to atom keys.
+  # Defined as module attributes so they can be used by both normalize_keys/1 and to_atom_key/1.
+  @known_top_keys %{
+    "input" => :input,
+    "sexual" => :sexual,
+    "sexual_score" => :sexual,
+    "detoxify" => :detoxify
+  }
+
+  @known_sexual_keys %{"label" => :label, "score" => :score}
+
+  @known_detoxify_keys %{
+    "toxicity" => :toxicity,
+    "severe_toxicity" => :severe_toxicity,
+    "obscene" => :obscene,
+    "threat" => :threat,
+    "insult" => :insult,
+    "identity_attack" => :identity_attack
+  }
+
   @doc """
   Classifies the given text for safety.
 
@@ -135,10 +155,18 @@ defmodule Cara.ContentClassifier do
     1 - score
   end
 
+  # Handles the flat sexual_score format returned by the classifier API
+  # (e.g. %{:sexual => 0.0} instead of %{:sexual => %{label: ..., score: ...}})
+  defp sexual_score(score) when is_number(score) do
+    score
+  end
+
   defp sexual_score(_), do: 0.0
 
   defp detoxify_score(scores, key_name) when is_map(scores) do
-    Map.get(scores, key_name) || Map.get(scores, String.to_atom(key_name)) || 0.0
+    Map.get(scores, key_name) ||
+      Map.get(scores, Map.get(@known_detoxify_keys, key_name, key_name)) ||
+      0.0
   end
 
   defp detoxify_score(_, _), do: 0.0
@@ -178,16 +206,48 @@ defmodule Cara.ContentClassifier do
     end
   end
 
-  defp handle_response_body(body) when is_map(body), do: {:ok, body}
+  defp handle_response_body(body) when is_map(body) do
+    {:ok, normalize_keys(body)}
+  end
 
   defp handle_response_body(body) when is_binary(body) do
     case Jason.decode(body) do
-      {:ok, decoded} -> {:ok, decoded}
+      {:ok, decoded} -> {:ok, normalize_keys(decoded)}
       {:error, _} -> {:error, :invalid_response}
     end
   end
 
   defp handle_response_body(_), do: {:error, :invalid_response}
+
+  defp normalize_keys(result) when is_map(result) do
+    result
+    |> Enum.map(fn
+      {"detoxify", nested} when is_map(nested) ->
+        {:detoxify, normalize_nested(nested, @known_detoxify_keys)}
+
+      {key, nested} when key in ["sexual"] and is_map(nested) ->
+        {:sexual, normalize_nested(nested, @known_sexual_keys)}
+
+      {"sexual_score", value} ->
+        {:sexual, value}
+
+      {key, value} ->
+        atom_key = Map.get(@known_top_keys, key, key)
+        {atom_key, value}
+    end)
+    |> Map.new()
+  end
+
+  defp normalize_keys(result), do: result
+
+  defp normalize_nested(nested, known_keys) when is_map(nested) do
+    nested
+    |> Enum.map(fn {key, value} ->
+      atom_key = Map.get(known_keys, key, key)
+      {atom_key, value}
+    end)
+    |> Map.new()
+  end
 
   defp get_threshold(key, default) do
     Application.get_env(:cara, :classifier_api, []) |> Keyword.get(key, default)

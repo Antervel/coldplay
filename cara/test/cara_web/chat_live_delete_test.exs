@@ -7,6 +7,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
   alias BranchedLLM.Message
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  import Cara.Test.StreamResponseHelper
 
   setup %{conn: conn} do
     # Stub health check by default
@@ -49,10 +50,10 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
         stream_response = %StreamResponse{
           context: context,
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          model: %LLMDB.Model{id: "test-model", provider: :openai},
           cancel: fn -> :ok end,
           stream: stream,
-          metadata_task: Task.async(fn -> %{} end)
+          metadata_handle: start_metadata_handle()
         }
 
         {:ok, stream_response, builder, []}
@@ -122,10 +123,10 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
         stream_response = %StreamResponse{
           context: context,
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          model: %LLMDB.Model{id: "test-model", provider: :openai},
           cancel: fn -> :ok end,
           stream: [ReqLLM.StreamChunk.text("R-#{message}")],
-          metadata_task: Task.async(fn -> %{} end)
+          metadata_handle: start_metadata_handle()
         }
 
         {:ok, stream_response, builder, []}
@@ -193,10 +194,10 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
         stream_response = %StreamResponse{
           context: context,
-          model: %ReqLLM.Model{model: "test-model", provider: :openai},
+          model: %LLMDB.Model{id: "test-model", provider: :openai},
           cancel: fn -> :ok end,
           stream: [ReqLLM.StreamChunk.text("R-#{message}")],
-          metadata_task: Task.async(fn -> %{} end)
+          metadata_handle: start_metadata_handle()
         }
 
         {:ok, stream_response, builder, []}

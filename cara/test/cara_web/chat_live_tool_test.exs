@@ -6,6 +6,7 @@ defmodule CaraWeb.ChatLiveToolTest do
 
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  import Cara.Test.StreamResponseHelper
 
   setup %{conn: conn} do
     # Stub health check
@@ -40,10 +41,10 @@ defmodule CaraWeb.ChatLiveToolTest do
 
       stream_response = %StreamResponse{
         context: updated_context,
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [%ReqLLM.StreamChunk{type: :content, text: ""}],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       builder = fn _text -> updated_context end
@@ -60,10 +61,10 @@ defmodule CaraWeb.ChatLiveToolTest do
 
       stream_response = %StreamResponse{
         context: context,
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [ReqLLM.StreamChunk.text("X is a great person.")],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _text -> context end, []}

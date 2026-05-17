@@ -6,6 +6,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
 
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  import Cara.Test.StreamResponseHelper
 
   setup %{conn: conn} do
     # Stub health check
@@ -33,10 +34,10 @@ defmodule CaraWeb.ChatLiveStatusTest do
 
       stream_response = %StreamResponse{
         context: %ReqLLM.Context{messages: []},
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> Context.new([]) end, []}
@@ -65,10 +66,10 @@ defmodule CaraWeb.ChatLiveStatusTest do
 
       stream_response = %StreamResponse{
         context: context,
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> context end, tool_calls}
@@ -82,10 +83,10 @@ defmodule CaraWeb.ChatLiveStatusTest do
 
       stream_response = %StreamResponse{
         context: context,
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: stream,
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> context end, []}

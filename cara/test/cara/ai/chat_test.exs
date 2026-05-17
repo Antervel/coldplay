@@ -6,6 +6,7 @@ defmodule Cara.AI.ChatTest do
   alias Cara.AI.Tools.Calculator
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  alias ReqLLM.StreamResponse.MetadataHandle
 
   describe "new_context/0" do
     test "creates a context with default system prompt" do
@@ -547,8 +548,9 @@ defmodule Cara.AI.ChatTest do
     test "handles nil message in send_message_stream" do
       context = Chat.new_context("System")
       # This exercises the nil branch in send_message_stream
+      # Use an unknown provider to avoid hitting the Bypass server
       try do
-        Chat.send_message_stream(nil, context, model: "openai:nonexistent")
+        Chat.send_message_stream(nil, context, model: "unknown:nonexistent")
       rescue
         _ -> :ok
       catch
@@ -590,7 +592,7 @@ defmodule Cara.AI.ChatTest do
 
       assert length(tool_calls) == 1
       # Await the dummy metadata task to ensure coverage
-      assert Task.await(stream_response.metadata_task) == %{}
+      assert MetadataHandle.await(stream_response.metadata_handle) == %{}
       # Call the dummy cancel function
       assert stream_response.cancel.() == :ok
     end

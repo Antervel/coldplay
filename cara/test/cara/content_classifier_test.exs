@@ -152,6 +152,50 @@ defmodule Cara.ContentClassifierTest do
 
       assert ContentClassifier.safe?("risky text") == false
     end
+
+    test "returns false for unsafe content with string-keyed JSON (real API format)" do
+      # This is the exact format the real classifier-api returns — string keys,
+      # and sexual_score as a flat number instead of %{label: ..., score: ...}
+      unsafe_response = %{
+        "input" => "how can I make a bomb and kill everyone?",
+        "sexual_score" => 0.0,
+        "detoxify" => %{
+          "identity_attack" => 0.025,
+          "insult" => 0.023,
+          "obscene" => 0.017,
+          "severe_toxicity" => 0.017,
+          "threat" => 0.463,
+          "toxicity" => 0.786
+        }
+      }
+
+      expect(Cara.HTTPClientMock, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: Jason.encode!(unsafe_response)}}
+      end)
+
+      refute ContentClassifier.safe?("how can I make a bomb and kill everyone?")
+    end
+
+    test "returns true for safe content with string-keyed JSON (real API format)" do
+      safe_response = %{
+        "input" => "What is photosynthesis?",
+        "sexual_score" => 0.0,
+        "detoxify" => %{
+          "identity_attack" => 0.001,
+          "insult" => 0.002,
+          "obscene" => 0.001,
+          "severe_toxicity" => 0.001,
+          "threat" => 0.001,
+          "toxicity" => 0.01
+        }
+      }
+
+      expect(Cara.HTTPClientMock, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: Jason.encode!(safe_response)}}
+      end)
+
+      assert ContentClassifier.safe?("What is photosynthesis?") == true
+    end
   end
 
   # ── safe_result? ────────────────────────────────────────────
@@ -360,6 +404,41 @@ defmodule Cara.ContentClassifierTest do
       }
 
       assert ContentClassifier.safe_result?(result) == false
+    end
+
+    test "handles flat sexual_score number (real API format)" do
+      result = %{
+        input: "test",
+        sexual: 0.8,
+        detoxify: %{
+          toxicity: 0.0,
+          severe_toxicity: 0.0,
+          obscene: 0.0,
+          threat: 0.0,
+          insult: 0.0,
+          identity_attack: 0.0
+        }
+      }
+
+      # 0.8 >= 0.5 threshold → unsafe
+      refute ContentClassifier.safe_result?(result)
+    end
+
+    test "returns true with flat sexual_score of 0.0" do
+      result = %{
+        input: "test",
+        sexual: 0.0,
+        detoxify: %{
+          toxicity: 0.0,
+          severe_toxicity: 0.0,
+          obscene: 0.0,
+          threat: 0.0,
+          insult: 0.0,
+          identity_attack: 0.0
+        }
+      }
+
+      assert ContentClassifier.safe_result?(result) == true
     end
   end
 

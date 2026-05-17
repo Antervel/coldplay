@@ -5,6 +5,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
   import Mox
   alias BranchedLLM.BranchedChat
   alias ReqLLM.StreamResponse
+  import Cara.Test.StreamResponseHelper
 
   setup %{conn: conn} do
     stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
@@ -57,10 +58,10 @@ defmodule CaraWeb.ChatLiveQueueTest do
 
       stream_response = %StreamResponse{
         context: %ReqLLM.Context{messages: []},
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: stream,
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _content -> :updated_context end, []}
@@ -140,10 +141,10 @@ defmodule CaraWeb.ChatLiveQueueTest do
 
       stream_response = %StreamResponse{
         context: %ReqLLM.Context{messages: []},
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: stream,
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _content -> :updated_context end, []}
@@ -207,10 +208,10 @@ defmodule CaraWeb.ChatLiveQueueTest do
 
       stream_response = %StreamResponse{
         context: %ReqLLM.Context{messages: []},
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: stream,
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _content -> :updated_context end, []}

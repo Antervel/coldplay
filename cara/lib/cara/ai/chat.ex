@@ -16,6 +16,7 @@ defmodule Cara.AI.Chat do
   alias Req
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  alias ReqLLM.StreamResponse.MetadataHandle
 
   @behaviour BranchedLLM.ChatBehaviour
   @type stream_chunk :: %{type: atom(), text: String.t()}
@@ -154,15 +155,18 @@ defmodule Cara.AI.Chat do
   end
 
   defp handle_stream_for_tools(%StreamResponse{stream: stream} = stream_response) do
-    case StreamParser.consume_until_intent(stream) do
-      {:tool_call, consumed_chunks, remaining_stream} ->
-        all_chunks = consumed_chunks ++ Enum.to_list(remaining_stream)
+    # Eagerly consume the entire stream first to avoid issues with the
+    # underlying StreamServer GenServer terminating before we can read
+    # remaining chunks from a halted reduce_while.
+    all_chunks = Enum.to_list(stream)
+
+    case StreamParser.consume_until_intent(all_chunks) do
+      {:tool_call, _consumed_chunks, _remaining} ->
         tool_calls = StreamParser.extract_tool_calls(all_chunks)
         {:ok, dummy_stream_response(stream_response), tool_calls}
 
-      {:content, consumed_chunks, remaining_stream} ->
-        new_stream = Stream.concat(consumed_chunks, remaining_stream)
-        {:ok, %{stream_response | stream: new_stream}, []}
+      {:content, _consumed_chunks, _remaining} ->
+        {:ok, %{stream_response | stream: all_chunks}, []}
 
       {:empty, _consumed_chunks} ->
         {:ok, stream_response, []}
@@ -172,12 +176,14 @@ defmodule Cara.AI.Chat do
   end
 
   defp dummy_stream_response(%StreamResponse{context: context, model: model}) do
+    {:ok, metadata_handle} = MetadataHandle.start_link(fn -> %{} end)
+
     %StreamResponse{
       stream: [%ReqLLM.StreamChunk{type: :content, text: ""}],
       context: context,
       model: model,
       cancel: fn -> :ok end,
-      metadata_task: Task.async(fn -> %{} end)
+      metadata_handle: metadata_handle
     }
   end
 

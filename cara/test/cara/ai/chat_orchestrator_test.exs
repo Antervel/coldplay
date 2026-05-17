@@ -5,6 +5,7 @@ defmodule BranchedLLM.ChatOrchestratorTest do
   alias BranchedLLM.ChatOrchestrator
   alias ReqLLM.Context
   alias ReqLLM.StreamResponse
+  import Cara.Test.StreamResponseHelper
 
   setup :verify_on_exit!
 
@@ -27,10 +28,10 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "Hello", _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [ReqLLM.StreamChunk.text("Hi")],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> :updated_context end, []}
@@ -71,10 +72,10 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "Hello", _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> :updated_context end, [tool_call]}
@@ -84,10 +85,10 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "", _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [ReqLLM.StreamChunk.text("Result is 4")],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> :updated_context end, []}
@@ -111,10 +112,10 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "Hello", _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> :updated_context end, [tool_call]}
@@ -125,10 +126,10 @@ defmodule BranchedLLM.ChatOrchestratorTest do
       # _ctx should contain the "Tool limit reached" message
       stream_response = %StreamResponse{
         context: Context.new([]),
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [ReqLLM.StreamChunk.text("Too many tools")],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> :updated_context end, []}
@@ -146,11 +147,11 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
-        model: %ReqLLM.Model{model: "test-model", provider: :openai},
+        model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         # Empty stream
         stream: [],
-        metadata_task: Task.async(fn -> %{} end)
+        metadata_handle: start_metadata_handle()
       }
 
       {:ok, stream_response, fn _ -> :updated_context end, []}
