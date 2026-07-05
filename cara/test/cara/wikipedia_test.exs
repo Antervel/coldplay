@@ -1,5 +1,5 @@
 defmodule Cara.WikipediaTest do
-  use Cara.DataCase
+  use ExUnit.Case
 
   import Mox
 
@@ -15,25 +15,18 @@ defmodule Cara.WikipediaTest do
 
   describe "search_articles/1" do
     test "returns a list of articles on success" do
-      mock_response = [
-        "search",
-        ["Elixir (programming language)", "Erlang", "Phoenix (web framework)"],
-        [
-          "Elixir is a functional, concurrent, general-purpose programming language...",
-          "Erlang is a programming language used to build massively scalable soft real-time systems...",
-          "Phoenix is a web framework written in Elixir..."
+      mock_response = %{
+        "query" => "elixir",
+        "results" => [
+          %{"rank" => 1, "title" => "Elixir (programming language)\n", "score" => 0.95},
+          %{"rank" => 2, "title" => "Erlang\n", "score" => 0.85}
         ],
-        [
-          "https://en.wikipedia.org/wiki/Elixir_(programming_language)",
-          "https://en.wikipedia.org/wiki/Erlang",
-          "https://en.wikipedia.org/wiki/Phoenix_(web_framework)"
-        ]
-      ]
+        "elapsed_ms" => 34.6
+      }
 
       expect(Cara.HTTPClientMock, :get, fn url, opts ->
-        assert url == "https://en.wikipedia.org/w/api.php"
-        assert opts[:params] == %{action: "opensearch", search: "elixir", limit: 10, format: "json"}
-        assert opts[:headers]["User-Agent"] == "Cara-Educational-App/1.0"
+        assert url == "http://localhost:8001/search"
+        assert opts[:params] == %{q: "elixir", k: 5}
 
         {:ok, %{status: 200, body: mock_response}}
       end)
@@ -43,31 +36,28 @@ defmodule Cara.WikipediaTest do
       assert articles == [
                %{
                  title: "Elixir (programming language)",
-                 extract: "Elixir is a functional, concurrent, general-purpose programming language...",
+                 extract: "",
                  url: "https://en.wikipedia.org/wiki/Elixir_(programming_language)"
                },
                %{
                  title: "Erlang",
-                 extract: "Erlang is a programming language used to build massively scalable soft real-time systems...",
+                 extract: "",
                  url: "https://en.wikipedia.org/wiki/Erlang"
-               },
-               %{
-                 title: "Phoenix (web framework)",
-                 extract: "Phoenix is a web framework written in Elixir...",
-                 url: "https://en.wikipedia.org/wiki/Phoenix_(web_framework)"
                }
              ]
     end
 
-    test "returns empty list if no articles found" do
-      mock_response = [
-        "search",
-        [],
-        [],
-        []
-      ]
+    test "returns empty list if no results found" do
+      mock_response = %{
+        "query" => "nonexistent_query",
+        "results" => [],
+        "elapsed_ms" => 10.0
+      }
 
-      expect(Cara.HTTPClientMock, :get, fn _url, _opts ->
+      expect(Cara.HTTPClientMock, :get, fn url, opts ->
+        assert url == "http://localhost:8001/search"
+        assert opts[:params] == %{q: "nonexistent_query", k: 5}
+
         {:ok, %{status: 200, body: mock_response}}
       end)
 
@@ -86,18 +76,20 @@ defmodule Cara.WikipediaTest do
 
     test "returns an error tuple on connection error" do
       expect(Cara.HTTPClientMock, :get, fn _url, _opts ->
-        {:error, :nxdomain}
+        {:error, :econnrefused}
       end)
 
       {:error, reason} = Wikipedia.search_articles("elixir")
-      assert reason == {:error, :nxdomain}
+      assert reason == {:error, :econnrefused}
     end
 
     test "returns empty list for invalid search response format" do
-      # Invalid format
       mock_response = %{"some" => "invalid", "data" => "here"}
 
-      expect(Cara.HTTPClientMock, :get, fn _url, _opts ->
+      expect(Cara.HTTPClientMock, :get, fn url, opts ->
+        assert url == "http://localhost:8001/search"
+        assert opts[:params] == %{q: "invalid_format_query", k: 5}
+
         {:ok, %{status: 200, body: mock_response}}
       end)
 

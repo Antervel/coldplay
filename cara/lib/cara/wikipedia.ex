@@ -15,8 +15,12 @@ defmodule Cara.Wikipedia do
     Application.get_env(:cara, :http_client, Req)
   end
 
+  defp custom_search_url do
+    Application.get_env(:cara, :custom_search_url, "http://localhost:8001/search")
+  end
+
   @doc """
-  Searches for Wikipedia articles using a query term.
+  Searches for articles using the custom search API.
 
   Returns a list of article summaries with title, extract, and URL.
   """
@@ -26,15 +30,10 @@ defmodule Cara.Wikipedia do
 
     result =
       case http_client().get(
-             "https://en.wikipedia.org/w/api.php",
+             custom_search_url(),
              params: %{
-               action: "opensearch",
-               search: query,
-               limit: 10,
-               format: "json"
-             },
-             headers: %{
-               "User-Agent" => "Cara-Educational-App/1.0"
+               q: query,
+               k: 5
              }
            ) do
         {:ok, response} ->
@@ -171,14 +170,16 @@ defmodule Cara.Wikipedia do
 
   defp parse_search_response(response) do
     case response do
-      [_search_term, titles, extracts, urls] ->
-        Enum.zip(titles, extracts)
-        |> Enum.zip(urls)
-        |> Enum.map(fn {{title, extract}, url} ->
+      %{"results" => results} when is_list(results) ->
+        results
+        |> Enum.map(fn item ->
+          raw_title = Map.get(item, "title", "")
+          title = String.trim(raw_title)
+
           %{
             title: title,
-            extract: extract,
-            url: url
+            extract: "",
+            url: "https://en.wikipedia.org/wiki/#{String.replace(title, " ", "_")}"
           }
         end)
 

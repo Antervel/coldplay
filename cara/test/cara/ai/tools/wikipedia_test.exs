@@ -23,16 +23,17 @@ defmodule Cara.AI.Tools.WikipediaTest do
   end
 
   test "wikipedia_search/0 callback returns search results on success" do
-    mock_response = [
-      "search",
-      ["Elixir (programming language)"],
-      ["Elixir is a functional, concurrent, general-purpose programming language..."],
-      ["https://en.wikipedia.org/wiki/Elixir_(programming_language)"]
-    ]
+    mock_response = %{
+      "query" => "Elixir",
+      "results" => [
+        %{"rank" => 1, "title" => "Elixir (programming language)\n", "score" => 0.95}
+      ],
+      "elapsed_ms" => 34.6
+    }
 
     expect(Cara.HTTPClientMock, :get, fn url, opts ->
-      assert url == "https://en.wikipedia.org/w/api.php"
-      assert opts[:params][:search] == "Elixir"
+      assert url == "http://localhost:8001/search"
+      assert opts[:params] == %{q: "Elixir", k: 5}
       {:ok, %{status: 200, body: mock_response}}
     end)
 
@@ -44,14 +45,15 @@ defmodule Cara.AI.Tools.WikipediaTest do
   end
 
   test "wikipedia_search/0 callback handles empty search results" do
-    mock_response = [
-      "search",
-      [],
-      [],
-      []
-    ]
+    mock_response = %{
+      "query" => "nonexistent",
+      "results" => [],
+      "elapsed_ms" => 10.0
+    }
 
-    expect(Cara.HTTPClientMock, :get, fn _url, _opts ->
+    expect(Cara.HTTPClientMock, :get, fn url, opts ->
+      assert url == "http://localhost:8001/search"
+      assert opts[:params] == %{q: "nonexistent", k: 5}
       {:ok, %{status: 200, body: mock_response}}
     end)
 
