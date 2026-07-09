@@ -211,8 +211,19 @@ defmodule Cara.AI.Chat do
               ToolCache.save_result(tool.name, args, result)
               success
 
-            error ->
-              error
+            {:error, %{} = reason} ->
+              Logger.error("Tool execution failed: #{tool.name}")
+
+              for {key, value} <- Map.from_struct(reason) do
+                Logger.info("  tool_error.#{inspect(key)}: #{inspect(value, limit: :infinity)}")
+              end
+
+              {:error, reason}
+
+            {:error, reason} ->
+              Logger.error("Tool execution failed: #{tool.name} - reason: #{inspect(reason, limit: :infinity)}")
+
+              {:error, reason}
           end
       end
     end

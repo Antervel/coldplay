@@ -23,6 +23,8 @@ config :cara, :ai_model, "openai:cara-cpu"
 
 config :cara, :enable_teacher_monitoring, true
 
+config :cara, :custom_search_url, System.get_env("CUSTOM_SEARCH_URL", "http://localhost:8001/search")
+
 config :cara, :enabled_tools, [:calculator, :wikipedia_search, :wikipedia_get_article]
 
 config :cara, :content_classifier_settings,
