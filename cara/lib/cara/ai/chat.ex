@@ -241,12 +241,7 @@ defmodule Cara.AI.Chat do
 
     Logger.info("Checking AI health at: #{health_endpoint}")
 
-    case Req.new(
-           connect_options: [timeout: 1000],
-           retry: false
-         )
-         |> OpentelemetryReq.attach(no_path_params: true)
-         |> Req.get(url: health_endpoint) do
+    case Cara.HTTPClient.get(health_endpoint, connect_options: [timeout: 1000], retry: false) do
       {:ok, %{status: 200}} ->
         Logger.info("AI health check successful")
         :ok

@@ -37,7 +37,7 @@ defmodule Cara.Plugins.AuditPlugin do
   end
 
   defp default_insert(attrs) do
-    Task.start(fn ->
+    Task.Supervisor.start_child(Cara.TaskSupervisor, fn ->
       %Message{}
       |> Message.changeset(attrs)
       |> Repo.insert()

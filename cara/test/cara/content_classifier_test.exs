@@ -1,6 +1,7 @@
 defmodule Cara.ContentClassifierTest do
   use ExUnit.Case, async: true
 
+  import ExUnit.CaptureLog
   import Mox
 
   alias Cara.ContentClassifier
@@ -93,7 +94,12 @@ defmodule Cara.ContentClassifierTest do
         {:ok, %{status: 500, body: "error"}}
       end)
 
-      assert ContentClassifier.classify("test text") == {:error, "HTTP 500"}
+      log =
+        capture_log(fn ->
+          assert ContentClassifier.classify("test text") == {:error, "HTTP 500"}
+        end)
+
+      assert log =~ "ContentClassifier.do_classify(text): HTTP 500"
     end
 
     test "returns {:error, reason} for HTTP 404" do
@@ -101,7 +107,12 @@ defmodule Cara.ContentClassifierTest do
         {:ok, %{status: 404, body: "not found"}}
       end)
 
-      assert ContentClassifier.classify("test text") == {:error, "HTTP 404"}
+      log =
+        capture_log(fn ->
+          assert ContentClassifier.classify("test text") == {:error, "HTTP 404"}
+        end)
+
+      assert log =~ "ContentClassifier.do_classify(text): HTTP 404"
     end
 
     test "returns {:error, reason} for connection error" do
@@ -109,7 +120,12 @@ defmodule Cara.ContentClassifierTest do
         {:error, :econnrefused}
       end)
 
-      assert ContentClassifier.classify("test text") == {:error, :econnrefused}
+      log =
+        capture_log(fn ->
+          assert ContentClassifier.classify("test text") == {:error, :econnrefused}
+        end)
+
+      assert log =~ "ContentClassifier.do_classify(text): error :econnrefused"
     end
 
     test "returns {:error, :timeout} for timeout error" do
@@ -117,7 +133,12 @@ defmodule Cara.ContentClassifierTest do
         {:error, :timeout}
       end)
 
-      assert ContentClassifier.classify("test text") == {:error, :timeout}
+      log =
+        capture_log(fn ->
+          assert ContentClassifier.classify("test text") == {:error, :timeout}
+        end)
+
+      assert log =~ "ContentClassifier.do_classify(text): error :timeout"
     end
   end
 
@@ -150,7 +171,12 @@ defmodule Cara.ContentClassifierTest do
         {:error, :econnrefused}
       end)
 
-      assert ContentClassifier.safe?("risky text") == false
+      log =
+        capture_log(fn ->
+          assert ContentClassifier.safe?("risky text") == false
+        end)
+
+      assert log =~ "ContentClassifier.do_classify(text): error :econnrefused"
     end
 
     test "returns false for unsafe content with string-keyed JSON (real API format)" do
