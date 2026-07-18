@@ -1,3 +1,4 @@
+# credo:disable-for-this-file Credo.Check.Extra.UnpinnedQueryBindings
 defmodule Cara.Audit do
   @moduledoc """
   Context module for auditing student chat sessions and messages.
@@ -74,21 +75,15 @@ defmodule Cara.Audit do
       if search do
         term = "%#{search}%"
 
-        matching_chat_ids =
-          from s in Session,
-            where: ilike(s.student_name, ^term),
-            select: s.chat_id
-
-        matching_content_chat_ids =
-          from msg in Message,
-            where: ilike(msg.content, ^term),
-            select: msg.chat_id,
-            distinct: true
-
         from m in base_query,
           having:
-            m.chat_id in subquery(matching_chat_ids) or
-              m.chat_id in subquery(matching_content_chat_ids)
+            m.chat_id in subquery(from s in Session, where: ilike(s.student_name, ^term), select: s.chat_id) or
+              m.chat_id in subquery(
+                from msg in Message,
+                  where: ilike(msg.content, ^term),
+                  select: msg.chat_id,
+                  distinct: true
+              )
       else
         base_query
       end

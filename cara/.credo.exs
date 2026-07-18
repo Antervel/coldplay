@@ -203,7 +203,27 @@
           {ExSlop.Check.Readability.ObviousComment, [additional_keywords: []]},
           {ExSlop.Check.Readability.StepComment, []},
           {ExSlop.Check.Readability.NarratorComment, []},
-          {ExSlop.Check.Readability.UnaliasedModuleUse, []}
+          {ExSlop.Check.Readability.UnaliasedModuleUse, []},
+
+          # Extra Credo checks
+          {Credo.Check.Extra.NoFloatForMoney, []},
+          {Credo.Check.Extra.NoBareChangesetError, []},
+          {Credo.Check.Extra.NoAssignNewInMount, []},
+          {Credo.Check.Extra.NoExternalResource, []},
+          {Credo.Check.Extra.NoImplicitCrossJoin, []},
+          {Credo.Check.Extra.NoPubsubWithoutConnected, []},
+          {Credo.Check.Extra.NoRawUntrusted, []},
+          {Credo.Check.Extra.ObanAtomKeys, []},
+          {Credo.Check.Extra.ObanStructInArgs, []},
+          {Credo.Check.Extra.UnpinnedQueryBindings, []},
+          {Credo.Check.Extra.NoColorfulEmoji, []},
+          {Credo.Check.Extra.NoCommentsAsCommitMessages, []},
+          {Credo.Check.Extra.NoDbQueryInMount, []},
+          {Credo.Check.Extra.NoDedupBeforeCastAssoc, []},
+          {Credo.Check.Extra.NoDirectThirdPartyCalls, []},
+          {Credo.Check.Extra.NoLocaleInTaskClosure, []},
+          {Credo.Check.Extra.NoNonIdempotentJobs, []},
+          {Credo.Check.Extra.NoUnsupervisedProcesses, []}
         ],
         disabled: [
           #
@@ -247,7 +267,8 @@
           {Credo.Check.Warning.LeakyEnvironment, []},
           {Credo.Check.Warning.MapGetUnsafePass, []},
           {Credo.Check.Warning.MixEnv, []},
-          {Credo.Check.Warning.UnsafeToAtom, []}
+          {Credo.Check.Warning.UnsafeToAtom, []},
+          {Credo.Check.Extra.NoAuthInHandleEvent, []}
 
           # {Credo.Check.Refactor.MapInto, []},
 

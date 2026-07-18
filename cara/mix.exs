@@ -83,7 +83,8 @@ defmodule Cara.MixProject do
       {:opentelemetry_api_experimental, "~> 0.5"},
       {:opentelemetry_experimental, "~> 0.5"},
       {:ex_slop, "~> 0.1", only: [:dev, :test], runtime: false},
-      {:credo_contrib, "~> 0.2.0", only: [:dev, :test], runtime: false}
+      {:credo_contrib, "~> 0.2.0", only: [:dev, :test], runtime: false},
+      {:extra_credo, github: "dvadell/extra_credo", only: [:dev, :test], runtime: false}
     ]
   end
 

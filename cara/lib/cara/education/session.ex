@@ -134,6 +134,7 @@ defmodule Cara.Education.Session do
   defp connected?(socket), do: Phoenix.LiveView.connected?(socket)
 
   defp welcome_message_for_student(%{name: name, subject: subject}) do
+    # credo:disable-for-next-line Credo.Check.Extra.NoColorfulEmoji
     Message.new(:assistant, "Hello **#{name}**! Let's learn about #{subject} together! 🎓")
   end
 end

@@ -1,6 +1,4 @@
 defmodule Cara.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
   @moduledoc false
 
   use Application
@@ -16,14 +14,10 @@ defmodule Cara.Application do
       Cara.Repo,
       {DNSCluster, query: Application.get_env(:cara, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Cara.PubSub},
-      # Start a worker by calling: Cara.Worker.start_link(arg)
-      # {Cara.Worker, arg},
-      # Start to serve requests, typically the last entry
+      {Task.Supervisor, name: Cara.TaskSupervisor},
       CaraWeb.Endpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Cara.Supervisor]
     Supervisor.start_link(children, opts)
   end
