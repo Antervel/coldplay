@@ -111,10 +111,22 @@ defmodule Cara.AI.Chat do
 
   defp build_config(opts) do
     %{
-      model: Keyword.get(opts, :model, default_model()),
+      model: resolve_model(Keyword.get(opts, :model, default_model())),
       tools: Keyword.get(opts, :tools, [])
     }
   end
+
+  defp resolve_model(model) when is_binary(model) do
+    case String.split(model, ":", parts: 2) do
+      [provider, id] ->
+        ReqLLM.model!(%{provider: String.to_atom(provider), id: id})
+
+      _ ->
+        model
+    end
+  end
+
+  defp resolve_model(model), do: model
 
   @spec add_user_message(Context.t(), String.t()) :: Context.t()
   defp add_user_message(context, message) do
@@ -126,10 +138,12 @@ defmodule Cara.AI.Chat do
     Context.append(context, assistant(message))
   end
 
-  @spec call_llm(String.t(), Context.t(), list()) ::
+  @spec call_llm(ReqLLM.model_input(), Context.t(), list()) ::
           {:ok, StreamResponse.t(), list()} | {:error, term()}
   defp call_llm(model, context, tools) do
-    Tracer.with_span "llm_call", %{attributes: %{model: model}} do
+    model_alias = if is_struct(model), do: "#{model.provider}:#{model.id}", else: model
+
+    Tracer.with_span "llm_call", %{attributes: %{model: model_alias}} do
       Logger.info("LLM call_llm starting with context: #{inspect(context)}")
       start_time = :erlang.monotonic_time(:millisecond)
 
@@ -149,7 +163,7 @@ defmodule Cara.AI.Chat do
         end
 
       end_time = :erlang.monotonic_time(:millisecond)
-      Logger.info("LLM call_llm(model: #{model}, tools: #{length(tools)}) took #{end_time - start_time}ms")
+      Logger.info("LLM call_llm(model: #{model_alias}, tools: #{length(tools)}) took #{end_time - start_time}ms")
       result
     end
   end
