@@ -16,9 +16,20 @@ defmodule CaraWeb.PageController do
 
   def update_model(conn, %{"model" => model}) do
     Application.put_env(:cara, :ai_model, model)
+    apply_model_config(model)
 
     conn
     |> put_flash(:info, "Model updated to #{model}")
     |> redirect(to: ~p"/settings")
+  end
+
+  defp apply_model_config("openai:openai/gpt-oss-20b") do
+    Application.put_env(:branched_llm, :base_url, "https://integrate.api.nvidia.com/v1")
+    Application.put_env(:req_llm, :openai_api_key, System.get_env("NVIDIA_API_KEY", ""))
+  end
+
+  defp apply_model_config(_) do
+    Application.delete_env(:branched_llm, :base_url)
+    Application.delete_env(:req_llm, :openai_api_key)
   end
 end

@@ -14,7 +14,7 @@
         <option value="openai:cara-cpu" selected={@current_model == "openai:cara-cpu"}>
           Ollama — cara:cpu
         </option>
-        <option value="openai:gpt-oss-20b" selected={@current_model == "openai:gpt-oss-20b"}>
+        <option value="openai:openai/gpt-oss-20b" selected={@current_model == "openai:openai/gpt-oss-20b"}>
           NVIDIA — openai/gpt-oss-20b
         </option>
       </select>
@@ -26,4 +26,13 @@
       </button>
     </.form>
   </section>
+
+  <div class="mt-8 pt-6 border-t border-gray-200">
+    <.link
+      navigate={~p"/chat"}
+      class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+    >
+      Back to Chat
+    </.link>
+  </div>
 </div>

@@ -265,18 +265,33 @@ defmodule Cara.AI.Chat do
 
   defp endpoints do
     config_url =
-      :req_llm
-      |> Application.get_env(:openai, [])
-      |> Keyword.get(:base_url)
+      Application.get_env(:branched_llm, :base_url) ||
+        :req_llm
+        |> Application.get_env(:openai, [])
+        |> Keyword.get(:base_url)
 
-    uri = URI.parse(config_url)
-    port_str = if uri.port, do: ":#{uri.port}", else: ""
-    base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
+    if String.ends_with?(config_url, "/v1") do
+      model_endpoint = config_url
+      uri = URI.parse(config_url)
+      port_str = if uri.port, do: ":#{uri.port}", else: ""
+      base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
 
-    %{
-      base_url: base_url,
-      model_endpoint: base_url <> "/v1",
-      health_endpoint: base_url <> "/api/tags"
-    }
+      %{
+        base_url: base_url,
+        model_endpoint: model_endpoint,
+        health_endpoint: model_endpoint <> "/models"
+      }
+    else
+      uri = URI.parse(config_url)
+      port_str = if uri.port, do: ":#{uri.port}", else: ""
+      base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
+      model_endpoint = base_url <> "/v1"
+
+      %{
+        base_url: base_url,
+        model_endpoint: model_endpoint,
+        health_endpoint: model_endpoint <> "/models"
+      }
+    end
   end
 end
