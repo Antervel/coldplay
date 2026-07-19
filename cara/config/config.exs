@@ -14,12 +14,16 @@ config :cara,
 
 # Configure the default AI model
 config :req_llm,
-  openai_api_key: "ollama",
+  openai_api_key: System.get_env("NVIDIA_API_KEY", ""),
   openai: [
-    base_url: System.get_env("OLLAMA_URL", "http://host.containers.internal:11434/v1")
+    base_url: System.get_env("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+    api_key: System.get_env("NVIDIA_API_KEY", "")
   ]
 
-config :cara, :ai_model, "openai:cara-cpu"
+config :branched_llm,
+  base_url: System.get_env("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+
+config :cara, :ai_model, "openai:openai/gpt-oss-20b"
 
 config :cara, :enable_teacher_monitoring, true
 

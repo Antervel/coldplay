@@ -265,10 +265,9 @@ defmodule Cara.AI.Chat do
 
   defp endpoints do
     config_url =
-      Application.get_env(:branched_llm, :base_url) ||
-        :req_llm
-        |> Application.get_env(:openai, [])
-        |> Keyword.get(:base_url)
+      :req_llm
+      |> Application.get_env(:openai, [])
+      |> Keyword.get(:base_url)
 
     if String.ends_with?(config_url, "/v1") do
       model_endpoint = config_url
