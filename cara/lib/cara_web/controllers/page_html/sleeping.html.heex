@@ -11,6 +11,26 @@
       Our robot friend is currently taking a nap. Please check back later!
     </p>
 
+    <.form for={%{}} action={~p"/settings/model"} method="post" class="flex justify-center items-end gap-3 mb-6">
+      <select
+        name="model"
+        class="rounded-lg border border-gray-300 bg-white text-black px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        <option value="openai:cara-cpu" selected={@current_model == "openai:cara-cpu"}>
+          Ollama — cara:cpu
+        </option>
+        <option value="openai:openai/gpt-oss-20b" selected={@current_model == "openai:openai/gpt-oss-20b"}>
+          NVIDIA — openai/gpt-oss-20b
+        </option>
+      </select>
+      <button
+        type="submit"
+        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+      >
+        Apply
+      </button>
+    </.form>
+
     <.link href="/chat" class="btn btn-primary btn-lg px-10">
       Go Back Home
     </.link>
