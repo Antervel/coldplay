@@ -9,4 +9,10 @@ defmodule Cara.HTTPClient do
     |> OpentelemetryReq.attach(no_path_params: true)
     |> Req.get(url: url)
   end
+
+  def post(url, opts \\ []) do
+    Req.new(opts)
+    |> OpentelemetryReq.attach(no_path_params: true)
+    |> Req.post(url: url)
+  end
 end
