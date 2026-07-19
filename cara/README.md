@@ -36,7 +36,7 @@ Cara is built on a modern Elixir stack:
 - **Backend:** Elixir, Phoenix
 - **Real-time UI:** Phoenix LiveView
 - **Database:** PostgreSQL (via Ecto)
-- **AI Integration:** `req_llm` library, configurable to use various LLM providers (defaults to local Ollama).
+- **AI Integration:** `req_llm` library, configurable to use various LLM providers. Defaults to NVIDIA's cloud API; can also use a local Ollama instance.
 - **Frontend:** Tailwind CSS and esbuild for asset management.
 - **Testing:** A robust test suite using ExUnit, with mocking provided by the Mox library.
 
@@ -73,22 +73,27 @@ To get Cara up and running on your local machine, follow these steps.
     mix ecto.setup
     ```
 
-5.  **Set up your AI provider (Ollama):**
-    Cara uses Ollama for the AI chat. To get it running:
+5.  **Set up your AI provider:**
 
-    a. **Install Ollama:** Follow the instructions on [ollama.com](https://ollama.com/).
-    b. **Create the model:**
-       From the `cara/` directory, run:
+    Cara defaults to **NVIDIA's cloud API**. You'll need an API key:
+
+    ```bash
+    export NVIDIA_API_KEY="nvapi-..."
+    ```
+    Get one at https://build.nvidia.com/settings/api-keys.
+
+    **To use a local Ollama instead:**
+
+    a. Install Ollama from [ollama.com](https://ollama.com/).
+    b. Create the model:
        ```bash
        ollama create cara-cpu -f Modelfile
        ```
-    c. **Configure the URL (Optional):**
-       By default, Cara expects Ollama at `http://host.containers.internal:11434/v1` (useful for Docker). For local development, you might need to set:
+    c. Set the environment variables:
        ```bash
-       export OLLAMA_URL="http://localhost:11434/v1"
+       export LLM_BASE_URL="http://localhost:11434/v1"
        ```
-
-    Alternatively, you can configure a different provider by updating the configuration in `config/config.exs`.
+       (Default is `http://host.containers.internal:11434/v1` for Docker setups.)
 
 6.  **Run the development server:**
     ```bash
