@@ -10,6 +10,7 @@ defmodule CaraWeb.ChatLive do
   alias Cara.Education.Session
   alias CaraWeb.ChatLive.ViewModel
   alias CaraWeb.MarkdownHelpers
+  alias ReqLLM.Context
 
   import CaraWeb.ChatComponents
 
@@ -24,7 +25,7 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def mount(_params, session, socket) do
-    if chat_module().health_check() != :ok do
+    if chat_module().health_check([]) != :ok do
       {:ok, redirect(socket, to: "/sleeping")}
     else
       do_mount(session, socket)
@@ -226,13 +227,12 @@ defmodule CaraWeb.ChatLive do
 
   # Handle end of LLM stream. Send the `llm_end` event to javascript so Mermaid runs
   @impl true
-  def handle_info({:llm_end, branch_id, llm_context_builder}, socket)
-      when is_function(llm_context_builder, 1) do
+  def handle_info({:llm_end, branch_id, full_text}, socket) when is_binary(full_text) do
     branched_chat =
       ChatService.finish_ai_response(
         socket.assigns.branched_chat,
         branch_id,
-        llm_context_builder,
+        full_text,
         socket
       )
 
@@ -272,6 +272,14 @@ defmodule CaraWeb.ChatLive do
   def handle_info({:message_deleted, _}, socket), do: {:noreply, socket}
   @impl true
   def handle_info({:chat_left, _}, socket), do: {:noreply, socket}
+
+  # Handle LLM metadata (token usage, etc.)
+  @impl true
+  def handle_info({:llm_metadata, _branch_id, _metadata}, socket), do: {:noreply, socket}
+
+  # Handle tool call events from the orchestrator
+  @impl true
+  def handle_info({:llm_tool_called, _branch_id, _info}, socket), do: {:noreply, socket}
 
   # Handle LLM errors
   @impl true
@@ -340,18 +348,27 @@ defmodule CaraWeb.ChatLive do
 
   defp message_blank?(message), do: String.trim(message) == ""
 
+  defp orchestrator_chat_module do
+    Application.get_env(:cara, :orchestrator_chat_module, Cara.AI.ChatClient)
+  end
+
   @spec start_llm_stream(Phoenix.LiveView.Socket.t(), String.t(), String.t()) ::
           Phoenix.LiveView.Socket.t()
   defp start_llm_stream(socket, branch_id, message) do
     branched_chat = BranchedChat.set_tool_status(socket.assigns.branched_chat, branch_id, "Thinking...")
+
+    context = branched_chat.branches[branch_id].context
+    context_with_msg = Context.append(context, Context.user(message))
+
+    branched_chat = put_in(branched_chat.branches[branch_id].context, context_with_msg)
+
     caller_pid = self()
 
     llm_call_params = %{
-      message: message,
-      llm_context: branched_chat.branches[branch_id].context,
+      llm_context: context_with_msg,
       on_event: fn event -> send(caller_pid, event) end,
       llm_tools: socket.assigns.llm_tools,
-      chat_mod: chat_module(),
+      chat_mod: orchestrator_chat_module(),
       tool_usage_counts: socket.assigns.tool_usage_counts,
       branch_id: branch_id
     }

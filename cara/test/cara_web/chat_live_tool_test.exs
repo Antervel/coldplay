@@ -10,7 +10,7 @@ defmodule CaraWeb.ChatLiveToolTest do
 
   setup %{conn: conn} do
     # Stub health check
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
 
     conn = Plug.Test.init_test_session(conn, %{})
     conn = fetch_session(conn)
@@ -31,47 +31,42 @@ defmodule CaraWeb.ChatLiveToolTest do
     # 1. First call: user message "Who is X?", returns a tool call
     # 2. Second call: empty message, returns the final answer
 
-    expect(Cara.AI.ChatMock, :send_message_stream, fn "Who is X?", context, _opts ->
-      # Simulate adding user message (normally done by Chat.send_message_stream)
-      updated_context = Context.append(context, Context.user("Who is X?"))
-
+    expect(Cara.AI.ChatClientMock, :send_message_stream, fn ctx, _opts ->
       tool_calls = [
-        ReqLLM.ToolCall.new("call_1", "wikipedia_search", Jason.encode!(%{"query" => "X"}))
+        %ReqLLM.ToolCall{
+          id: "call_1",
+          type: "function",
+          function: %{name: "wikipedia_search", arguments: Jason.encode!(%{"query" => "X"})}
+        }
       ]
 
-      stream_response = %StreamResponse{
-        context: updated_context,
-        model: %LLMDB.Model{id: "test-model", provider: :openai},
-        cancel: fn -> :ok end,
-        stream: [%ReqLLM.StreamChunk{type: :content, text: ""}],
-        metadata_handle: start_metadata_handle()
-      }
-
-      builder = fn _text -> updated_context end
-
-      {:ok, stream_response, builder, tool_calls}
+      {:ok,
+       %BranchedLLM.LLM.StreamResult.ToolCallResult{
+         tool_calls: tool_calls,
+         context: ctx,
+         metadata_handle: start_metadata_handle()
+       }}
     end)
 
-    expect(Cara.AI.ChatMock, :send_message_stream, fn "", context, _opts ->
-      # HERE WE CHECK IF USER MESSAGE IS PRESENT
-      messages = context.messages
+    expect(Cara.AI.ChatClientMock, :send_message_stream, fn ctx, _opts ->
+      messages = ctx.messages
       roles = Enum.map(messages, & &1.role)
 
       send(test_pid, {:roles_in_second_call, roles})
 
       stream_response = %StreamResponse{
-        context: context,
+        context: %ReqLLM.Context{messages: []},
         model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: [ReqLLM.StreamChunk.text("X is a great person.")],
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _text -> context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     # Mock tool execution
-    stub(Cara.AI.ChatMock, :execute_tool, fn _tool, _args -> {:ok, "Tool result for X"} end)
+    stub(Cara.AI.ChatClientMock, :execute_tool, fn _tool, _args -> {:ok, "Tool result for X"} end)
 
     {:ok, view, _html} = live(conn, ~p"/chat")
 

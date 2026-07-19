@@ -8,7 +8,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
   import Cara.Test.StreamResponseHelper
 
   setup %{conn: conn} do
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
 
     stub(Cara.AI.ChatMock, :reset_context, fn ctx ->
       system_msgs = Enum.filter(ctx.messages, fn msg -> msg.role == :system end)
@@ -34,9 +34,9 @@ defmodule CaraWeb.ChatLiveQueueTest do
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> initial_ctx end)
 
     # Use a controlled stream that stays open until we say so
-    stub(Cara.AI.ChatMock, :send_message_stream, fn message, _context, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       stream_pid = self()
-      send(test_pid, {:llm_call_started, message, stream_pid})
+      send(test_pid, {:llm_call_started, stream_pid})
 
       # A stream that waits for a message to continue
       stream =
@@ -45,7 +45,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
           fn
             :waiting ->
               receive do
-                {:continue_stream, ^message, chunks} -> {chunks, :done}
+                {:continue_stream, chunks} -> {chunks, :done}
               after
                 1000 -> {:halt, :timeout}
               end
@@ -64,14 +64,14 @@ defmodule CaraWeb.ChatLiveQueueTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _content -> :updated_context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     {:ok, view, _html} = live(conn, ~p"/chat")
 
     # Send first message in main
     view |> form("form", chat: %{message: "First"}) |> render_submit()
-    assert_receive {:llm_call_started, "First", stream_pid1}, 500
+    assert_receive {:llm_call_started, stream_pid1}, 500
 
     # Send second message in main immediately
     view |> form("form", chat: %{message: "Second"}) |> render_submit()
@@ -80,7 +80,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
     assert render(view) =~ "Second"
 
     # Verify second message has NOT triggered an LLM call yet
-    refute_received {:llm_call_started, "Second", _}
+    refute_received {:llm_call_started, _}
 
     # Verify state shows it's queued in main branch
     state = :sys.get_state(view.pid)
@@ -90,13 +90,13 @@ defmodule CaraWeb.ChatLiveQueueTest do
     assert main_branch.active_task != nil
 
     # Finish first stream
-    send(stream_pid1, {:continue_stream, "First", [ReqLLM.StreamChunk.text("Response 1")]})
+    send(stream_pid1, {:continue_stream, [ReqLLM.StreamChunk.text("Response 1")]})
 
     # Now second message should be started
-    assert_receive {:llm_call_started, "Second", stream_pid2}, 1000
+    assert_receive {:llm_call_started, stream_pid2}, 1000
 
     # Finish second stream
-    send(stream_pid2, {:continue_stream, "Second", [ReqLLM.StreamChunk.text("Response 2")]})
+    send(stream_pid2, {:continue_stream, [ReqLLM.StreamChunk.text("Response 2")]})
 
     :timer.sleep(200)
 
@@ -118,9 +118,9 @@ defmodule CaraWeb.ChatLiveQueueTest do
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> initial_ctx end)
 
     # Mock controlled stream
-    stub(Cara.AI.ChatMock, :send_message_stream, fn message, _context, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       stream_pid = self()
-      send(test_pid, {:llm_call_started, message, stream_pid})
+      send(test_pid, {:llm_call_started, stream_pid})
 
       stream =
         Stream.resource(
@@ -128,7 +128,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
           fn
             :waiting ->
               receive do
-                {:continue_stream, ^message, chunks} -> {chunks, :done}
+                {:continue_stream, chunks} -> {chunks, :done}
               after
                 1000 -> {:halt, :timeout}
               end
@@ -147,14 +147,14 @@ defmodule CaraWeb.ChatLiveQueueTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _content -> :updated_context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     {:ok, view, _html} = live(conn, ~p"/chat")
 
     # 1. Send message in Main
     view |> form("form", chat: %{message: "MainMsg"}) |> render_submit()
-    assert_receive {:llm_call_started, "MainMsg", main_stream_pid}, 500
+    assert_receive {:llm_call_started, main_stream_pid}, 500
 
     # 2. Branch off from the welcome message (idx 0)
     state = :sys.get_state(view.pid)
@@ -169,7 +169,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
     view |> form("form", chat: %{message: "BranchMsg"}) |> render_submit()
 
     # Verify BranchMsg started immediately
-    assert_receive {:llm_call_started, "BranchMsg", branch_stream_pid}, 500
+    assert_receive {:llm_call_started, branch_stream_pid}, 500
 
     # Both should be active
     state = :sys.get_state(view.pid)
@@ -178,8 +178,8 @@ defmodule CaraWeb.ChatLiveQueueTest do
     assert branched_chat.branches[new_branch_id].active_task != nil
 
     # Finish both
-    send(main_stream_pid, {:continue_stream, "MainMsg", [ReqLLM.StreamChunk.text("MainResp")]})
-    send(branch_stream_pid, {:continue_stream, "BranchMsg", [ReqLLM.StreamChunk.text("BranchResp")]})
+    send(main_stream_pid, {:continue_stream, [ReqLLM.StreamChunk.text("MainResp")]})
+    send(branch_stream_pid, {:continue_stream, [ReqLLM.StreamChunk.text("BranchResp")]})
 
     :timer.sleep(200)
 
@@ -196,8 +196,8 @@ defmodule CaraWeb.ChatLiveQueueTest do
     initial_ctx = real_context()
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> initial_ctx end)
 
-    stub(Cara.AI.ChatMock, :send_message_stream, fn message, _context, _opts ->
-      send(test_pid, {:llm_call_started, message, self()})
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
+      send(test_pid, {:llm_call_started, self()})
 
       # Infinite stream
       stream =
@@ -214,14 +214,14 @@ defmodule CaraWeb.ChatLiveQueueTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _content -> :updated_context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     {:ok, view, _html} = live(conn, ~p"/chat")
 
     # Start message in main
     view |> form("form", chat: %{message: "Main Task"}) |> render_submit()
-    assert_receive {:llm_call_started, "Main Task", _}
+    assert_receive {:llm_call_started, _}
 
     state_before = :sys.get_state(view.pid)
     active_pid = state_before.socket.assigns.branched_chat.branches["main"].active_task

@@ -30,13 +30,13 @@ defmodule CaraWeb.RouterTest do
   end
 
   test "GET /chat redirects to /student if no session", %{conn: conn} do
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
     conn = get(conn, "/chat")
     assert redirected_to(conn) == "/student"
   end
 
   test "GET /chat renders chat page with student session", %{conn: conn} do
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :test_context end)
     student_info = %{name: "Test Student", age: "20", subject: "Elixir", chat_id: "test-id"}
 

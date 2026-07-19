@@ -730,7 +730,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "returns :ok when service is available", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/tags", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/v1/models", fn conn ->
         Plug.Conn.resp(conn, 200, "{\"object\":\"list\",\"data\":[]}")
       end)
 
@@ -738,7 +738,7 @@ defmodule Cara.AI.ChatTest do
     end
 
     test "returns {:error, :unavailable} when service returns error", %{bypass: bypass} do
-      Bypass.expect_once(bypass, "GET", "/api/tags", fn conn ->
+      Bypass.expect_once(bypass, "GET", "/v1/models", fn conn ->
         Plug.Conn.resp(conn, 500, "error")
       end)
 

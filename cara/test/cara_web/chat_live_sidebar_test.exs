@@ -6,7 +6,7 @@ defmodule CaraWeb.ChatLiveSidebarTest do
   setup :verify_on_exit!
 
   defp setup_chat(conn) do
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> :test_context end)
 
     student_info = %{

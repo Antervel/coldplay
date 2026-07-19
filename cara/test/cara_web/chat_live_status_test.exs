@@ -10,7 +10,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
 
   setup %{conn: conn} do
     # Stub health check
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
 
     conn = Plug.Test.init_test_session(conn, %{})
     conn = fetch_session(conn)
@@ -27,7 +27,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
 
     parent = self()
 
-    stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       send(parent, :mock_called)
       # Wait a bit so the LiveView doesn't finish immediately
       Process.sleep(200)
@@ -40,7 +40,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _ -> Context.new([]) end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     {:ok, view, _html} = live(conn, ~p"/chat")
@@ -60,39 +60,43 @@ defmodule CaraWeb.ChatLiveStatusTest do
     # 2. Second call returns final text
     parent = self()
 
-    expect(Cara.AI.ChatMock, :send_message_stream, fn "Who is X?", context, _opts ->
+    expect(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       send(parent, :first_call)
-      tool_calls = [ReqLLM.ToolCall.new("call_1", "wikipedia_search", "{\"query\": \"X\"}")]
 
-      stream_response = %StreamResponse{
-        context: context,
-        model: %LLMDB.Model{id: "test-model", provider: :openai},
-        cancel: fn -> :ok end,
-        stream: [],
-        metadata_handle: start_metadata_handle()
-      }
+      tool_calls = [
+        %ReqLLM.ToolCall{
+          id: "call_1",
+          type: "function",
+          function: %{name: "wikipedia_search", arguments: "{\"query\": \"X\"}"}
+        }
+      ]
 
-      {:ok, stream_response, fn _ -> context end, tool_calls}
+      {:ok,
+       %BranchedLLM.LLM.StreamResult.ToolCallResult{
+         tool_calls: tool_calls,
+         context: %ReqLLM.Context{messages: []},
+         metadata_handle: start_metadata_handle()
+       }}
     end)
 
-    expect(Cara.AI.ChatMock, :send_message_stream, fn "", context, _opts ->
+    expect(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       send(parent, :second_call)
       # Wait to let the UI show the status
       Process.sleep(200)
       stream = [ReqLLM.StreamChunk.text("Done!")]
 
       stream_response = %StreamResponse{
-        context: context,
+        context: %ReqLLM.Context{messages: []},
         model: %LLMDB.Model{id: "test-model", provider: :openai},
         cancel: fn -> :ok end,
         stream: stream,
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _ -> context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
-    stub(Cara.AI.ChatMock, :execute_tool, fn _tool, _args -> {:ok, "Result"} end)
+    stub(Cara.AI.ChatClientMock, :execute_tool, fn _tool, _args -> {:ok, "Result"} end)
 
     {:ok, view, _html} = live(conn, ~p"/chat")
 
@@ -113,7 +117,7 @@ defmodule CaraWeb.ChatLiveStatusTest do
   test "clears status on error", %{conn: conn} do
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> Context.new([]) end)
 
-    stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       {:error, "Something went wrong"}
     end)
 

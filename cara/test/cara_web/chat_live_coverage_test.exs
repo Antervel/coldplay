@@ -5,11 +5,14 @@ defmodule CaraWeb.ChatLiveCoverageTest do
   import Mox
 
   alias BranchedLLM.Message
+  alias ReqLLM.Context
 
   setup %{conn: conn} do
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
-    stub(Cara.AI.ChatMock, :new_context, fn _ -> :initial_context end)
-    stub(Cara.AI.ChatMock, :reset_context, fn _ -> :initial_context end)
+    initial_context = Context.new([Context.system("You are a tutor")])
+
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
+    stub(Cara.AI.ChatMock, :new_context, fn _ -> initial_context end)
+    stub(Cara.AI.ChatMock, :reset_context, fn _ -> initial_context end)
 
     conn = Plug.Test.init_test_session(conn, %{})
     conn = fetch_session(conn)

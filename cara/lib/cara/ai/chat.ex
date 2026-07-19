@@ -11,10 +11,10 @@ defmodule Cara.AI.Chat do
   require OpenTelemetry.Tracer
   alias OpenTelemetry.Tracer
 
-  alias BranchedLLM.LLM.StreamParser
   alias Cara.AI.ToolCache
   alias Req
   alias ReqLLM.Context
+  alias ReqLLM.StreamChunk
   alias ReqLLM.StreamResponse
   alias ReqLLM.StreamResponse.MetadataHandle
 
@@ -36,7 +36,13 @@ defmodule Cara.AI.Chat do
 
     case call_llm(config.model, updated_context, config.tools) do
       {:ok, stream_response, _tool_calls} ->
-        final_text = StreamParser.consume_to_text(stream_response.stream)
+        final_text =
+          stream_response.stream
+          |> Enum.reduce("", fn
+            %StreamChunk{type: :content, text: text}, acc -> acc <> text
+            _, acc -> acc
+          end)
+
         final_context = add_assistant_message(updated_context, final_text)
         {:ok, final_text, final_context}
 
@@ -49,7 +55,6 @@ defmodule Cara.AI.Chat do
   Sends a message and returns a stream of text chunks plus the updated context,
   and any tool calls made by the LLM.
   """
-  @impl BranchedLLM.ChatBehaviour
   @spec send_message_stream(String.t(), Context.t(), keyword()) ::
           {:ok, ReqLLM.StreamResponse.t(), (String.t() -> Context.t()), list()} | {:error, term()}
   def send_message_stream(message, context, opts \\ []) do
@@ -84,6 +89,7 @@ defmodule Cara.AI.Chat do
   @doc """
   Returns the conversation history as a list of messages.
   """
+  @impl true
   @spec get_history(Context.t()) :: list()
   def get_history(context) do
     context.messages
@@ -168,25 +174,27 @@ defmodule Cara.AI.Chat do
     end
   end
 
-  defp handle_stream_for_tools(%StreamResponse{stream: stream} = stream_response) do
-    # Eagerly consume the entire stream first to avoid issues with the
-    # underlying StreamServer GenServer terminating before we can read
-    # remaining chunks from a halted reduce_while.
-    all_chunks = Enum.to_list(stream)
+  defp handle_stream_for_tools(%StreamResponse{} = stream_response) do
+    case StreamResponse.classify(stream_response) do
+      %{type: :tool_calls, tool_calls: tool_call_maps} ->
+        {:ok, dummy_stream_response(stream_response), classify_to_tool_calls(tool_call_maps)}
 
-    case StreamParser.consume_until_intent(all_chunks) do
-      {:tool_call, _consumed_chunks, _remaining} ->
-        tool_calls = StreamParser.extract_tool_calls(all_chunks)
-        {:ok, dummy_stream_response(stream_response), tool_calls}
+      %{type: :final_answer, text: text} when is_binary(text) and text != "" ->
+        chunk = StreamChunk.text(text)
+        {:ok, %{stream_response | stream: [chunk]}, []}
 
-      {:content, _consumed_chunks, _remaining} ->
-        {:ok, %{stream_response | stream: all_chunks}, []}
-
-      {:empty, _consumed_chunks} ->
+      _ ->
         {:ok, stream_response, []}
     end
   rescue
     e -> {:error, e}
+  end
+
+  defp classify_to_tool_calls(tool_call_maps) do
+    Enum.map(tool_call_maps, fn %{id: id, name: name, arguments: args} ->
+      args_json = if is_map(args), do: Jason.encode!(args), else: args || "{}"
+      ReqLLM.ToolCall.new(id, name, args_json)
+    end)
   end
 
   defp dummy_stream_response(%StreamResponse{context: context, model: model}) do
@@ -205,7 +213,6 @@ defmodule Cara.AI.Chat do
   Executes a given tool with the provided arguments.
   Uses a caching layer to retrieve previous successful results.
   """
-  @impl BranchedLLM.ChatBehaviour
   @spec execute_tool(ReqLLM.Tool.t(), map()) :: {:ok, term()} | {:error, term()}
   def execute_tool(tool, args) do
     Tracer.with_span "tool_execution", %{attributes: %{tool: tool.name}} do
@@ -236,7 +243,7 @@ defmodule Cara.AI.Chat do
   Checks if the configured LLM provider is available.
   """
   @impl BranchedLLM.ChatBehaviour
-  def health_check do
+  def health_check(_opts \\ []) do
     %{health_endpoint: health_endpoint} = endpoints()
 
     Logger.info("Checking AI health at: #{health_endpoint}")
@@ -262,14 +269,28 @@ defmodule Cara.AI.Chat do
       |> Application.get_env(:openai, [])
       |> Keyword.get(:base_url)
 
-    uri = URI.parse(config_url)
-    port_str = if uri.port, do: ":#{uri.port}", else: ""
-    base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
+    if String.ends_with?(config_url, "/v1") do
+      model_endpoint = config_url
+      uri = URI.parse(config_url)
+      port_str = if uri.port, do: ":#{uri.port}", else: ""
+      base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
 
-    %{
-      base_url: base_url,
-      model_endpoint: base_url <> "/v1",
-      health_endpoint: base_url <> "/api/tags"
-    }
+      %{
+        base_url: base_url,
+        model_endpoint: model_endpoint,
+        health_endpoint: model_endpoint <> "/models"
+      }
+    else
+      uri = URI.parse(config_url)
+      port_str = if uri.port, do: ":#{uri.port}", else: ""
+      base_url = "#{uri.scheme}://#{uri.host}#{port_str}"
+      model_endpoint = base_url <> "/v1"
+
+      %{
+        base_url: base_url,
+        model_endpoint: model_endpoint,
+        health_endpoint: model_endpoint <> "/models"
+      }
+    end
   end
 end

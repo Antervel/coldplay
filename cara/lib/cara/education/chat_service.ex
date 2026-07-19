@@ -145,8 +145,8 @@ defmodule Cara.Education.ChatService do
   @doc """
   Finalizes an AI response and broadcasts it.
   """
-  def finish_ai_response(branched_chat, branch_id, llm_context_builder, socket) do
-    branched_chat = BranchedChat.finish_ai_response(branched_chat, branch_id, llm_context_builder)
+  def finish_ai_response(branched_chat, branch_id, full_text, socket) do
+    branched_chat = BranchedChat.finish_ai_response(branched_chat, branch_id, full_text)
     final_message = List.last(branched_chat.branches[branch_id].messages)
 
     # Run pipeline
@@ -209,12 +209,7 @@ defmodule Cara.Education.ChatService do
 
   defp add_assistant_message(branched_chat, branch_id, content, socket) do
     branched_chat = BranchedChat.append_chunk(branched_chat, branch_id, content)
-
-    # We need a context builder. We keep the existing context.
-    branched_chat =
-      BranchedChat.finish_ai_response(branched_chat, branch_id, fn _ ->
-        BranchedChat.get_current_context(branched_chat)
-      end)
+    branched_chat = BranchedChat.finish_ai_response(branched_chat, branch_id, content)
 
     final_message = List.last(branched_chat.branches[branch_id].messages)
     Monitoring.broadcast_new_message(socket, socket.assigns.chat_id, final_message)

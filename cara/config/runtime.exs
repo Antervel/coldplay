@@ -24,10 +24,14 @@ config :cara, CaraWeb.Endpoint, http: [port: String.to_integer(System.get_env("P
 
 # Configure the default AI model
 config :req_llm,
-  openai_api_key: "ollama",
+  openai_api_key: System.get_env("NVIDIA_API_KEY", ""),
   openai: [
-    base_url: System.get_env("OLLAMA_URL", "http://host.containers.internal:11434/v1")
+    base_url: System.get_env("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+    api_key: System.get_env("NVIDIA_API_KEY", "")
   ]
+
+config :branched_llm,
+  base_url: System.get_env("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1")
 
 # Content Classifier API configuration
 config :cara, :classifier_api,

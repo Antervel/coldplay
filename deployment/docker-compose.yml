@@ -44,6 +44,7 @@ services:
       PHX_SERVER: true
       RELEASE_COOKIE: ${RELEASE_COOKIE}
       OLLAMA_URL: ${OLLAMA_URL:-http://host.containers.internal:11434/v1}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
     depends_on:
       db:
         condition: service_healthy

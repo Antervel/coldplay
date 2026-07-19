@@ -10,7 +10,7 @@ defmodule CaraWeb.ChatLiveBranchTest do
 
   setup %{conn: conn} do
     # Stub health check
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
 
     # Mock new_context
     stub(Cara.AI.ChatMock, :new_context, fn _system_prompt -> Context.new([Context.system("test")]) end)
@@ -36,15 +36,17 @@ defmodule CaraWeb.ChatLiveBranchTest do
     {:ok, view, _html} = live(conn, ~p"/chat")
 
     # 2. Send a message
-    stub(Cara.AI.ChatMock, :send_message_stream, fn "Hello", _ctx, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       {:ok,
-       %StreamResponse{
-         stream: [ReqLLM.StreamChunk.text("Hi there!")],
-         context: Context.new([]),
-         model: %LLMDB.Model{id: "test", provider: :openai},
-         cancel: fn -> :ok end,
-         metadata_handle: start_metadata_handle()
-       }, fn content -> Context.new([Context.assistant(content)]) end, []}
+       %BranchedLLM.LLM.StreamResult.ContentResult{
+         stream: %StreamResponse{
+           stream: [ReqLLM.StreamChunk.text("Hi there!")],
+           context: Context.new([]),
+           model: %LLMDB.Model{id: "test", provider: :openai},
+           cancel: fn -> :ok end,
+           metadata_handle: start_metadata_handle()
+         }
+       }}
     end)
 
     view |> form("#chat-form", chat: %{message: "Hello"}) |> render_submit()
@@ -84,15 +86,17 @@ defmodule CaraWeb.ChatLiveBranchTest do
     assert render(view) =~ "New branch..."
 
     # 5.5 Send a message in the NEW branch to update its name
-    stub(Cara.AI.ChatMock, :send_message_stream, fn "What time is it?", _ctx, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       {:ok,
-       %StreamResponse{
-         stream: [ReqLLM.StreamChunk.text("It is now.")],
-         context: Context.new([]),
-         model: %LLMDB.Model{id: "test", provider: :openai},
-         cancel: fn -> :ok end,
-         metadata_handle: start_metadata_handle()
-       }, fn content -> Context.new([Context.assistant(content)]) end, []}
+       %BranchedLLM.LLM.StreamResult.ContentResult{
+         stream: %StreamResponse{
+           stream: [ReqLLM.StreamChunk.text("It is now.")],
+           context: Context.new([]),
+           model: %LLMDB.Model{id: "test", provider: :openai},
+           cancel: fn -> :ok end,
+           metadata_handle: start_metadata_handle()
+         }
+       }}
     end)
 
     view |> form("#chat-form", chat: %{message: "What time is it?"}) |> render_submit()
