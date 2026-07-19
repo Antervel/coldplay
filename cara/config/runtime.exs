@@ -24,10 +24,10 @@ config :cara, CaraWeb.Endpoint, http: [port: String.to_integer(System.get_env("P
 
 # Configure the default AI model
 config :req_llm,
-  openai_api_key: System.get_env("NVIDIA_API_KEY", ""),
+  openai_api_key: System.get_env("NVIDIA_API_KEY", "default"),
   openai: [
     base_url: System.get_env("LLM_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-    api_key: System.get_env("NVIDIA_API_KEY", "")
+    api_key: System.get_env("NVIDIA_API_KEY", "default")
   ]
 
 config :branched_llm,
