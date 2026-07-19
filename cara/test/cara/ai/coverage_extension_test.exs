@@ -99,13 +99,10 @@ defmodule Cara.AI.CoverageExtensionTest do
       chat = initial_setup()
       chat = BranchedChat.add_user_message(chat, "User message")
 
-      builder = fn content ->
-        assert content == ""
-        Context.new([])
-      end
-
-      chat = BranchedChat.finish_ai_response(chat, "main", builder)
-      assert chat.branches["main"].context.messages == []
+      chat = BranchedChat.finish_ai_response(chat, "main", "")
+      context_msgs = chat.branches["main"].context.messages
+      assert length(context_msgs) == 2
+      assert List.last(context_msgs).role == :assistant
     end
 
     test "switch_branch/2 with non-existent branch" do

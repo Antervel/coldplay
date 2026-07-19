@@ -160,11 +160,7 @@ defmodule Cara.Education.ChatServiceTest do
          }}
       end)
 
-      llm_context_builder = fn content ->
-        ReqLLM.Context.append(BranchedChat.get_current_context(chat), ReqLLM.Context.assistant(content))
-      end
-
-      updated_chat = ChatService.finish_ai_response(chat, "main", llm_context_builder, socket)
+      updated_chat = ChatService.finish_ai_response(chat, "main", "Unsafe AI response", socket)
 
       messages = BranchedChat.get_current_messages(updated_chat)
       last_msg = List.last(messages)

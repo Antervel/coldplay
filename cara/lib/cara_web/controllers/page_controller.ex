@@ -10,6 +10,15 @@ defmodule CaraWeb.PageController do
   end
 
   def settings(conn, _params) do
-    render(conn, :settings)
+    current_model = Application.get_env(:cara, :ai_model, "openai:cara-cpu")
+    render(conn, :settings, current_model: current_model)
+  end
+
+  def update_model(conn, %{"model" => model}) do
+    Application.put_env(:cara, :ai_model, model)
+
+    conn
+    |> put_flash(:info, "Model updated to #{model}")
+    |> redirect(to: ~p"/settings")
   end
 end

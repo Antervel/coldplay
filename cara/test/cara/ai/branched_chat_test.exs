@@ -151,12 +151,7 @@ defmodule BranchedLLM.BranchedChatTest do
     chat = initial_setup()
     chat = BranchedChat.append_chunk(chat, "main", " Final answer")
 
-    llm_context_builder = fn content ->
-      # content will be "Welcome! Final answer"
-      Context.append(chat.branches["main"].context, Context.assistant(content))
-    end
-
-    chat = BranchedChat.finish_ai_response(chat, "main", llm_context_builder)
+    chat = BranchedChat.finish_ai_response(chat, "main", "Welcome! Final answer")
 
     main_branch = chat.branches["main"]
     assert main_branch.active_task == nil

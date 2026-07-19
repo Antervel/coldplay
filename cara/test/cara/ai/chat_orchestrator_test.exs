@@ -11,11 +11,10 @@ defmodule BranchedLLM.ChatOrchestratorTest do
 
   defp mock_params(caller_pid) do
     %{
-      message: "Hello",
       llm_context: Context.new([]),
       on_event: fn event -> send(caller_pid, event) end,
       llm_tools: [],
-      chat_mod: Cara.AI.ChatMock,
+      chat_mod: Cara.AI.ChatClientMock,
       tool_usage_counts: %{},
       branch_id: "main"
     }
@@ -25,7 +24,7 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     test_pid = self()
     params = mock_params(test_pid)
 
-    expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "Hello", _ctx, _opts ->
+    expect(Cara.AI.ChatClientMock, :send_message_stream, 1, fn _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
         model: %LLMDB.Model{id: "test-model", provider: :openai},
@@ -34,14 +33,14 @@ defmodule BranchedLLM.ChatOrchestratorTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _ -> :updated_context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     {:ok, _pid} = ChatOrchestrator.run(params)
 
     assert_receive {:update_tool_usage_counts, %{}}
     assert_receive {:llm_chunk, "main", "Hi"}
-    assert_receive {:llm_end, "main", _builder}
+    assert_receive {:llm_end, "main", _}
   end
 
   test "run/1 handles LLM error and retries" do
@@ -49,7 +48,7 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     params = mock_params(test_pid)
 
     # Use stub for retry tests to avoid Mox.VerificationError on number of calls
-    stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       {:error, "API Error"}
     end)
 
@@ -69,20 +68,17 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     tool_call = %ReqLLM.ToolCall{id: "call_1", type: "function", function: %{name: "calculator", arguments: "{}"}}
 
     # First call returns tool call
-    expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "Hello", _ctx, _opts ->
-      stream_response = %StreamResponse{
-        context: Context.new([]),
-        model: %LLMDB.Model{id: "test-model", provider: :openai},
-        cancel: fn -> :ok end,
-        stream: [],
-        metadata_handle: start_metadata_handle()
-      }
-
-      {:ok, stream_response, fn _ -> :updated_context end, [tool_call]}
+    expect(Cara.AI.ChatClientMock, :send_message_stream, 1, fn _ctx, _opts ->
+      {:ok,
+       %BranchedLLM.LLM.StreamResult.ToolCallResult{
+         tool_calls: [tool_call],
+         context: Context.new([]),
+         metadata_handle: start_metadata_handle()
+       }}
     end)
 
     # Second call (after tool execution) returns text
-    expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "", _ctx, _opts ->
+    expect(Cara.AI.ChatClientMock, :send_message_stream, 1, fn _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
         model: %LLMDB.Model{id: "test-model", provider: :openai},
@@ -91,11 +87,11 @@ defmodule BranchedLLM.ChatOrchestratorTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _ -> :updated_context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     # Mock tool execution
-    stub(Cara.AI.ChatMock, :execute_tool, fn _tool, _args -> {:ok, 4} end)
+    stub(Cara.AI.ChatClientMock, :execute_tool, fn _tool, _args -> {:ok, 4} end)
 
     {:ok, _pid} = ChatOrchestrator.run(params)
 
@@ -109,21 +105,17 @@ defmodule BranchedLLM.ChatOrchestratorTest do
 
     tool_call = %ReqLLM.ToolCall{id: "call_1", type: "function", function: %{name: "calculator", arguments: "{}"}}
 
-    expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "Hello", _ctx, _opts ->
-      stream_response = %StreamResponse{
-        context: Context.new([]),
-        model: %LLMDB.Model{id: "test-model", provider: :openai},
-        cancel: fn -> :ok end,
-        stream: [],
-        metadata_handle: start_metadata_handle()
-      }
-
-      {:ok, stream_response, fn _ -> :updated_context end, [tool_call]}
+    expect(Cara.AI.ChatClientMock, :send_message_stream, 1, fn _ctx, _opts ->
+      {:ok,
+       %BranchedLLM.LLM.StreamResult.ToolCallResult{
+         tool_calls: [tool_call],
+         context: Context.new([]),
+         metadata_handle: start_metadata_handle()
+       }}
     end)
 
     # Should NOT call execute_tool, instead should call send_message_stream again with limit message
-    expect(Cara.AI.ChatMock, :send_message_stream, 1, fn "", _ctx, _opts ->
-      # _ctx should contain the "Tool limit reached" message
+    expect(Cara.AI.ChatClientMock, :send_message_stream, 1, fn _ctx, _opts ->
       stream_response = %StreamResponse{
         context: Context.new([]),
         model: %LLMDB.Model{id: "test-model", provider: :openai},
@@ -132,7 +124,7 @@ defmodule BranchedLLM.ChatOrchestratorTest do
         metadata_handle: start_metadata_handle()
       }
 
-      {:ok, stream_response, fn _ -> :updated_context end, []}
+      {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
     end)
 
     {:ok, _pid} = ChatOrchestrator.run(params)
@@ -144,17 +136,8 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     params = mock_params(test_pid)
 
     # Use stub for retry tests
-    stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->
-      stream_response = %StreamResponse{
-        context: Context.new([]),
-        model: %LLMDB.Model{id: "test-model", provider: :openai},
-        cancel: fn -> :ok end,
-        # Empty stream
-        stream: [],
-        metadata_handle: start_metadata_handle()
-      }
-
-      {:ok, stream_response, fn _ -> :updated_context end, []}
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
+      {:ok, %BranchedLLM.LLM.StreamResult.EmptyResult{}}
     end)
 
     {:ok, _pid} = ChatOrchestrator.run(params)
@@ -167,12 +150,12 @@ defmodule BranchedLLM.ChatOrchestratorTest do
     params = mock_params(test_pid)
 
     # Use stub for retry tests
-    stub(Cara.AI.ChatMock, :send_message_stream, fn _msg, _ctx, _opts ->
+    stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
       raise "Crash!"
     end)
 
     {:ok, _pid} = ChatOrchestrator.run(params)
 
-    assert_receive {:llm_error, "main", "Error: Crash!"}, 5000
+    assert_receive {:llm_error, "main", "Crash!"}, 5000
   end
 end

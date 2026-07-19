@@ -11,7 +11,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
 
   setup %{conn: conn} do
     # Stub health check by default
-    stub(Cara.AI.ChatMock, :health_check, fn -> :ok end)
+    stub(Cara.AI.ChatMock, :health_check, fn _opts -> :ok end)
 
     conn = Plug.Test.init_test_session(conn, %{})
     conn = fetch_session(conn)
@@ -37,26 +37,18 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       end)
 
       # Mock send_message_stream
-      stub(Cara.AI.ChatMock, :send_message_stream, fn message, context, _opts ->
-        # Just return the message itself as response for simplicity
-        stream = [ReqLLM.StreamChunk.text("Response to #{message}")]
-
-        # The builder appends user and assistant messages to context
-        builder = fn content ->
-          context
-          |> Context.append(Context.user(message))
-          |> Context.append(Context.assistant(content))
-        end
+      stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
+        stream = [ReqLLM.StreamChunk.text("Response")]
 
         stream_response = %StreamResponse{
-          context: context,
+          context: %ReqLLM.Context{messages: []},
           model: %LLMDB.Model{id: "test-model", provider: :openai},
           cancel: fn -> :ok end,
           stream: stream,
           metadata_handle: start_metadata_handle()
         }
 
-        {:ok, stream_response, builder, []}
+        {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -71,7 +63,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       # Verify it's there
       html = render(view)
       assert html =~ "Hello AI"
-      assert html =~ "Response to Hello AI"
+      assert html =~ "Response"
 
       # Check state
       state = :sys.get_state(view.pid)
@@ -91,7 +83,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       # Verify it's gone from UI
       html = render(view)
       assert html =~ "Hello AI"
-      refute html =~ "Response to Hello AI"
+      refute html =~ "Response"
 
       # Verify it's marked as deleted in state
       state = :sys.get_state(view.pid)
@@ -116,20 +108,16 @@ defmodule CaraWeb.ChatLiveDeleteTest do
         Context.new(Enum.filter(ctx.messages, fn msg -> msg.role == :system end))
       end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn message, context, _opts ->
-        builder = fn content ->
-          context |> Context.append(Context.user(message)) |> Context.append(Context.assistant(content))
-        end
-
+      stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
         stream_response = %StreamResponse{
-          context: context,
+          context: %ReqLLM.Context{messages: []},
           model: %LLMDB.Model{id: "test-model", provider: :openai},
           cancel: fn -> :ok end,
-          stream: [ReqLLM.StreamChunk.text("R-#{message}")],
+          stream: [ReqLLM.StreamChunk.text("Response")],
           metadata_handle: start_metadata_handle()
         }
 
-        {:ok, stream_response, builder, []}
+        {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
@@ -187,20 +175,16 @@ defmodule CaraWeb.ChatLiveDeleteTest do
         Context.new(Enum.filter(ctx.messages, fn msg -> msg.role == :system end))
       end)
 
-      stub(Cara.AI.ChatMock, :send_message_stream, fn message, context, _opts ->
-        builder = fn content ->
-          context |> Context.append(Context.user(message)) |> Context.append(Context.assistant(content))
-        end
-
+      stub(Cara.AI.ChatClientMock, :send_message_stream, fn _ctx, _opts ->
         stream_response = %StreamResponse{
-          context: context,
+          context: %ReqLLM.Context{messages: []},
           model: %LLMDB.Model{id: "test-model", provider: :openai},
           cancel: fn -> :ok end,
-          stream: [ReqLLM.StreamChunk.text("R-#{message}")],
+          stream: [ReqLLM.StreamChunk.text("Response")],
           metadata_handle: start_metadata_handle()
         }
 
-        {:ok, stream_response, builder, []}
+        {:ok, %BranchedLLM.LLM.StreamResult.ContentResult{stream: stream_response}}
       end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")

@@ -28,6 +28,7 @@ defmodule CaraWeb.Router do
     live "/chat", ChatLive, :index
     live "/teacher", TeacherLive, :index
     get "/settings", PageController, :settings
+    post "/settings/model", PageController, :update_model
     get "/logs", LogsController, :index
     get "/logs/:chat_id/:branch_id", LogsController, :show
   end

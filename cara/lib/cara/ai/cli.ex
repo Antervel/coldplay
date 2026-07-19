@@ -18,7 +18,6 @@ defmodule Cara.AI.CLI do
       >> Chat ended.
   """
 
-  alias BranchedLLM.LLM.StreamParser
   alias Cara.AI.Chat
   alias ReqLLM.Context
 
@@ -104,12 +103,13 @@ defmodule Cara.AI.CLI do
   @spec consume_and_display_stream(ReqLLM.StreamResponse.t(), boolean()) :: String.t()
   defp consume_and_display_stream(%ReqLLM.StreamResponse{stream: stream}, should_stream?) do
     final_text =
-      Enum.reduce(stream, "", fn chunk, acc ->
-        if should_stream? and chunk.type == :content do
-          IO.write(chunk.text)
-        end
+      Enum.reduce(stream, "", fn
+        %ReqLLM.StreamChunk{type: :content, text: text}, acc ->
+          if should_stream?, do: IO.write(text)
+          acc <> text
 
-        StreamParser.accumulate_text(chunk, acc)
+        _, acc ->
+          acc
       end)
 
     if !should_stream?, do: IO.write(final_text)

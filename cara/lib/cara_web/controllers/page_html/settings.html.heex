@@ -1,3 +1,29 @@
 <div class="px-4 py-10 sm:px-6 lg:px-8 max-w-2xl mx-auto">
   <h1 class="text-3xl font-bold mb-6 text-gray-900">Settings</h1>
+
+  <section class="mb-8">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">AI Model</h2>
+    <p class="text-sm text-gray-500 mb-4">
+      Select the LLM model to use for conversations. Changes take effect immediately.
+    </p>
+    <.form for={%{}} action={~p"/settings/model"} method="post" class="flex items-end gap-3">
+      <select
+        name="model"
+        class="rounded-lg border border-gray-300 bg-white text-black px-4 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      >
+        <option value="openai:cara-cpu" selected={@current_model == "openai:cara-cpu"}>
+          Ollama — cara:cpu
+        </option>
+        <option value="openai:gpt-oss-20b" selected={@current_model == "openai:gpt-oss-20b"}>
+          NVIDIA — openai/gpt-oss-20b
+        </option>
+      </select>
+      <button
+        type="submit"
+        class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+      >
+        Apply
+      </button>
+    </.form>
+  </section>
 </div>
