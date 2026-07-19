@@ -182,7 +182,7 @@ defmodule Cara.ContentClassifier do
   end
 
   defp http_client do
-    Application.get_env(:cara, :http_client, Req)
+    Application.get_env(:cara, :http_client, Cara.HTTPClient)
   end
 
   defp do_classify(text) do

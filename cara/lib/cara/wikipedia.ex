@@ -12,7 +12,7 @@ defmodule Cara.Wikipedia do
   """
 
   defp http_client do
-    Application.get_env(:cara, :http_client, Req)
+    Application.get_env(:cara, :http_client, Cara.HTTPClient)
   end
 
   @doc """

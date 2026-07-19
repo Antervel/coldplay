@@ -2,6 +2,8 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   require Logger
 
+  @build_date DateTime.utc_now() |> Calendar.strftime("%Y%m%d")
+
   alias BranchedLLM.BranchedChat
   alias BranchedLLM.ChatOrchestrator
   alias BranchedLLM.Message
@@ -381,7 +383,8 @@ defmodule CaraWeb.ChatLive do
 
   @spec app_version() :: String.t()
   defp app_version do
-    Application.spec(:cara, :vsn) |> to_string
+    vsn = Application.spec(:cara, :vsn) |> to_string
+    "#{vsn} - #{@build_date}"
   end
 
   # Helper function to get the last assistant message from a branch
