@@ -43,8 +43,7 @@ defmodule CaraWeb.ChatLive do
          |> then(fn socket ->
            messages = BranchedChat.get_current_messages(socket.assigns.branched_chat)
 
-           socket
-           |> stream(:messages, messages)
+           stream(socket, :messages, messages)
          end)
          |> assign_vm()
          |> assign(:app_version, app_version())}
@@ -93,7 +92,7 @@ defmodule CaraWeb.ChatLive do
           )
       end
 
-    {:noreply, socket |> assign_vm()}
+    {:noreply, assign_vm(socket)}
   end
 
   # Fallbacks for tests and legacy hooks
@@ -155,7 +154,7 @@ defmodule CaraWeb.ChatLive do
   def handle_event("delete_message", %{"id" => id}, socket) do
     branched_chat = ChatService.delete_message(socket.assigns.branched_chat, id, socket)
 
-    {:noreply, socket |> assign_branched_chat(branched_chat)}
+    {:noreply, assign_branched_chat(socket, branched_chat)}
   end
 
   # Fallback for old clients (should not happen if refreshed, but for safety)
@@ -173,7 +172,7 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_event("cancel", _params, socket) do
     branched_chat = ChatService.cancel_active_task(socket.assigns.branched_chat, socket)
-    {:noreply, socket |> assign_branched_chat(branched_chat)}
+    {:noreply, assign_branched_chat(socket, branched_chat)}
   end
 
   @impl true
@@ -243,7 +242,7 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_info({:llm_status, branch_id, status}, socket) do
     branched_chat = BranchedChat.set_tool_status(socket.assigns.branched_chat, branch_id, status)
-    {:noreply, socket |> assign_branched_chat(branched_chat)}
+    {:noreply, assign_branched_chat(socket, branched_chat)}
   end
 
   @impl true
@@ -353,7 +352,7 @@ defmodule CaraWeb.ChatLive do
       |> assign_branched_chat(branched_chat)
       |> start_llm_stream(branch_id, next_message)
     else
-      socket |> assign_branched_chat(branched_chat)
+      assign_branched_chat(socket, branched_chat)
     end
   end
 
@@ -368,7 +367,7 @@ defmodule CaraWeb.ChatLive do
 
       case ChatService.send_message(branched_chat, message, socket) do
         {:enqueue, branched_chat} ->
-          {:noreply, socket |> assign_branched_chat(branched_chat)}
+          {:noreply, assign_branched_chat(socket, branched_chat)}
 
         {:send, branched_chat, user_message_obj, socket} ->
           socket =
@@ -379,7 +378,7 @@ defmodule CaraWeb.ChatLive do
           {:noreply, socket}
 
         {:blocked, branched_chat} ->
-          {:noreply, socket |> assign_branched_chat(branched_chat)}
+          {:noreply, assign_branched_chat(socket, branched_chat)}
       end
     end
   end

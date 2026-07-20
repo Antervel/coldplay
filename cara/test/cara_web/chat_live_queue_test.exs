@@ -159,7 +159,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
     # 2. Branch off from the welcome message (idx 0)
     state = :sys.get_state(view.pid)
     welcome_id = hd(BranchedChat.get_current_messages(state.socket.assigns.branched_chat)).id
-    view |> render_hook("branch_off", %{id: welcome_id})
+    render_hook(view, "branch_off", %{id: welcome_id})
 
     state = :sys.get_state(view.pid)
     new_branch_id = state.socket.assigns.branched_chat.current_branch_id
@@ -187,7 +187,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
     assert render(view) =~ "BranchResp"
 
     # Switch back to main
-    view |> render_click("switch_branch", %{id: "main"})
+    render_click(view, "switch_branch", %{id: "main"})
     assert render(view) =~ "MainResp"
   end
 

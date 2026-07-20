@@ -16,9 +16,7 @@ defmodule CaraWeb.ChatLiveSidebarTest do
       chat_id: "test-chat-id"
     }
 
-    conn =
-      conn
-      |> init_test_session(%{student_info: student_info})
+    conn = init_test_session(conn, %{student_info: student_info})
 
     {:ok, view, _html} = live(conn, "/chat")
     %{view: view, student_info: student_info}

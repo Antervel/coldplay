@@ -125,14 +125,13 @@ defmodule Cara.ContentClassifier do
   """
   @spec get_max_score(classification_result()) :: float()
   def get_max_score(result) do
-    [
+    Enum.max([
       get_score(result, "sexual", "score"),
       get_score(result, "detoxify", "toxicity"),
       get_score(result, "detoxify", "severe_toxicity"),
       get_score(result, "detoxify", "obscene"),
       get_score(result, "detoxify", "threat")
-    ]
-    |> Enum.max()
+    ])
   end
 
   defp get_score(result, "sexual", _key_name) do
