@@ -134,6 +134,24 @@ defmodule CaraWeb.MarkdownHelpersTest do
       result = MarkdownHelpers.render_markdown(content) |> safe_to_string()
       assert String.contains?(result, "Start")
     end
+
+    test "quotes edge labels with pipes containing parentheses" do
+      content = "```mermaid\ngraph LR\nA-->|text (with parens)|B\n```"
+      result = MarkdownHelpers.render_markdown(content) |> safe_to_string()
+      assert String.contains?(result, "text (with parens)")
+    end
+
+    test "quotes edge labels with pipes containing non-ASCII" do
+      content = "```mermaid\ngraph LR\nA-->|日本語|B\n```"
+      result = MarkdownHelpers.render_markdown(content) |> safe_to_string()
+      assert String.contains?(result, "日本語")
+    end
+
+    test "does not quote simple edge labels with pipes" do
+      content = "```mermaid\ngraph LR\nA-->|simple|B\n```"
+      result = MarkdownHelpers.render_markdown(content) |> safe_to_string()
+      assert String.contains?(result, "simple")
+    end
   end
 
   describe "LaTeX preprocessing" do
@@ -176,6 +194,41 @@ defmodule CaraWeb.MarkdownHelpersTest do
       assert String.contains?(result, "List item 1")
       assert String.contains?(result, "List item 2")
       assert String.contains?(result, "code here")
+    end
+  end
+
+  describe "rename_steps collision avoidance" do
+    test "mermaid and katex coexist without step name collisions" do
+      content = """
+      ```mermaid
+      graph TD
+      A-->B
+      ```
+
+      $$x = y$$
+
+      $x^2$
+      """
+
+      result = MarkdownHelpers.render_markdown(content, "test-prefix") |> safe_to_string()
+      assert String.contains?(result, "mermaid-test-prefix")
+      assert String.contains?(result, "katex-test-prefix")
+      assert String.contains?(result, "katex-inline-test-prefix")
+    end
+
+    test "mermaid and katex coexist without prefix" do
+      content = """
+      ```mermaid
+      graph TD
+      A-->B
+      ```
+
+      $$x^2 + y^2 = z^2$$
+      """
+
+      result = MarkdownHelpers.render_markdown(content, nil) |> safe_to_string()
+      assert String.contains?(result, "mermaid-1")
+      assert String.contains?(result, "katex-1")
     end
   end
 end

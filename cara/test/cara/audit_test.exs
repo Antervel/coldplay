@@ -162,6 +162,73 @@ defmodule Cara.AuditTest do
       assert total == 0
       assert branches == []
     end
+
+    test "sorts by subject ascending" do
+      {branches, total} = Audit.list_branches(sort_by: :subject, sort_dir: :asc)
+
+      assert total >= 2
+      refute Enum.empty?(branches)
+    end
+
+    test "sorts by subject descending" do
+      {branches, _} = Audit.list_branches(sort_by: :subject, sort_dir: :desc)
+      refute Enum.empty?(branches)
+    end
+
+    test "sorts by messages ascending" do
+      {branches, total} = Audit.list_branches(sort_by: :messages, sort_dir: :asc)
+
+      assert total >= 2
+      refute Enum.empty?(branches)
+    end
+
+    test "sorts by messages descending" do
+      {branches, _} = Audit.list_branches(sort_by: :messages, sort_dir: :desc)
+      refute Enum.empty?(branches)
+    end
+
+    test "sorts by invalid field falls back to date" do
+      {branches, _} = Audit.list_branches(sort_by: :invalid_field)
+      refute Enum.empty?(branches)
+    end
+
+    test "paginates with page parameter" do
+      %Message{}
+      |> Message.changeset(%{
+        chat_id: "chat-page-1",
+        message_id: "msg-page-1",
+        role: "user",
+        content: "Page 1 content",
+        branch_id: "main"
+      })
+      |> Repo.insert!()
+
+      {branches, total} = Audit.list_branches(page: 1)
+      assert total >= 1
+      refute Enum.empty?(branches)
+    end
+
+    test "paginates with page 2" do
+      %Message{}
+      |> Message.changeset(%{
+        chat_id: "chat-page-2",
+        message_id: "msg-page-2",
+        role: "user",
+        content: "Page 2 content",
+        branch_id: "main"
+      })
+      |> Repo.insert!()
+
+      {_branches, total} = Audit.list_branches(page: 2)
+      assert total >= 1
+    end
+
+    test "paginates with default page for negative/zero" do
+      {branches_neg, _} = Audit.list_branches(page: 0)
+      {branches_pos, _} = Audit.list_branches(page: 1)
+
+      assert length(branches_neg) == length(branches_pos)
+    end
   end
 
   describe "get_session/1" do

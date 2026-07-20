@@ -135,6 +135,48 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
              |> Message.deleted?()
     end
+
+    test "handle_info :llm_metadata", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:llm_metadata, "main", %{tokens: 100, model: "gpt-4"}})
+      assert render(view) =~ "Test Student"
+    end
+
+    test "handle_info :llm_tool_called", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:llm_tool_called, "main", %{tool: "calculator", args: %{expr: "1+1"}}})
+      assert render(view) =~ "Test Student"
+    end
+
+    test "handle_info :chat_started in ChatLive", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:chat_started, %{id: "some-chat"}})
+      assert render(view) =~ "Test Student"
+    end
+
+    test "handle_info :chat_state in ChatLive", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:chat_state, %{}})
+      assert render(view) =~ "Test Student"
+    end
+
+    test "handle_info :new_message in ChatLive", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:new_message, %{chat_id: "test", message: %{id: "m1"}}})
+      assert render(view) =~ "Test Student"
+    end
+
+    test "handle_info :message_deleted in ChatLive", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:message_deleted, %{chat_id: "test", message_id: "m1"}})
+      assert render(view) =~ "Test Student"
+    end
+
+    test "handle_info :chat_left in ChatLive", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/chat")
+      send(view.pid, {:chat_left, %{id: "some-chat"}})
+      assert render(view) =~ "Test Student"
+    end
   end
 
   describe "TeacherLive extra coverage" do

@@ -47,4 +47,52 @@ defmodule CaraWeb.RouterTest do
 
     assert html_response(conn, 200) =~ "Cara"
   end
+
+  test "POST /settings/model updates model and redirects", %{conn: conn} do
+    original = Application.get_env(:cara, :ai_model)
+
+    conn = post(conn, "/settings/model", %{"model" => "llama3"})
+    assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Model updated"
+
+    Application.put_env(:cara, :ai_model, original)
+  end
+
+  test "POST /settings/model with nvidia model", %{conn: conn} do
+    original = Application.get_env(:cara, :ai_model)
+
+    conn = post(conn, "/settings/model", %{"model" => "openai:openai/gpt-oss-20b"})
+    assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Model updated"
+
+    Application.put_env(:cara, :ai_model, original)
+  end
+
+  test "POST /settings/model with referer header redirects to referer", %{conn: conn} do
+    original = Application.get_env(:cara, :ai_model)
+
+    conn =
+      conn
+      |> put_req_header("referer", "http://localhost/settings")
+      |> post("/settings/model", %{"model" => "llama3"})
+
+    assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Model updated"
+
+    Application.put_env(:cara, :ai_model, original)
+  end
+
+  test "POST /settings/model with non-allowed referer redirects to /settings", %{conn: conn} do
+    original = Application.get_env(:cara, :ai_model)
+
+    conn =
+      conn
+      |> put_req_header("referer", "http://localhost/chat")
+      |> post("/settings/model", %{"model" => "llama3"})
+
+    assert redirected_to(conn) == "/settings"
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Model updated"
+
+    Application.put_env(:cara, :ai_model, original)
+  end
 end

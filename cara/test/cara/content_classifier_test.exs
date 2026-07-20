@@ -140,6 +140,30 @@ defmodule Cara.ContentClassifierTest do
 
       assert log =~ "ContentClassifier.do_classify(text): error :timeout"
     end
+
+    test "returns {:error, :invalid_response} for non-map, non-binary body" do
+      expect(Cara.HTTPClientMock, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: 42}}
+      end)
+
+      assert ContentClassifier.classify("test") == {:error, :invalid_response}
+    end
+
+    test "returns {:error, :invalid_response} for list body" do
+      expect(Cara.HTTPClientMock, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: [1, 2, 3]}}
+      end)
+
+      assert ContentClassifier.classify("test") == {:error, :invalid_response}
+    end
+
+    test "returns {:error, :invalid_response} for atom body" do
+      expect(Cara.HTTPClientMock, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: :some_atom}}
+      end)
+
+      assert ContentClassifier.classify("test") == {:error, :invalid_response}
+    end
   end
 
   # ── safe? ─────────────────────────────────────────────────────
@@ -466,6 +490,76 @@ defmodule Cara.ContentClassifierTest do
 
       assert ContentClassifier.safe_result?(result) == true
     end
+
+    test "safe_result? handles result without sexual key" do
+      result = %{
+        input: "test",
+        detoxify: %{
+          toxicity: 0.0,
+          severe_toxicity: 0.0,
+          obscene: 0.0,
+          threat: 0.0,
+          insult: 0.0,
+          identity_attack: 0.0
+        }
+      }
+
+      assert ContentClassifier.safe_result?(result) == true
+    end
+
+    test "safe_result? handles result where sexual is not a map or number" do
+      result = %{
+        input: "test",
+        sexual: "invalid",
+        detoxify: %{
+          toxicity: 0.0,
+          severe_toxicity: 0.0,
+          obscene: 0.0,
+          threat: 0.0,
+          insult: 0.0,
+          identity_attack: 0.0
+        }
+      }
+
+      assert ContentClassifier.safe_result?(result) == true
+    end
+
+    test "safe_result? handles result where detoxify is not a map" do
+      result = %{
+        input: "test",
+        sexual: %{label: "Safe", score: 0.1},
+        detoxify: "invalid"
+      }
+
+      assert ContentClassifier.safe_result?(result) == true
+    end
+
+    test "safe_result? handles result where detoxify is nil" do
+      result = %{
+        input: "test",
+        sexual: %{label: "Safe", score: 0.1},
+        detoxify: nil
+      }
+
+      assert ContentClassifier.safe_result?(result) == true
+    end
+
+    test "safe_result? handles result where sexual label is SFW with high confidence" do
+      result = %{
+        input: "test",
+        sexual: %{label: "SFW", score: 0.8},
+        detoxify: %{
+          toxicity: 0.0,
+          severe_toxicity: 0.0,
+          obscene: 0.0,
+          threat: 0.0,
+          insult: 0.0,
+          identity_attack: 0.0
+        }
+      }
+
+      assert ContentClassifier.safe_result?(result) == true
+    end
   end
 
   # ── get_threshold (private) ─────────────────────────────────────
@@ -490,6 +584,54 @@ defmodule Cara.ContentClassifierTest do
 
       # With threshold at 0.75, score 0.6 should pass
       assert ContentClassifier.safe_result?(result) == true
+    end
+
+    test "returns 0.0 for empty result" do
+      assert ContentClassifier.get_max_score(%{}) == 0.0
+    end
+
+    test "get_max_score handles result without detoxify" do
+      result = %{sexual: %{label: "NSFW", score: 0.3}}
+      assert ContentClassifier.get_max_score(result) == 0.3
+    end
+
+    test "get_max_score handles result with flat sexual score" do
+      result = %{sexual: 0.7}
+      assert ContentClassifier.get_max_score(result) == 0.7
+    end
+
+    test "returns correct max score from sexual" do
+      result = %{
+        input: "test",
+        sexual: %{label: "NSFW", score: 0.9},
+        detoxify: %{
+          toxicity: 0.1,
+          severe_toxicity: 0.1,
+          obscene: 0.1,
+          threat: 0.1,
+          insult: 0.1,
+          identity_attack: 0.1
+        }
+      }
+
+      assert ContentClassifier.get_max_score(result) == 0.9
+    end
+
+    test "returns correct max score from detoxify" do
+      result = %{
+        input: "test",
+        sexual: %{label: "Safe", score: 0.1},
+        detoxify: %{
+          toxicity: 0.8,
+          severe_toxicity: 0.1,
+          obscene: 0.1,
+          threat: 0.1,
+          insult: 0.1,
+          identity_attack: 0.1
+        }
+      }
+
+      assert ContentClassifier.get_max_score(result) == 0.8
     end
 
     test "returns default when config key is missing" do

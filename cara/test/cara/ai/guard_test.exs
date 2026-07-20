@@ -167,4 +167,79 @@ defmodule Cara.AI.GuardTest do
       assert Guard.blocked_message() =~ "Sorry, I can't answer"
     end
   end
+
+  describe "unsafe?/3" do
+    setup do
+      Application.put_env(:cara, :http_client, Cara.HTTPClientMock)
+      Application.put_env(:cara, :disable_guard_globally, false)
+      :ok
+    end
+
+    test "returns true when classify returns :unsafe" do
+      expect(Cara.HTTPClientMock, :post, 1, fn _url, _opts ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             sexual: %{label: "NSFW", score: 0.9},
+             detoxify: %{
+               toxicity: 0.1,
+               severe_toxicity: 0.1,
+               obscene: 0.1,
+               threat: 0.1,
+               insult: 0.1,
+               identity_attack: 0.1
+             }
+           }
+         }}
+      end)
+
+      assert Guard.unsafe?("bad stuff", :student, nil) == true
+    end
+
+    test "returns false when classify returns :safe" do
+      expect(Cara.HTTPClientMock, :post, 1, fn _url, _opts ->
+        {:ok,
+         %{
+           status: 200,
+           body: %{
+             sexual: %{label: "Safe", score: 0.1},
+             detoxify: %{
+               toxicity: 0.1,
+               severe_toxicity: 0.1,
+               obscene: 0.1,
+               threat: 0.1,
+               insult: 0.1,
+               identity_attack: 0.1
+             }
+           }
+         }}
+      end)
+
+      assert Guard.unsafe?("hello", :student, nil) == false
+    end
+
+    test "returns true when classify returns error" do
+      expect(Cara.HTTPClientMock, :post, 1, fn _url, _opts ->
+        {:error, :econnrefused}
+      end)
+
+      assert Guard.unsafe?("text", :student, nil) == true
+    end
+  end
+
+  describe "get_classification_and_score/3 with disable_guard_globally" do
+    test "returns {:safe, 0.0} when globally disabled" do
+      Application.put_env(:cara, :disable_guard_globally, true)
+      assert Guard.get_classification_and_score("text", :student, nil) == {:safe, 0.0}
+    end
+  end
+
+  describe "should_classify?/1 with disable_guard_globally" do
+    test "returns false when disable_guard_globally is true" do
+      Application.put_env(:cara, :disable_guard_globally, true)
+      refute Guard.should_classify?(:student)
+      refute Guard.should_classify?(:llm)
+    end
+  end
 end
