@@ -88,9 +88,7 @@ defmodule Cara.Audit do
         base_query
       end
 
-    total =
-      from(q in subquery(filtered_query), select: count(q.chat_id))
-      |> Repo.one()
+    total = Repo.one(from(q in subquery(filtered_query), select: count(q.chat_id)))
 
     order_expr = build_order_expr(sort_by, sort_dir)
 

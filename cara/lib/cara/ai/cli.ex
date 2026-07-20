@@ -118,7 +118,7 @@ defmodule Cara.AI.CLI do
 
   @spec get_user_input() :: :quit | {:ok, String.t()}
   defp get_user_input do
-    input = IO.gets("You: ") |> String.trim()
+    input = String.trim(IO.gets("You: "))
 
     cond do
       input == "" -> get_user_input()

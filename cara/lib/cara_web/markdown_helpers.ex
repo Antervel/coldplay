@@ -18,30 +18,35 @@ defmodule CaraWeb.MarkdownHelpers do
       |> Cara.LaTeXPreprocessor.run()
       |> fix_mermaid_labels()
 
-    MDEx.new(markdown: content, extension: [math_dollars: true])
-    |> MDExGFM.attach()
-    |> MDExMermaid.attach(
-      # already initialized in app.js
-      mermaid_init: "",
-      mermaid_pre_attrs: fn seq ->
-        id = if prefix, do: "mermaid-#{prefix}-#{seq}", else: "mermaid-#{seq}"
-        ~s(id="#{id}" class="mermaid" phx-hook="MermaidHook")
-      end
-    )
-    |> rename_steps("mermaid")
-    |> MDExKatex.attach(
-      # already initialized
-      katex_init: "",
-      katex_block_attrs: fn seq ->
-        id = if prefix, do: "katex-#{prefix}-#{seq}", else: "katex-#{seq}"
-        ~s(id="#{id}" class="katex-block" phx-hook="KatexHook")
-      end,
-      katex_inline_attrs: fn seq ->
-        id = if prefix, do: "katex-inline-#{prefix}-#{seq}", else: "katex-inline-#{seq}"
-        ~s(id="#{id}" class="katex-inline" phx-hook="KatexHook")
-      end
-    )
-    |> rename_steps("katex")
+    doc = MDEx.new(markdown: content, extension: [math_dollars: true])
+
+    processed_doc =
+      doc
+      |> MDExGFM.attach()
+      |> MDExMermaid.attach(
+        # already initialized in app.js
+        mermaid_init: "",
+        mermaid_pre_attrs: fn seq ->
+          id = if prefix, do: "mermaid-#{prefix}-#{seq}", else: "mermaid-#{seq}"
+          ~s(id="#{id}" class="mermaid" phx-hook="MermaidHook")
+        end
+      )
+      |> rename_steps("mermaid")
+      |> MDExKatex.attach(
+        # already initialized
+        katex_init: "",
+        katex_block_attrs: fn seq ->
+          id = if prefix, do: "katex-#{prefix}-#{seq}", else: "katex-#{seq}"
+          ~s(id="#{id}" class="katex-block" phx-hook="KatexHook")
+        end,
+        katex_inline_attrs: fn seq ->
+          id = if prefix, do: "katex-inline-#{prefix}-#{seq}", else: "katex-inline-#{seq}"
+          ~s(id="#{id}" class="katex-inline" phx-hook="KatexHook")
+        end
+      )
+      |> rename_steps("katex")
+
+    processed_doc
     |> then(fn doc ->
       if sanitize do
         MDEx.to_html!(doc, sanitize: MDEx.Document.default_sanitize_options())

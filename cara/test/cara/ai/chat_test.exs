@@ -43,7 +43,8 @@ defmodule Cara.AI.ChatTest do
 
     test "returns all messages including user and assistant messages" do
       context =
-        Chat.new_context("Test system prompt")
+        "Test system prompt"
+        |> Chat.new_context()
         |> Context.append(ReqLLM.Context.user("Hello"))
         |> Context.append(ReqLLM.Context.assistant("Hi there!"))
 
@@ -59,7 +60,8 @@ defmodule Cara.AI.ChatTest do
   describe "reset_context/1" do
     test "keeps only system messages" do
       context =
-        Chat.new_context("Test system prompt")
+        "Test system prompt"
+        |> Chat.new_context()
         |> Context.append(ReqLLM.Context.user("Hello"))
         |> Context.append(ReqLLM.Context.assistant("Hi there!"))
         |> Context.append(ReqLLM.Context.user("How are you?"))
@@ -74,7 +76,8 @@ defmodule Cara.AI.ChatTest do
 
     test "preserves multiple system messages if present" do
       context =
-        Chat.new_context("Test system prompt")
+        "Test system prompt"
+        |> Chat.new_context()
         |> Context.append(ReqLLM.Context.system("Additional instruction"))
         |> Context.append(ReqLLM.Context.user("Hello"))
 

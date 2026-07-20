@@ -2,7 +2,7 @@ defmodule CaraWeb.ChatLive do
   use CaraWeb, :live_view
   require Logger
 
-  @build_date DateTime.utc_now() |> Calendar.strftime("%Y%m%d")
+  @build_date Calendar.strftime(DateTime.utc_now(), "%Y%m%d")
 
   alias BranchedLLM.BranchedChat
   alias BranchedLLM.ChatOrchestrator
@@ -204,7 +204,7 @@ defmodule CaraWeb.ChatLive do
       )
 
     # ALWAYS update the server-side state (no stream reset — push_chunk_to_client uses stream_insert)
-    socket = assign(socket, :branched_chat, branched_chat) |> assign_vm()
+    socket = assign_vm(assign(socket, :branched_chat, branched_chat))
 
     # ONLY push events to JS if the branch is currently active
     socket =
@@ -234,7 +234,8 @@ defmodule CaraWeb.ChatLive do
       else
         assign_branched_chat(socket, branched_chat)
       end
-      |> process_next_message_or_idle(branch_id)
+
+    socket = process_next_message_or_idle(socket, branch_id)
 
     {:noreply, socket}
   end
@@ -418,7 +419,7 @@ defmodule CaraWeb.ChatLive do
 
   @spec app_version() :: String.t()
   defp app_version do
-    vsn = Application.spec(:cara, :vsn) |> to_string
+    vsn = to_string(Application.spec(:cara, :vsn))
     "#{vsn} - #{@build_date}"
   end
 

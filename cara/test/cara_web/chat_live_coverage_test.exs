@@ -72,8 +72,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       render_hook(view, "delete_message", %{"id" => msg_id})
       state = :sys.get_state(view.pid)
 
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
-             |> Message.deleted?()
+      assert Message.deleted?(hd(state.socket.assigns.branched_chat.branches["main"].messages))
     end
 
     test "delete_message with idx event", %{conn: conn} do
@@ -81,8 +80,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       render_hook(view, "delete_message", %{"idx" => 0})
       state = :sys.get_state(view.pid)
 
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
-             |> Message.deleted?()
+      assert Message.deleted?(hd(state.socket.assigns.branched_chat.branches["main"].messages))
     end
 
     test "delete_message with invalid idx", %{conn: conn} do
@@ -132,8 +130,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       render_hook(view, "delete_message", %{"idx" => 0})
       state = :sys.get_state(view.pid)
 
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
-             |> Message.deleted?()
+      assert Message.deleted?(hd(state.socket.assigns.branched_chat.branches["main"].messages))
     end
 
     test "handle_info :llm_metadata", %{conn: conn} do

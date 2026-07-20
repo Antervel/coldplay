@@ -111,7 +111,7 @@ defmodule BranchedLLM.BranchedChatTest do
     chat = BranchedChat.delete_message(chat, msg_id)
 
     messages = BranchedChat.get_current_messages(chat)
-    assert Enum.find(messages, &(&1.id == msg_id)) |> Message.deleted?()
+    assert Message.deleted?(Enum.find(messages, &(&1.id == msg_id)))
 
     # Context should only have system message now
     context = BranchedChat.get_current_context(chat)

@@ -67,7 +67,8 @@ defmodule BranchedLLM.ToolHandlerTest do
     test "preserves existing messages in context" do
       # Start with a context that already has messages
       context =
-        Context.new([])
+        []
+        |> Context.new()
         |> Context.append(Context.user("Hello"))
         |> Context.append(Context.assistant("Hi there!"))
 
