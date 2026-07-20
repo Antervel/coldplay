@@ -143,7 +143,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       send(view.pid, {:chat_started, %{id: "to-leave", student: %{name: "Leaver", subject: "S", age: "1"}}})
       send(view.pid, {:chat_left, %{id: "to-leave"}})
       state = :sys.get_state(view.pid)
-      assert !Map.has_key?(state.socket.assigns.chats, "to-leave")
+      assert !Map.has_key?(state.socket.assigns.chat_data, "to-leave")
     end
 
     test "handle_info :new_message when chat doesn't exist", %{conn: conn} do
@@ -152,7 +152,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       send(view.pid, {:chat_left, %{id: "test-chat-id"}})
       send(view.pid, {:new_message, %{chat_id: "non-existent", message: %{}}})
       state = :sys.get_state(view.pid)
-      assert !Map.has_key?(state.socket.assigns.chats, "non-existent")
+      assert !Map.has_key?(state.socket.assigns.chat_data, "non-existent")
     end
 
     test "handle_info :message_deleted", %{conn: conn} do
@@ -163,7 +163,7 @@ defmodule CaraWeb.ChatLiveCoverageTest do
 
       send(view.pid, {:message_deleted, %{chat_id: "c1", message_id: "m1"}})
       state = :sys.get_state(view.pid)
-      assert hd(state.socket.assigns.chats["c1"].messages).deleted == true
+      assert hd(state.socket.assigns.chat_data["c1"].messages).deleted == true
     end
 
     test "handle_info :teacher_joined", %{conn: conn} do

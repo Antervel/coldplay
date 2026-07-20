@@ -94,6 +94,63 @@ defmodule CaraWeb.TeacherLiveTest do
     assert html =~ "Hello Bob!"
   end
 
+  test "chat_started preserves history when chat already exists", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/teacher")
+
+    chat_id = "reload-chat-id"
+
+    PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:chat_started, %{id: chat_id, student: %{name: "Alice", subject: "Math", age: "10"}}}
+    )
+
+    message = %{sender: :user, content: "Hello, I already said this", id: "msg-preserve", deleted: false}
+    PubSub.broadcast(Cara.PubSub, "teacher:monitor", {:new_message, %{chat_id: chat_id, message: message}})
+
+    assert render(view) =~ "Hello, I already said this"
+
+    # Student reloads — chat_started fires again with same id
+    PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:chat_started, %{id: chat_id, student: %{name: "Alice", subject: "Science", age: "10"}}}
+    )
+
+    html = render(view)
+    assert html =~ "Science"
+    assert html =~ "Hello, I already said this"
+  end
+
+  test "chat_count does not inflate on duplicate chat_state", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/teacher")
+
+    chat_id = "count-chat-id"
+
+    PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:chat_started, %{id: chat_id, student: %{name: "Bob", subject: "History", age: "12"}}}
+    )
+
+    PubSub.broadcast(
+      Cara.PubSub,
+      "teacher:monitor",
+      {:chat_state, %{id: chat_id, student: %{name: "Bob", subject: "History", age: "12"}, messages: []}}
+    )
+
+    state = :sys.get_state(view.pid)
+    assert state.socket.assigns.chat_count == 1
+  end
+
+  test "empty state displays when no students are connected", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/teacher")
+
+    html = render(view)
+    assert html =~ "No active students"
+    assert html =~ "Waiting for students to join"
+  end
+
   test "teacher dashboard shows disabled message when config is false", %{conn: conn} do
     Application.put_env(:cara, :enable_teacher_monitoring, false)
     on_exit(fn -> Application.put_env(:cara, :enable_teacher_monitoring, true) end)
