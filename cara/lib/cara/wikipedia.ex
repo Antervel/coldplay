@@ -172,7 +172,8 @@ defmodule Cara.Wikipedia do
   defp parse_search_response(response) do
     case response do
       [_search_term, titles, extracts, urls] ->
-        Enum.zip(titles, extracts)
+        titles
+        |> Enum.zip(extracts)
         |> Enum.zip(urls)
         |> Enum.map(fn {{title, extract}, url} ->
           %{

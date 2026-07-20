@@ -5,13 +5,15 @@ defmodule Cara.HTTPClient do
 
   # credo:disable-for-this-file Credo.Check.Extra.NoDirectThirdPartyCalls
   def get(url, opts \\ []) do
-    Req.new(opts)
+    opts
+    |> Req.new()
     |> OpentelemetryReq.attach(no_path_params: true)
     |> Req.get(url: url)
   end
 
   def post(url, opts \\ []) do
-    Req.new(opts)
+    opts
+    |> Req.new()
     |> OpentelemetryReq.attach(no_path_params: true)
     |> Req.post(url: url)
   end

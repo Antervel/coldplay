@@ -24,14 +24,14 @@ defmodule CaraWeb.ChatLiveCoverageTest do
   describe "ChatLive extra coverage" do
     test "toggle_sidebar event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
-      assert view |> render_hook("toggle_sidebar", %{}) =~ "sidebar"
+      assert render_hook(view, "toggle_sidebar", %{}) =~ "sidebar"
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.show_sidebar == true
     end
 
     test "toggle_branches event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
-      view |> render_hook("toggle_branches", %{})
+      render_hook(view, "toggle_branches", %{})
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.show_branches == true
     end
@@ -41,25 +41,25 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       state = :sys.get_state(view.pid)
       msg_id = hd(state.socket.assigns.branched_chat.branches["main"].messages).id
 
-      view |> render_hook("branch_off", %{"id" => msg_id})
+      render_hook(view, "branch_off", %{"id" => msg_id})
       state = :sys.get_state(view.pid)
       new_branch_id = state.socket.assigns.branched_chat.current_branch_id
       assert new_branch_id != "main"
 
-      view |> render_hook("switch_branch", %{"id" => "main"})
+      render_hook(view, "switch_branch", %{"id" => "main"})
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.branched_chat.current_branch_id == "main"
     end
 
     test "switch_branch with same id", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
-      view |> render_hook("switch_branch", %{"id" => "main"})
+      render_hook(view, "switch_branch", %{"id" => "main"})
       assert render(view) =~ "Test Student"
     end
 
     test "branch_off with non-existent id", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
-      view |> render_hook("branch_off", %{"id" => "non-existent"})
+      render_hook(view, "branch_off", %{"id" => "non-existent"})
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.branched_chat.current_branch_id == "main"
     end
@@ -69,32 +69,30 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       state = :sys.get_state(view.pid)
       msg_id = hd(state.socket.assigns.branched_chat.branches["main"].messages).id
 
-      view |> render_hook("delete_message", %{"id" => msg_id})
+      render_hook(view, "delete_message", %{"id" => msg_id})
       state = :sys.get_state(view.pid)
 
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
-             |> Message.deleted?()
+      assert Message.deleted?(hd(state.socket.assigns.branched_chat.branches["main"].messages))
     end
 
     test "delete_message with idx event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
-      view |> render_hook("delete_message", %{"idx" => 0})
+      render_hook(view, "delete_message", %{"idx" => 0})
       state = :sys.get_state(view.pid)
 
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
-             |> Message.deleted?()
+      assert Message.deleted?(hd(state.socket.assigns.branched_chat.branches["main"].messages))
     end
 
     test "delete_message with invalid idx", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
-      view |> render_hook("delete_message", %{"idx" => 100})
+      render_hook(view, "delete_message", %{"idx" => 100})
       assert render(view) =~ "Test Student"
     end
 
     test "cancel event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/chat")
       send(view.pid, {:llm_status, "main", "Thinking..."})
-      view |> render_hook("cancel", %{})
+      render_hook(view, "cancel", %{})
       state = :sys.get_state(view.pid)
       assert state.socket.assigns.branched_chat.branches["main"].active_task == nil
     end
@@ -129,11 +127,10 @@ defmodule CaraWeb.ChatLiveCoverageTest do
       on_exit(fn -> Application.put_env(:cara, :enable_teacher_monitoring, true) end)
 
       {:ok, view, _html} = live(conn, ~p"/chat")
-      view |> render_hook("delete_message", %{"idx" => 0})
+      render_hook(view, "delete_message", %{"idx" => 0})
       state = :sys.get_state(view.pid)
 
-      assert hd(state.socket.assigns.branched_chat.branches["main"].messages)
-             |> Message.deleted?()
+      assert Message.deleted?(hd(state.socket.assigns.branched_chat.branches["main"].messages))
     end
 
     test "handle_info :llm_metadata", %{conn: conn} do

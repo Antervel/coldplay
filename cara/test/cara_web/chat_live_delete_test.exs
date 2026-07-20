@@ -77,8 +77,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       assert length(current_context.messages) == 3
 
       # Now delete the assistant message (idx 2)
-      view
-      |> render_hook("delete_message", %{"idx" => 2})
+      render_hook(view, "delete_message", %{"idx" => 2})
 
       # Verify it's gone from UI
       html = render(view)
@@ -138,7 +137,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       assert length(current_context.messages) == 5
 
       # Delete R-M1 (idx 2)
-      view |> render_hook("delete_message", %{"idx" => 2})
+      render_hook(view, "delete_message", %{"idx" => 2})
 
       # chat_messages: [welcome, M1, R-M1, M2, R-M2] (indices 0, 1, 2, 3, 4)
       state = :sys.get_state(view.pid)
@@ -152,7 +151,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       assert length(current_context.messages) == 4
 
       # Delete R-M2 (idx 4)
-      view |> render_hook("delete_message", %{"idx" => 4})
+      render_hook(view, "delete_message", %{"idx" => 4})
 
       # chat_messages: [welcome, M1, R-M1, M2, R-M2]
       state = :sys.get_state(view.pid)
@@ -203,7 +202,7 @@ defmodule CaraWeb.ChatLiveDeleteTest do
       user_msg_id = Enum.at(current_messages, 1).id
 
       # Delete user message (idx 1)
-      view |> render_hook("delete_message", %{"id" => user_msg_id})
+      render_hook(view, "delete_message", %{"id" => user_msg_id})
 
       # Verify it's marked as deleted
       state = :sys.get_state(view.pid)

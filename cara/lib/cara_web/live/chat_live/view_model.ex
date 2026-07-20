@@ -15,12 +15,11 @@ defmodule CaraWeb.ChatLive.ViewModel do
 
     %{
       current_branch: current_branch,
-      current_messages: messages,
       last_idx: length(messages) - 1,
       last_message_id: if(last_message, do: last_message.id, else: nil),
+      message_idx_map: Map.new(Enum.with_index(messages), fn {msg, idx} -> {msg.id, idx} end),
       is_main_branch: current_branch_id == "main",
       current_branch_name: if(current_branch.name == "", do: "New branch...", else: current_branch.name),
-      # Any other derived UI state
       show_any_right_panel: assigns.show_branches or assigns.show_notes
     }
   end

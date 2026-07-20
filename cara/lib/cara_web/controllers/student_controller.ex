@@ -23,7 +23,7 @@ defmodule CaraWeb.StudentController do
     Audit.create_session(%{
       chat_id: chat_id,
       student_name: student_params["name"],
-      student_age: Integer.parse(student_params["age"]) |> elem(0),
+      student_age: elem(Integer.parse(student_params["age"]), 0),
       student_subject: student_params["subject"]
     })
 

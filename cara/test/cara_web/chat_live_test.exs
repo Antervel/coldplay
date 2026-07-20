@@ -28,7 +28,7 @@ defmodule CaraWeb.ChatLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/chat")
 
-      assert view |> has_element?("form")
+      assert has_element?(view, "form")
       assert view |> element("form") |> render() =~ "message"
     end
 
@@ -188,8 +188,7 @@ defmodule CaraWeb.ChatLiveTest do
 
       # Push the event directly with the alternative format
       # This will trigger the handle_event("submit_message", %{"message" => message}, socket) clause
-      view
-      |> render_hook("submit_message", %{"message" => "Test"})
+      render_hook(view, "submit_message", %{"message" => "Test"})
 
       :timer.sleep(100)
 

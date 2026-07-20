@@ -63,7 +63,7 @@ defmodule CaraWeb.ChatLiveBranchTest do
     [_welcome, user_msg, _ai_msg] = chat_messages
 
     # 4. Branch off from the user message
-    view |> render_hook("branch_off", %{id: user_msg.id})
+    render_hook(view, "branch_off", %{id: user_msg.id})
 
     # 5. Verify state after branching
     new_state = :sys.get_state(view.pid)
@@ -114,7 +114,7 @@ defmodule CaraWeb.ChatLiveBranchTest do
 
     # 6. Switch back to main branch
 
-    view |> render_click("switch_branch", %{id: "main"})
+    render_click(view, "switch_branch", %{id: "main"})
 
     back_state = :sys.get_state(view.pid)
     back_branched_chat = back_state.socket.assigns.branched_chat
@@ -129,10 +129,10 @@ defmodule CaraWeb.ChatLiveBranchTest do
     # Initially show_branches is false
     assert :sys.get_state(view.pid).socket.assigns.show_branches == false
 
-    view |> render_click("toggle_branches")
+    render_click(view, "toggle_branches")
     assert :sys.get_state(view.pid).socket.assigns.show_branches == true
 
-    view |> render_click("toggle_branches")
+    render_click(view, "toggle_branches")
     assert :sys.get_state(view.pid).socket.assigns.show_branches == false
   end
 end

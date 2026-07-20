@@ -223,7 +223,9 @@
           {Credo.Check.Extra.NoDirectThirdPartyCalls, []},
           {Credo.Check.Extra.NoLocaleInTaskClosure, []},
           {Credo.Check.Extra.NoNonIdempotentJobs, []},
-          {Credo.Check.Extra.NoUnsupervisedProcesses, []}
+          {Credo.Check.Extra.NoUnsupervisedProcesses, []},
+          {Credo.Check.Refactor.PipeChainStart, []},
+          {Credo.Check.Extra.NoSingleStepPipeline, []}
         ],
         disabled: [
           #
@@ -260,7 +262,6 @@
           {Credo.Check.Refactor.ModuleDependencies, []},
           {Credo.Check.Refactor.NegatedIsNil, []},
           {Credo.Check.Refactor.PassAsyncInTestCases, []},
-          {Credo.Check.Refactor.PipeChainStart, []},
           {Credo.Check.Refactor.RejectFilter, []},
           {Credo.Check.Refactor.VariableRebinding, []},
           {Credo.Check.Warning.LazyLogging, []},
@@ -269,7 +270,6 @@
           {Credo.Check.Warning.MixEnv, []},
           {Credo.Check.Warning.UnsafeToAtom, []},
           {Credo.Check.Extra.NoAuthInHandleEvent, []}
-
           # {Credo.Check.Refactor.MapInto, []},
 
           #

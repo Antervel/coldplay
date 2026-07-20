@@ -125,14 +125,13 @@ defmodule Cara.ContentClassifier do
   """
   @spec get_max_score(classification_result()) :: float()
   def get_max_score(result) do
-    [
+    Enum.max([
       get_score(result, "sexual", "score"),
       get_score(result, "detoxify", "toxicity"),
       get_score(result, "detoxify", "severe_toxicity"),
       get_score(result, "detoxify", "obscene"),
       get_score(result, "detoxify", "threat")
-    ]
-    |> Enum.max()
+    ])
   end
 
   defp get_score(result, "sexual", _key_name) do
@@ -176,8 +175,8 @@ defmodule Cara.ContentClassifier do
   """
   @spec endpoint_url() :: String.t()
   def endpoint_url do
-    host = Application.get_env(:cara, :classifier_api, []) |> Keyword.get(:host, "classifier-api")
-    port = Application.get_env(:cara, :classifier_api, []) |> Keyword.get(:port, 8002)
+    host = Keyword.get(Application.get_env(:cara, :classifier_api, []), :host, "classifier-api")
+    port = Keyword.get(Application.get_env(:cara, :classifier_api, []), :port, 8002)
     "http://#{host}:#{port}/score"
   end
 
@@ -250,6 +249,6 @@ defmodule Cara.ContentClassifier do
   end
 
   defp get_threshold(key, default) do
-    Application.get_env(:cara, :classifier_api, []) |> Keyword.get(key, default)
+    Keyword.get(Application.get_env(:cara, :classifier_api, []), key, default)
   end
 end
