@@ -40,6 +40,12 @@ defmodule CaraWeb.ChatLive do
         {:ok,
          socket
          |> Session.assign_new_session(info, chat_module())
+         |> then(fn socket ->
+           messages = BranchedChat.get_current_messages(socket.assigns.branched_chat)
+
+           socket
+           |> stream(:messages, messages)
+         end)
          |> assign_vm()
          |> assign(:app_version, app_version())}
 
@@ -49,8 +55,11 @@ defmodule CaraWeb.ChatLive do
   end
 
   defp assign_branched_chat(socket, branched_chat) do
+    messages = BranchedChat.get_current_messages(branched_chat)
+
     socket
     |> assign(branched_chat: branched_chat)
+    |> stream(:messages, messages, reset: true)
     |> assign_vm()
   end
 
@@ -145,6 +154,7 @@ defmodule CaraWeb.ChatLive do
   @impl true
   def handle_event("delete_message", %{"id" => id}, socket) do
     branched_chat = ChatService.delete_message(socket.assigns.branched_chat, id, socket)
+
     {:noreply, socket |> assign_branched_chat(branched_chat)}
   end
 
@@ -194,32 +204,13 @@ defmodule CaraWeb.ChatLive do
         socket.assigns.chat_id
       )
 
-    # ALWAYS update the server-side state
-    socket = assign_branched_chat(socket, branched_chat)
+    # ALWAYS update the server-side state (no stream reset — push_chunk_to_client uses stream_insert)
+    socket = assign(socket, :branched_chat, branched_chat) |> assign_vm()
 
     # ONLY push events to JS if the branch is currently active
     socket =
       if branch_id == socket.assigns.branched_chat.current_branch_id do
-        streaming_message_id = get_streaming_message_id(branched_chat, branch_id)
-        message_content = get_streaming_message_content(branched_chat, branch_id)
-
-        prefix =
-          if streaming_message_id,
-            do: "#{streaming_message_id}-#{branch_id}",
-            else: "main"
-
-        rendered_html =
-          if message_content do
-            MarkdownHelpers.render_markdown(message_content, prefix)
-          else
-            ""
-          end
-
-        push_event(socket, "llm_chunk", %{
-          message_id: streaming_message_id,
-          branch_id: branch_id,
-          rendered_html: extract_html(rendered_html)
-        })
+        push_chunk_to_client(socket, branched_chat, branch_id)
       else
         socket
       end
@@ -238,12 +229,9 @@ defmodule CaraWeb.ChatLive do
         socket
       )
 
-    # ONLY push llm_end (which triggers Mermaid/KaTeX) if branch is active
     socket =
       if branch_id == socket.assigns.branched_chat.current_branch_id do
-        socket
-        |> assign_branched_chat(branched_chat)
-        |> push_event("llm_end", %{})
+        push_end_to_client(socket, branched_chat, branch_id)
       else
         assign_branched_chat(socket, branched_chat)
       end
@@ -301,6 +289,54 @@ defmodule CaraWeb.ChatLive do
   end
 
   ## Private Functions
+
+  defp push_chunk_to_client(socket, branched_chat, branch_id) do
+    streaming_message = get_last_assistant_message(branched_chat, branch_id)
+
+    message_content = streaming_message && streaming_message.content
+
+    prefix =
+      if streaming_message,
+        do: "#{streaming_message.id}-#{branch_id}",
+        else: "main"
+
+    rendered_html =
+      if message_content do
+        MarkdownHelpers.render_markdown(message_content, prefix)
+      else
+        ""
+      end
+
+    socket
+    |> push_event("llm_chunk", %{
+      message_id: streaming_message && streaming_message.id,
+      branch_id: branch_id,
+      rendered_html: extract_html(rendered_html)
+    })
+    |> then(fn socket ->
+      if streaming_message do
+        stream_insert(socket, :messages, streaming_message)
+      else
+        socket
+      end
+    end)
+  end
+
+  defp push_end_to_client(socket, branched_chat, branch_id) do
+    final_message = get_last_assistant_message(branched_chat, branch_id)
+
+    socket
+    |> assign(branched_chat: branched_chat)
+    |> assign_vm()
+    |> then(fn socket ->
+      if final_message do
+        stream_insert(socket, :messages, final_message)
+      else
+        socket
+      end
+    end)
+    |> push_event("llm_end", %{})
+  end
 
   defp process_next_message_or_idle(socket, branch_id) do
     branched_chat = socket.assigns.branched_chat
@@ -398,19 +434,5 @@ defmodule CaraWeb.ChatLive do
       _ ->
         nil
     end
-  end
-
-  # Helper function to get the ID of the message currently being streamed for a branch
-  # Returns the ID of the last assistant message in the branch, or nil if none exists
-  defp get_streaming_message_id(branched_chat, branch_id) do
-    get_last_assistant_message(branched_chat, branch_id)
-    |> then(&(&1 && &1.id))
-  end
-
-  # Helper function to get the content of the message currently being streamed for a branch
-  # Returns the content of the last assistant message in the branch, or nil if none exists
-  defp get_streaming_message_content(branched_chat, branch_id) do
-    get_last_assistant_message(branched_chat, branch_id)
-    |> then(&(&1 && &1.content))
   end
 end
