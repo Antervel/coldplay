@@ -13,34 +13,49 @@ defmodule CaraWeb.TeacherLive do
     end
 
     {:ok,
-     assign(socket,
-       chats: %{},
-       page_title: "Teacher Dashboard",
-       monitoring_enabled: monitoring_enabled
-     )}
+     socket
+     |> assign(:page_title, "Teacher Dashboard")
+     |> assign(:monitoring_enabled, monitoring_enabled)
+     |> assign(:chat_count, 0)
+     |> assign(:chat_data, %{})
+     |> stream(:chats, [], reset: true)}
   end
 
   @impl true
   def handle_info({:chat_started, %{id: id, student: student}}, socket) do
-    # If chat already exists, we might want to keep the history
-    # instead of clearing it (student reloaded, but we have history)
-    chats =
-      Map.update(socket.assigns.chats, id, %{id: id, student: student, messages: [], max_score: 0.0}, fn chat ->
-        %{chat | student: student}
-      end)
+    chat =
+      case Map.get(socket.assigns.chat_data, id) do
+        nil -> %{id: id, student: student, messages: [], max_score: 0.0}
+        existing -> %{existing | student: student}
+      end
 
-    {:noreply, assign(socket, chats: chats)}
+    new_count =
+      if Map.has_key?(socket.assigns.chat_data, id) do
+        socket.assigns.chat_count
+      else
+        socket.assigns.chat_count + 1
+      end
+
+    {:noreply,
+     socket
+     |> assign(:chat_data, Map.put(socket.assigns.chat_data, id, chat))
+     |> stream_insert(:chats, chat, at: -1)
+     |> assign(:chat_count, new_count)}
   end
 
   @impl true
   def handle_info({:chat_left, %{id: id}}, socket) do
-    chats = Map.delete(socket.assigns.chats, id)
-    {:noreply, assign(socket, chats: chats)}
+    chat = %{id: id}
+
+    {:noreply,
+     socket
+     |> assign(:chat_data, Map.delete(socket.assigns.chat_data, id))
+     |> stream_delete(:chats, chat)
+     |> assign(:chat_count, max(0, socket.assigns.chat_count - 1))}
   end
 
   @impl true
   def handle_info({:chat_state, %{id: id, student: student, messages: messages}}, socket) do
-    # Received full state from a student session
     new_chat = %{
       id: id,
       student: student,
@@ -48,36 +63,54 @@ defmodule CaraWeb.TeacherLive do
       max_score: calculate_max_score(messages)
     }
 
-    chats = Map.put(socket.assigns.chats, id, new_chat)
-    {:noreply, assign(socket, chats: chats)}
+    new_count =
+      if Map.has_key?(socket.assigns.chat_data, id) do
+        socket.assigns.chat_count
+      else
+        socket.assigns.chat_count + 1
+      end
+
+    {:noreply,
+     socket
+     |> assign(:chat_data, Map.put(socket.assigns.chat_data, id, new_chat))
+     |> stream_insert(:chats, new_chat)
+     |> assign(:chat_count, new_count)}
   end
 
   @impl true
   def handle_info({:new_message, %{chat_id: chat_id, message: message}}, socket) do
-    chats =
-      Map.update(socket.assigns.chats, chat_id, nil, fn chat ->
+    case Map.get(socket.assigns.chat_data, chat_id) do
+      nil ->
+        {:noreply, socket}
+
+      chat ->
         new_messages = chat.messages ++ [message]
         new_score = get_message_score(message)
         max_score = max(chat.max_score, new_score)
 
-        %{chat | messages: new_messages, max_score: max_score}
-      end)
+        updated_chat = %{chat | messages: new_messages, max_score: max_score}
 
-    # If chat didn't exist (race condition), we ignore or could ask for state?
-    # Ignoring for now as state sync should handle it.
-    chats = if chats[chat_id], do: chats, else: socket.assigns.chats
-
-    {:noreply, assign(socket, chats: chats)}
+        {:noreply,
+         socket
+         |> assign(:chat_data, Map.put(socket.assigns.chat_data, chat_id, updated_chat))
+         |> stream_insert(:chats, updated_chat)}
+    end
   end
 
   @impl true
   def handle_info({:message_deleted, %{chat_id: chat_id, message_id: message_id}}, socket) do
-    chats =
-      Map.update(socket.assigns.chats, chat_id, nil, fn chat ->
-        %{chat | messages: mark_deleted(chat.messages, message_id)}
-      end)
+    case Map.get(socket.assigns.chat_data, chat_id) do
+      nil ->
+        {:noreply, socket}
 
-    {:noreply, assign(socket, chats: chats)}
+      chat ->
+        updated_chat = %{chat | messages: mark_deleted(chat.messages, message_id)}
+
+        {:noreply,
+         socket
+         |> assign(:chat_data, Map.put(socket.assigns.chat_data, chat_id, updated_chat))
+         |> stream_insert(:chats, updated_chat)}
+    end
   end
 
   # Ignore other messages (like broadcasted from self)
@@ -124,9 +157,12 @@ defmodule CaraWeb.TeacherLive do
       <h1 class="text-3xl font-bold mb-8 text-gray-800">Teacher Dashboard</h1>
 
       <%= if @monitoring_enabled do %>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <%= for {chat_id, chat} <- @chats do %>
-            <div class={"bg-white rounded-lg shadow-md flex flex-col h-[500px] overflow-hidden border-4 #{border_class(chat)}"}>
+        <div id="chats" phx-update="stream" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <%= for {id, chat} <- @streams.chats do %>
+            <div
+              id={id}
+              class={"bg-white rounded-lg shadow-md flex flex-col h-[500px] overflow-hidden border-4 #{border_class(chat)}"}
+            >
               <div class="bg-blue-600 text-white p-4">
                 <h2 class="font-bold text-lg">{chat.student.name}</h2>
                 <p class="text-sm opacity-80">{chat.student.subject} • {chat.student.age} years old</p>
@@ -139,10 +175,10 @@ defmodule CaraWeb.TeacherLive do
                       <%= if Map.get(message, :deleted, false) do %>
                         <div class="text-xs font-bold uppercase mb-1 opacity-70">Deleted by student</div>
                         <div class="line-through opacity-60">
-                          {render_markdown(message.content, "teacher-#{chat_id}-#{message.id}", sanitize: true)}
+                          {render_markdown(message.content, "teacher-#{chat.id}-#{message.id}", sanitize: true)}
                         </div>
                       <% else %>
-                        {render_markdown(message.content, "teacher-#{chat_id}-#{message.id}", sanitize: true)}
+                        {render_markdown(message.content, "teacher-#{chat.id}-#{message.id}", sanitize: true)}
                       <% end %>
                     </div>
                   </div>
@@ -150,9 +186,8 @@ defmodule CaraWeb.TeacherLive do
               </div>
             </div>
           <% end %>
-
-          <%= if Enum.empty?(@chats) do %>
-            <div class="col-span-full text-center py-20 text-gray-500">
+          <%= if @chat_count == 0 do %>
+            <div id="chats-empty" class="col-span-full text-center py-20 text-gray-500">
               <p class="text-xl">No active students.</p>
               <p class="text-sm">Waiting for students to join...</p>
             </div>
