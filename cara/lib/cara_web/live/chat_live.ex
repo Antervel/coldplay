@@ -74,52 +74,55 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_event("toggle", %{"what" => what}, socket) do
-    socket =
-      case what do
-        "sidebar" ->
-          assign(socket, show_sidebar: !socket.assigns.show_sidebar)
+    if authorized?(socket) do
+      socket =
+        case what do
+          "sidebar" ->
+            assign(socket, show_sidebar: !socket.assigns.show_sidebar)
 
-        "branches" ->
-          new_show = !socket.assigns.show_branches
-          assign(socket, show_branches: new_show, show_notes: if(new_show, do: false, else: socket.assigns.show_notes))
+          "branches" ->
+            new_show = !socket.assigns.show_branches
 
-        "notes" ->
-          new_show = !socket.assigns.show_notes
+            assign(socket,
+              show_branches: new_show,
+              show_notes: if(new_show, do: false, else: socket.assigns.show_notes)
+            )
 
-          assign(socket,
-            show_notes: new_show,
-            show_branches: if(new_show, do: false, else: socket.assigns.show_branches)
-          )
-      end
+          "notes" ->
+            new_show = !socket.assigns.show_notes
 
-    {:noreply, assign_vm(socket)}
+            assign(socket,
+              show_notes: new_show,
+              show_branches: if(new_show, do: false, else: socket.assigns.show_branches)
+            )
+        end
+
+      {:noreply, assign_vm(socket)}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Fallbacks for tests and legacy hooks
-  def handle_event("toggle_sidebar", _params, socket), do: handle_event("toggle", %{"what" => "sidebar"}, socket)
-  def handle_event("toggle_branches", _params, socket), do: handle_event("toggle", %{"what" => "branches"}, socket)
-  def handle_event("toggle_notes", _params, socket), do: handle_event("toggle", %{"what" => "notes"}, socket)
+  def handle_event("toggle_sidebar", _params, socket) do
+    if authorized?(socket), do: handle_event("toggle", %{"what" => "sidebar"}, socket), else: {:noreply, socket}
+  end
 
-  @impl true
-  def handle_event("switch_branch", %{"id" => id}, socket) do
-    branched_chat = ChatService.switch_branch(socket.assigns.branched_chat, id, socket)
+  def handle_event("toggle_branches", _params, socket) do
+    if authorized?(socket), do: handle_event("toggle", %{"what" => "branches"}, socket), else: {:noreply, socket}
+  end
 
-    {:noreply,
-     socket
-     |> assign_branched_chat(branched_chat)
-     |> push_event("rendered", %{})}
+  def handle_event("toggle_notes", _params, socket) do
+    if authorized?(socket), do: handle_event("toggle", %{"what" => "notes"}, socket), else: {:noreply, socket}
   end
 
   @impl true
-  def handle_event("branch_off", %{"id" => id}, socket) do
-    old_branch_id = socket.assigns.branched_chat.current_branch_id
-    branched_chat = ChatService.branch_off(socket.assigns.branched_chat, id, socket)
+  def handle_event("switch_branch", %{"id" => id}, socket) do
+    if authorized?(socket) do
+      branched_chat = ChatService.switch_branch(socket.assigns.branched_chat, id, socket)
 
-    if branched_chat.current_branch_id != old_branch_id do
-      # Opening branches, so close notes
       {:noreply,
        socket
-       |> assign(show_branches: true, show_notes: false)
        |> assign_branched_chat(branched_chat)
        |> push_event("rendered", %{})}
     else
@@ -128,42 +131,83 @@ defmodule CaraWeb.ChatLive do
   end
 
   @impl true
+  def handle_event("branch_off", %{"id" => id}, socket) do
+    if authorized?(socket) do
+      old_branch_id = socket.assigns.branched_chat.current_branch_id
+      branched_chat = ChatService.branch_off(socket.assigns.branched_chat, id, socket)
+
+      if branched_chat.current_branch_id != old_branch_id do
+        {:noreply,
+         socket
+         |> assign(show_branches: true, show_notes: false)
+         |> assign_branched_chat(branched_chat)
+         |> push_event("rendered", %{})}
+      else
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
   def handle_event("update_notes", %{"value" => notes}, socket) do
-    {:noreply, assign(socket, notes: notes)}
+    if authorized?(socket) do
+      {:noreply, assign(socket, notes: notes)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("submit_message", %{"chat" => %{"message" => message}}, socket) do
-    do_send_message(message, socket)
+    if authorized?(socket) do
+      do_send_message(message, socket)
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("submit_message", %{"message" => message}, socket) do
-    do_send_message(message, socket)
+    if authorized?(socket) do
+      do_send_message(message, socket)
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("validate", %{"chat" => params}, socket) do
-    # Update local state so it can be passed to FooterComponent if needed,
-    # but FooterComponent also has its own state.
-    # For tests, we update socket.assigns.message_data.
-    {:noreply, assign(socket, message_data: Map.merge(socket.assigns.message_data, params))}
+    if authorized?(socket) do
+      {:noreply, assign(socket, message_data: Map.merge(socket.assigns.message_data, params))}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_event("delete_message", %{"id" => id}, socket) do
-    branched_chat = ChatService.delete_message(socket.assigns.branched_chat, id, socket)
+    if authorized?(socket) do
+      branched_chat = ChatService.delete_message(socket.assigns.branched_chat, id, socket)
 
-    {:noreply, assign_branched_chat(socket, branched_chat)}
+      {:noreply, assign_branched_chat(socket, branched_chat)}
+    else
+      {:noreply, socket}
+    end
   end
 
   # Fallback for old clients (should not happen if refreshed, but for safety)
   def handle_event("delete_message", %{"idx" => idx}, socket) do
-    idx = if is_binary(idx), do: String.to_integer(idx), else: idx
-    msg_to_delete = Enum.at(BranchedChat.get_current_messages(socket.assigns.branched_chat), idx)
+    if authorized?(socket) do
+      idx = if is_binary(idx), do: String.to_integer(idx), else: idx
+      msg_to_delete = Enum.at(BranchedChat.get_current_messages(socket.assigns.branched_chat), idx)
 
-    if msg_to_delete do
-      handle_event("delete_message", %{"id" => msg_to_delete.id}, socket)
+      if msg_to_delete do
+        handle_event("delete_message", %{"id" => msg_to_delete.id}, socket)
+      else
+        {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
@@ -171,8 +215,12 @@ defmodule CaraWeb.ChatLive do
 
   @impl true
   def handle_event("cancel", _params, socket) do
-    branched_chat = ChatService.cancel_active_task(socket.assigns.branched_chat, socket)
-    {:noreply, assign_branched_chat(socket, branched_chat)}
+    if authorized?(socket) do
+      branched_chat = ChatService.cancel_active_task(socket.assigns.branched_chat, socket)
+      {:noreply, assign_branched_chat(socket, branched_chat)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -289,6 +337,10 @@ defmodule CaraWeb.ChatLive do
   end
 
   ## Private Functions
+
+  defp authorized?(socket) do
+    socket.assigns.student_info != nil
+  end
 
   defp push_chunk_to_client(socket, branched_chat, branch_id) do
     streaming_message = get_last_assistant_message(branched_chat, branch_id)
