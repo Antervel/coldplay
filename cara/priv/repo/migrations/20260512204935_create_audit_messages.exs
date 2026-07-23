@@ -1,6 +1,9 @@
 defmodule Cara.Repo.Migrations.CreateAuditMessages do
   use Ecto.Migration
 
+  @disable_ddl_transaction true
+  @disable_migration_lock true
+
   def change do
     create table(:audit_messages) do
       add :chat_id, :string, null: false
@@ -12,7 +15,7 @@ defmodule Cara.Repo.Migrations.CreateAuditMessages do
       timestamps(updated_at: false)
     end
 
-    create index(:audit_messages, [:chat_id])
-    create index(:audit_messages, [:chat_id, :branch_id])
+    create index(:audit_messages, [:chat_id], concurrently: true)
+    create index(:audit_messages, [:chat_id, :branch_id], concurrently: true)
   end
 end

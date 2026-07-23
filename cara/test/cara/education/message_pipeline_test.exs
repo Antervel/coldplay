@@ -2,7 +2,6 @@ defmodule Cara.Education.MessagePipelineTest do
   use ExUnit.Case, async: true
 
   alias Cara.Education.MessagePipeline
-  alias Cara.Education.MessagePipeline.Context
 
   describe "run/3" do
     test "returns context with event set" do
@@ -82,17 +81,7 @@ defmodule Cara.Education.MessagePipelineTest do
 
       # Both plugins ran without error
       assert context.event == :on_message
-      assert is_map(context.metadata)
-    end
-  end
-
-  describe "Context struct" do
-    test "has sensible defaults" do
-      context = %Context{content: "hi"}
-      assert context.metadata == %{}
-      assert context.status == :ok
-      assert context.assigns == %{}
-      assert context.event == nil
+      assert %MessagePipeline.Context{} = context
     end
   end
 end

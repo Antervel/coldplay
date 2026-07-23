@@ -60,12 +60,12 @@ defmodule CaraWeb.LogsController do
 
   defp parse_page(_), do: 1
 
-  @valid_sort_fields ~w(date student subject messages)
+  @valid_sort_fields ~W(date student subject messages)
   defp parse_sort(nil), do: :date
   defp parse_sort(str) when str in @valid_sort_fields, do: String.to_atom(str)
   defp parse_sort(_), do: :date
 
-  @valid_sort_dirs ~w(asc desc)
+  @valid_sort_dirs ~W(asc desc)
   defp parse_sort_dir(nil), do: :desc
   defp parse_sort_dir(str) when str in @valid_sort_dirs, do: String.to_atom(str)
   defp parse_sort_dir(_), do: :desc

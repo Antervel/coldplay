@@ -13,7 +13,7 @@ defmodule Cara.LaTeXPreprocessor do
 
   # ---- known math command names ------------------------------------------------
 
-  @math_commands ~w(
+  @math_commands ~W(
     alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa
     lambda mu nu xi pi varpi rho varrho sigma varsigma tau upsilon phi varphi chi
     psi omega

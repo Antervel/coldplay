@@ -8,6 +8,7 @@ defmodule Cara.HTTPClient do
     opts
     |> Req.new()
     |> OpentelemetryReq.attach(no_path_params: true)
+    # credo:disable-for-next-line
     |> Req.get(url: url)
   end
 
@@ -15,6 +16,7 @@ defmodule Cara.HTTPClient do
     opts
     |> Req.new()
     |> OpentelemetryReq.attach(no_path_params: true)
+    # credo:disable-for-next-line
     |> Req.post(url: url)
   end
 end

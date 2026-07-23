@@ -37,7 +37,6 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context("Test system prompt")
       history = Chat.get_history(context)
 
-      assert is_list(history)
       assert length(history) == 1
     end
 
@@ -136,7 +135,7 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context("Test system prompt")
       {:ok, response, new_context} = Chat.send_message("Hello", context, model: "openai:test-model")
 
-      assert is_binary(response)
+      assert byte_size(response) > 0
       assert response =~ "Hello"
       assert %Context{} = new_context
       assert length(new_context.messages) == 3
@@ -208,7 +207,7 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context("Test system prompt")
       {:ok, response, new_context} = Chat.send_message("Hello", context)
 
-      assert is_binary(response)
+      assert byte_size(response) > 0
       assert response =~ "Default response"
       assert %Context{} = new_context
       assert length(new_context.messages) == 3
@@ -295,8 +294,7 @@ defmodule Cara.AI.ChatTest do
       context = Chat.new_context("Test system prompt")
       {:ok, stream_response, _context_builder, _tool_calls} = Chat.send_message_stream("Hello", context)
 
-      chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
-      assert is_list(chunks)
+      _chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
     end
 
     test "context builder creates context with assistant message", %{bypass: bypass} do
@@ -442,8 +440,7 @@ defmodule Cara.AI.ChatTest do
           tools: [calculator_tool]
         )
 
-      chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
-      assert is_list(chunks)
+      _chunks = stream_response |> StreamResponse.tokens() |> Enum.to_list()
       assert tool_calls == []
     end
   end
@@ -550,15 +547,9 @@ defmodule Cara.AI.ChatTest do
 
     test "handles nil message in send_message_stream" do
       context = Chat.new_context("System")
-      # This exercises the nil branch in send_message_stream
-      # Use an unknown provider to avoid hitting the Bypass server
-      try do
-        Chat.send_message_stream(nil, context, model: "unknown:nonexistent")
-      rescue
-        _ -> :ok
-      catch
-        _ -> :ok
-      end
+      # When message is nil, the context should not be modified (no user message added)
+      # and the LLM call with an unknown provider returns {:error, _}
+      assert {:error, _reason} = Chat.send_message_stream(nil, context, model: "unknown:nonexistent")
     end
 
     test "orchestrates tool call and dummy stream response", %{bypass: bypass} do
@@ -662,8 +653,8 @@ defmodule Cara.AI.ChatTest do
       args = %{"expression" => "invalid syntax here"}
 
       assert {:error, error} = Chat.execute_tool(calculator_tool, args)
-      # The error is a struct with an error field
-      assert is_struct(error) or is_binary(error)
+      # The error is a binary string describing the parse failure
+      assert error =~ "Invalid expression"
     end
 
     test "returns error for missing expression parameter" do
@@ -672,8 +663,7 @@ defmodule Cara.AI.ChatTest do
 
       assert {:error, error} = Chat.execute_tool(calculator_tool, args)
       # ReqLLM returns a validation error struct, not a simple string
-      assert error.reason =~ "required :expression option not found" or
-               error == "Missing 'expression' parameter"
+      assert error.reason =~ "required :expression option not found"
     end
   end
 

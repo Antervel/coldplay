@@ -1,6 +1,9 @@
 defmodule Cara.Repo.Migrations.CreateToolResults do
   use Ecto.Migration
 
+  @disable_ddl_transaction true
+  @disable_migration_lock true
+
   def change do
     create table(:tool_results) do
       add :tool_name, :string, null: false
@@ -10,6 +13,6 @@ defmodule Cara.Repo.Migrations.CreateToolResults do
       timestamps()
     end
 
-    create index(:tool_results, [:tool_name, :args])
+    create index(:tool_results, [:tool_name, :args], concurrently: true)
   end
 end

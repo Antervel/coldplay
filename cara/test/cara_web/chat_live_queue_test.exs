@@ -87,7 +87,7 @@ defmodule CaraWeb.ChatLiveQueueTest do
     branched_chat = state.socket.assigns.branched_chat
     main_branch = branched_chat.branches["main"]
     assert main_branch.pending_messages == ["Second"]
-    assert main_branch.active_task != nil
+    assert is_pid(main_branch.active_task)
 
     # Finish first stream
     send(stream_pid1, {:continue_stream, [ReqLLM.StreamChunk.text("Response 1")]})
@@ -174,8 +174,8 @@ defmodule CaraWeb.ChatLiveQueueTest do
     # Both should be active
     state = :sys.get_state(view.pid)
     branched_chat = state.socket.assigns.branched_chat
-    assert branched_chat.branches["main"].active_task != nil
-    assert branched_chat.branches[new_branch_id].active_task != nil
+    assert is_pid(branched_chat.branches["main"].active_task)
+    assert is_pid(branched_chat.branches[new_branch_id].active_task)
 
     # Finish both
     send(main_stream_pid, {:continue_stream, [ReqLLM.StreamChunk.text("MainResp")]})

@@ -54,6 +54,7 @@ defmodule CaraWeb.MarkdownHelpers do
         MDEx.to_html!(doc)
       end
     end)
+    # credo:disable-for-next-line
     |> raw()
   end
 

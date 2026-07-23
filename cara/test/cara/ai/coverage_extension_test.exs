@@ -40,15 +40,6 @@ defmodule Cara.AI.CoverageExtensionTest do
 
       assert {:error, "failed"} = Chat.execute_tool(error_tool, %{})
     end
-
-    test "send_message_stream handles stream crash during tool detection" do
-      # This is hard to trigger without deep mocking of ReqLLM
-      # But we already have 100% coverage on handle_stream_for_tools due to other tests
-      # if we reached 100% in the previous run.
-      # Wait, did we reach 100% for Cara.AI.Chat?
-      # Yes, the previous run showed 100% for Cara.AI.Chat.
-      :ok
-    end
   end
 
   describe "Cara.AI.BranchedChat coverage" do

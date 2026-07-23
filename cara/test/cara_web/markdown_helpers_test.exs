@@ -8,20 +8,20 @@ defmodule CaraWeb.MarkdownHelpersTest do
   describe "render_markdown/1" do
     test "renders plain text" do
       result = safe_to_string(MarkdownHelpers.render_markdown("Hello, world!"))
-      assert is_binary(result)
+      assert byte_size(result) > 0
       assert String.contains?(result, "Hello, world!")
     end
 
     test "renders bold text" do
       result = safe_to_string(MarkdownHelpers.render_markdown("**bold**"))
       assert String.contains?(result, "bold")
-      assert String.contains?(result, "<strong>") || String.contains?(result, "<b>")
+      assert String.contains?(result, "<strong>")
     end
 
     test "renders italic text" do
       result = safe_to_string(MarkdownHelpers.render_markdown("*italic*"))
       assert String.contains?(result, "italic")
-      assert String.contains?(result, "<em>") || String.contains?(result, "<i>")
+      assert String.contains?(result, "<em>")
     end
 
     test "renders headers" do
@@ -34,7 +34,7 @@ defmodule CaraWeb.MarkdownHelpersTest do
       result = safe_to_string(MarkdownHelpers.render_markdown("- item 1\n- item 2"))
       assert String.contains?(result, "item 1")
       assert String.contains?(result, "item 2")
-      assert String.contains?(result, "<ul") || String.contains?(result, "<li")
+      assert String.contains?(result, "<ul")
     end
 
     test "renders links" do
@@ -65,7 +65,7 @@ defmodule CaraWeb.MarkdownHelpersTest do
     test "renders code blocks" do
       result = safe_to_string(MarkdownHelpers.render_markdown("```\ncode\n```"))
       assert String.contains?(result, "code")
-      assert String.contains?(result, "<pre") || String.contains?(result, "<code")
+      assert String.contains?(result, "<pre")
     end
 
     test "renders inline code" do
@@ -171,12 +171,12 @@ defmodule CaraWeb.MarkdownHelpersTest do
   describe "edge cases" do
     test "handles empty string" do
       result = safe_to_string(MarkdownHelpers.render_markdown(""))
-      assert is_binary(result)
+      assert result == ""
     end
 
     test "handles whitespace only" do
       result = safe_to_string(MarkdownHelpers.render_markdown("   \n\n  "))
-      assert is_binary(result)
+      assert result == ""
     end
 
     test "handles multiple paragraphs" do

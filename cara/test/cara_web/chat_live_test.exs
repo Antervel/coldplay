@@ -422,7 +422,7 @@ defmodule CaraWeb.ChatLiveTest do
       # Context should preserve the user message even on error
       state = :sys.get_state(view.pid)
       ctx = BranchedChat.get_current_context(state.socket.assigns.branched_chat)
-      refute is_nil(ctx)
+      assert %Context{} = ctx
       user_msg = List.last(ctx.messages)
       assert user_msg.role == :user
     end
@@ -484,7 +484,7 @@ defmodule CaraWeb.ChatLiveTest do
       # The orchestrator now handles context updates internally via :llm_end
       # This edge case is covered by the orchestrator tests
       state = :sys.get_state(view.pid)
-      refute is_nil(BranchedChat.get_current_context(state.socket.assigns.branched_chat))
+      assert %Context{} = BranchedChat.get_current_context(state.socket.assigns.branched_chat)
     end
   end
 

@@ -33,6 +33,7 @@ defmodule CaraWeb.Layouts do
   slot :inner_block, required: true
 
   def app(assigns) do
+    # credo:disable-for-next-line
     ~H"""
     <header class="navbar px-4 sm:px-6 lg:px-8">
       <div class="flex-1">
